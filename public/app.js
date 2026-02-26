@@ -1029,6 +1029,117 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ── WebMCP (W3C Web Model Context Protocol) ──
+// Exposes VIN tools to browser-based AI agents (e.g. Gemini in Chrome)
+// https://webmachinelearning.github.io/webmcp/
+
+if (typeof navigator !== 'undefined' && navigator.modelContext) {
+  const vinParam = {
+    type: 'object',
+    properties: { vin: { type: 'string', description: '17-character Vehicle Identification Number' } },
+    required: ['vin'],
+  };
+
+  navigator.modelContext.registerTool({
+    name: 'decode_vin',
+    description: 'Decode a Vehicle Identification Number (VIN) to get the full vehicle report including make, model, year, engine specs, safety ratings, open recalls, consumer complaints, fuel economy, and photos.',
+    inputSchema: vinParam,
+    execute: async ({ vin }) => {
+      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}`);
+      if (!res.ok) return { error: `Failed to decode VIN: HTTP ${res.status}` };
+      const report = await res.json();
+      // Also render in the UI
+      if (report.valid && report.vehicle) {
+        input.value = vin.toUpperCase();
+        currentReport = report;
+        saveToHistory(vin, report);
+        renderResults(report);
+        applyPreferences();
+        updateSaveButton(vin);
+        hero.classList.add('compact');
+        results.hidden = false;
+      }
+      return report;
+    },
+  });
+
+  navigator.modelContext.registerTool({
+    name: 'validate_vin',
+    description: 'Check if a VIN is valid (format, characters, checksum) without performing a full decode.',
+    inputSchema: vinParam,
+    execute: async ({ vin }) => {
+      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/validate`);
+      if (!res.ok) return { error: `Validation failed: HTTP ${res.status}` };
+      return await res.json();
+    },
+  });
+
+  navigator.modelContext.registerTool({
+    name: 'lookup_recalls',
+    description: 'Look up NHTSA safety recalls for a vehicle by VIN. Returns recall campaigns, affected components, consequences, and remedies.',
+    inputSchema: vinParam,
+    execute: async ({ vin }) => {
+      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/recalls`);
+      if (!res.ok) return { error: `Recall lookup failed: HTTP ${res.status}` };
+      return await res.json();
+    },
+  });
+
+  navigator.modelContext.registerTool({
+    name: 'lookup_complaints',
+    description: 'Look up NHTSA consumer complaints for a vehicle by VIN. Returns complaint summaries, crash/fire/injury counts.',
+    inputSchema: vinParam,
+    execute: async ({ vin }) => {
+      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/complaints`);
+      if (!res.ok) return { error: `Complaint lookup failed: HTTP ${res.status}` };
+      return await res.json();
+    },
+  });
+
+  navigator.modelContext.registerTool({
+    name: 'lookup_safety_ratings',
+    description: 'Get NHTSA crash test safety ratings for a vehicle by VIN. Returns overall rating and individual test scores (frontal, side, rollover).',
+    inputSchema: vinParam,
+    execute: async ({ vin }) => {
+      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/safety`);
+      if (!res.ok) return { error: `Safety rating lookup failed: HTTP ${res.status}` };
+      return await res.json();
+    },
+  });
+
+  navigator.modelContext.registerTool({
+    name: 'lookup_fuel_economy',
+    description: 'Get EPA fuel economy data for a vehicle by VIN. Returns city/highway/combined MPG, annual fuel cost, CO2 emissions.',
+    inputSchema: vinParam,
+    execute: async ({ vin }) => {
+      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/fuel`);
+      if (!res.ok) return { error: `Fuel economy lookup failed: HTTP ${res.status}` };
+      return await res.json();
+    },
+  });
+
+  navigator.modelContext.registerTool({
+    name: 'batch_decode',
+    description: 'Decode multiple VINs at once (up to 10). Returns an array of vehicle reports.',
+    inputSchema: {
+      type: 'object',
+      properties: { vins: { type: 'array', items: { type: 'string' }, description: 'Array of up to 10 VINs to decode', maxItems: 10 } },
+      required: ['vins'],
+    },
+    execute: async ({ vins }) => {
+      const res = await fetch('/api/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vins }),
+      });
+      if (!res.ok) return { error: `Batch decode failed: HTTP ${res.status}` };
+      return await res.json();
+    },
+  });
+
+  console.log('[WebMCP] 7 VIN tools registered for browser AI agents');
+}
+
 // ── Init ──
 renderHistory();
 checkUrlVin();
