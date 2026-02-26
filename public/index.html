@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIN Decoder — mcp.vin</title>
+  <link rel="stylesheet" href="style.css?v=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Landing / Input -->
+  <header id="hero">
+    <div class="hero-inner">
+      <h1 class="logo">mcp<span class="dot">.</span>vin</h1>
+      <p class="tagline">Free VIN decoder &mdash; NHTSA, EPA, safety ratings, recalls &amp; more</p>
+      <form id="vin-form" autocomplete="off">
+        <div class="input-row">
+          <input
+            id="vin-input"
+            type="text"
+            maxlength="17"
+            placeholder="Enter 17-character VIN"
+            spellcheck="false"
+            autocapitalize="characters"
+            aria-label="Vehicle Identification Number"
+          >
+          <button id="decode-btn" type="submit">
+            <span class="btn-text">Decode</span>
+            <span class="btn-spinner" hidden></span>
+          </button>
+        </div>
+        <div id="input-error" class="input-error" hidden></div>
+        <p class="example">Try: <a href="#" data-vin="1HGCM82633A004352">1HGCM82633A004352</a> (2003 Honda Accord)</p>
+      </form>
+    </div>
+  </header>
+
+  <!-- Results -->
+  <main id="results" hidden>
+    <!-- Vehicle Hero -->
+    <section id="vehicle-hero" class="vehicle-hero">
+      <div class="hero-photos">
+        <img id="photo-main" class="photo-main" alt="Vehicle photo" loading="lazy">
+        <div class="photo-thumbs" id="photo-thumbs"></div>
+      </div>
+      <div class="hero-info">
+        <h2 id="vehicle-title" class="vehicle-title"></h2>
+        <div id="vin-display" class="vin-display"></div>
+        <div id="hero-badges" class="hero-badges"></div>
+      </div>
+    </section>
+
+    <!-- Info Cards Grid -->
+    <div class="cards-grid">
+      <!-- Overview -->
+      <section class="card" id="card-overview">
+        <h3 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Vehicle Overview
+        </h3>
+        <div class="card-body" id="overview-body"></div>
+      </section>
+
+      <!-- Engine -->
+      <section class="card" id="card-engine">
+        <h3 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+          Engine &amp; Drivetrain
+        </h3>
+        <div class="card-body" id="engine-body"></div>
+      </section>
+
+      <!-- Safety Ratings -->
+      <section class="card" id="card-safety-ratings">
+        <h3 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Safety Ratings
+        </h3>
+        <div class="card-body" id="safety-ratings-body"></div>
+      </section>
+
+      <!-- Fuel Economy -->
+      <section class="card" id="card-fuel">
+        <h3 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 22V8l4-6h6l4 6v14"/><path d="M17 12h2a2 2 0 012 2v4"/><rect x="5" y="12" width="8" height="5" rx="1"/><path d="M6 2h8"/></svg>
+          Fuel Economy
+        </h3>
+        <div class="card-body" id="fuel-body"></div>
+      </section>
+
+      <!-- Recalls -->
+      <section class="card card-wide" id="card-recalls">
+        <h3 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Recalls
+          <span id="recall-count" class="count-badge"></span>
+        </h3>
+        <div class="card-body" id="recalls-body"></div>
+      </section>
+
+      <!-- Complaints -->
+      <section class="card card-wide" id="card-complaints">
+        <h3 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          Consumer Complaints
+          <span id="complaint-count" class="count-badge"></span>
+        </h3>
+        <div class="card-body" id="complaints-body"></div>
+      </section>
+
+      <!-- Safety Equipment -->
+      <section class="card card-wide" id="card-safety-equip">
+        <h3 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Safety Equipment
+        </h3>
+        <div class="card-body" id="safety-equip-body"></div>
+      </section>
+
+      <!-- Manufacturing -->
+      <section class="card" id="card-plant">
+        <h3 class="card-title">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h20"/><path d="M5 20V8l5 4V8l5 4V4l5 4v12"/></svg>
+          Manufacturing
+        </h3>
+        <div class="card-body" id="plant-body"></div>
+      </section>
+
+      <!-- Raw Data -->
+      <section class="card card-full" id="card-raw">
+        <h3 class="card-title card-title-toggle" data-target="raw-body">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          Raw NHTSA Data
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </h3>
+        <div class="card-body card-body-collapsed" id="raw-body"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- History sidebar -->
+  <aside id="history-panel" class="history-panel" hidden>
+    <h4>Recent VINs</h4>
+    <ul id="history-list"></ul>
+    <button id="clear-history" class="clear-history">Clear History</button>
+  </aside>
+  <button id="history-toggle" class="history-toggle" title="Recent VINs">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  </button>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <footer class="footer">
+    <p>Data from <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener noreferrer">NHTSA</a>, <a href="https://fueleconomy.gov" target="_blank" rel="noopener noreferrer">EPA</a>, <a href="https://www.imagin.studio" target="_blank" rel="noopener noreferrer">IMAGIN.studio</a> &mdash; All free, no API key required</p>
+  </footer>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>
