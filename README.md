@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js 18+](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-purple.svg)](https://modelcontextprotocol.io)
+[![Smithery](https://smithery.ai/badge/@keptlive/vin-mcp)](https://smithery.ai/server/@keptlive/vin-mcp)
 
 [mcp.vin](https://mcp.vin) -- Try it now
 
@@ -28,6 +29,12 @@ Additionally, VIN validation (checksum, WMI country/manufacturer decode, model y
 ---
 
 ## Quick Start -- Connect via MCP
+
+### Smithery (one command)
+
+```bash
+npx -y @smithery/cli install @keptlive/vin-mcp --client claude
+```
 
 ### Claude Code (stdio)
 

@@ -1,0 +1,13 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # No configuration needed — VIN MCP requires no API keys or accounts.
+    type: object
+    required: []
+    properties: {}
+  commandFunction:
+    # A function that produces the CLI command to start the MCP on stdio.
+    |-
+    (config) => ({ command: 'npx', args: ['-y', 'vin-mcp'] })
