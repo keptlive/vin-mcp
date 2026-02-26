@@ -614,12 +614,44 @@ function renderHistory() {
 }
 
 // History toggle
-$('#history-toggle').addEventListener('click', () => {
+function openHistory() {
   const panel = $('#history-panel');
   panel.hidden = false;
-  panel.classList.toggle('open');
+  // Force reflow so transition plays
+  panel.offsetHeight;
+  panel.classList.add('open');
   renderHistory();
+}
+
+function closeHistory() {
+  const panel = $('#history-panel');
+  panel.classList.remove('open');
+}
+
+$('#history-toggle').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const panel = $('#history-panel');
+  if (panel.classList.contains('open')) {
+    closeHistory();
+  } else {
+    openHistory();
+  }
 });
+
+// Close panel when clicking outside
+document.addEventListener('click', (e) => {
+  const panel = $('#history-panel');
+  if (panel.classList.contains('open') && !panel.contains(e.target) && e.target !== $('#history-toggle')) {
+    closeHistory();
+  }
+});
+
+// Close on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeHistory();
+});
+
+$('#history-close').addEventListener('click', () => closeHistory());
 
 $('#clear-history').addEventListener('click', () => {
   localStorage.removeItem(HISTORY_KEY);

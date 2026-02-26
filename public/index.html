@@ -142,7 +142,10 @@
 
   <!-- History sidebar -->
   <aside id="history-panel" class="history-panel" hidden>
-    <h4>Recent VINs</h4>
+    <div class="history-header">
+      <h4>Recent VINs</h4>
+      <button id="history-close" class="history-close" aria-label="Close">&times;</button>
+    </div>
     <ul id="history-list"></ul>
     <button id="clear-history" class="clear-history">Clear History</button>
   </aside>
