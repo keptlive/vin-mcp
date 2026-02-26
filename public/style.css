@@ -131,6 +131,7 @@ a:hover { text-decoration: underline }
 #decode-btn:active { transform: translateY(0) }
 #decode-btn:disabled { opacity: .6; cursor: not-allowed; transform: none }
 
+.btn-spinner[hidden] { display: none }
 .btn-spinner {
   display: inline-block;
   width: 18px;
