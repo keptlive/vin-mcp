@@ -40,12 +40,68 @@
   }
   </script>
 
-  <link rel="stylesheet" href="style.css?v=1">
+  <link rel="stylesheet" href="style.css?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!-- User area -->
+  <div id="user-area" class="user-area">
+    <button id="login-btn" class="login-btn">Log In</button>
+    <div id="user-menu" class="user-menu" hidden>
+      <span id="user-email" class="user-email"></span>
+      <button id="my-vins-btn" class="user-menu-item">My VINs</button>
+      <button id="settings-btn" class="user-menu-item">Settings</button>
+      <button id="logout-btn" class="user-menu-item logout">Log Out</button>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="auth-modal" class="modal-overlay" hidden>
+    <div class="modal">
+      <button class="modal-close" id="auth-close">&times;</button>
+      <h2 class="modal-logo">mcp<span class="dot">.</span>vin</h2>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-tab="login">Log In</button>
+        <button class="modal-tab" data-tab="register">Sign Up</button>
+      </div>
+      <form id="login-form" class="modal-form">
+        <input type="email" id="login-email" placeholder="Email" required autocomplete="email">
+        <input type="password" id="login-password" placeholder="Password" required autocomplete="current-password">
+        <button type="submit" class="modal-submit">Log In</button>
+        <div class="form-error" id="login-error" hidden></div>
+      </form>
+      <form id="register-form" class="modal-form" hidden>
+        <input type="email" id="reg-email" placeholder="Email" required autocomplete="email">
+        <input type="text" id="reg-name" placeholder="Display name (optional)" autocomplete="name">
+        <input type="password" id="reg-password" placeholder="Password (min 8 chars)" required minlength="8" autocomplete="new-password">
+        <button type="submit" class="modal-submit">Create Account</button>
+        <div class="form-error" id="reg-error" hidden></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-overlay" hidden>
+    <div class="modal modal-settings">
+      <button class="modal-close" id="settings-close">&times;</button>
+      <h2 class="modal-title">Report Settings</h2>
+      <p class="modal-desc">Choose which sections appear in VIN reports.</p>
+      <div class="settings-toggles" id="settings-toggles">
+        <label class="toggle-row"><input type="checkbox" data-pref="show_overview" checked><span>Vehicle Overview</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_engine" checked><span>Engine & Drivetrain</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_safety_ratings" checked><span>Safety Ratings</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_fuel_economy" checked><span>Fuel Economy</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_recalls" checked><span>Recalls</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_complaints" checked><span>Consumer Complaints</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_safety_equipment" checked><span>Safety Equipment</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_photos" checked><span>Vehicle Photos</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_raw_nhtsa"><span>Raw NHTSA Data</span></label>
+      </div>
+    </div>
+  </div>
+
   <!-- Landing / Input -->
   <header id="hero">
     <div class="hero-inner">
@@ -85,6 +141,10 @@
         <h2 id="vehicle-title" class="vehicle-title"></h2>
         <div id="vin-display" class="vin-display"></div>
         <div id="hero-badges" class="hero-badges"></div>
+        <button id="save-vin-btn" class="save-vin-btn" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+          <span id="save-vin-text">Save</span>
+        </button>
       </div>
     </section>
 
@@ -188,6 +248,15 @@
   <button id="history-toggle" class="history-toggle" title="Recent VINs">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
   </button>
+
+  <!-- My Saved VINs panel -->
+  <aside id="saved-vins-panel" class="history-panel" hidden>
+    <div class="history-header">
+      <h4>My Saved VINs</h4>
+      <button id="saved-vins-close" class="history-close" aria-label="Close">&times;</button>
+    </div>
+    <ul id="saved-vins-list"></ul>
+  </aside>
 
   <!-- Toast container -->
   <div id="toast-container" class="toast-container"></div>
@@ -308,6 +377,6 @@
     <p>Data from <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener noreferrer">NHTSA</a>, <a href="https://fueleconomy.gov" target="_blank" rel="noopener noreferrer">EPA</a>, <a href="https://www.imagin.studio" target="_blank" rel="noopener noreferrer">IMAGIN.studio</a> &mdash; All free, no API key required</p>
   </footer>
 
-  <script src="app.js?v=1"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

@@ -933,10 +933,301 @@ input:focus-visible {
   .equip-grid { grid-template-columns: 1fr }
 }
 
+/* ── User Area ── */
+.user-area {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.login-btn {
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .5rem 1.25rem;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: var(--transition);
+}
+.login-btn:hover { border-color: var(--accent); color: var(--accent); }
+.user-menu {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .5rem;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  min-width: 160px;
+}
+.user-menu[hidden] { display: none; }
+.user-email {
+  padding: .5rem .75rem;
+  font-size: .8rem;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: .25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-menu-item {
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: .5rem .75rem;
+  font-size: .85rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: var(--font);
+  transition: var(--transition);
+}
+.user-menu-item:hover { background: var(--bg-input); }
+.user-menu-item.logout { color: var(--red); }
+.user-menu-item.logout:hover { background: var(--red-dim); }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.modal-overlay[hidden] { display: none; }
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 400px;
+  width: 100%;
+  position: relative;
+}
+.modal-settings { max-width: 440px; }
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.modal-close:hover { color: var(--text); }
+.modal-logo {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+.modal-logo .dot { color: var(--accent); }
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: .25rem;
+}
+.modal-desc {
+  font-size: .85rem;
+  color: var(--text-dim);
+  margin-bottom: 1.25rem;
+}
+.modal-tabs {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: 1.25rem;
+}
+.modal-tab {
+  flex: 1;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: .6rem;
+  border-radius: var(--radius-sm);
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: var(--transition);
+}
+.modal-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+.modal-form input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: .75rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: .9rem;
+  font-family: var(--font);
+  transition: var(--transition);
+}
+.modal-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.modal-submit {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: .75rem;
+  border-radius: var(--radius-sm);
+  font-size: .95rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: var(--transition);
+}
+.modal-submit:hover { background: #4f46e5; }
+.form-error {
+  color: var(--red);
+  font-size: .85rem;
+  text-align: center;
+}
+
+/* ── Settings Toggles ── */
+.settings-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .65rem .75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.toggle-row:hover { background: var(--bg-input); }
+.toggle-row input[type="checkbox"] {
+  appearance: none;
+  width: 40px;
+  height: 22px;
+  background: var(--border);
+  border-radius: 11px;
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+.toggle-row input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: var(--transition);
+}
+.toggle-row input[type="checkbox"]:checked {
+  background: var(--accent);
+}
+.toggle-row input[type="checkbox"]:checked::after {
+  left: 20px;
+}
+.toggle-row span {
+  font-size: .9rem;
+  color: var(--text);
+}
+
+/* ── Save VIN Button ── */
+.save-vin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: .5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font);
+  margin-top: .75rem;
+  transition: var(--transition);
+}
+.save-vin-btn:hover { border-color: var(--accent); color: var(--accent); }
+.save-vin-btn.saved {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.save-vin-btn.saved svg { fill: currentColor; }
+
+/* ── Saved VINs Panel ── */
+.saved-vin-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+}
+.saved-vin-item:last-child { border-bottom: none; }
+.saved-vin-info { flex: 1; min-width: 0; }
+.saved-vin-label {
+  font-size: .9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saved-vin-number {
+  font-family: var(--mono);
+  font-size: .75rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.saved-vin-actions {
+  display: flex;
+  gap: .25rem;
+  flex-shrink: 0;
+  margin-left: .5rem;
+}
+.saved-vin-decode, .saved-vin-delete {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  padding: .35rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.saved-vin-decode:hover { color: var(--accent); border-color: var(--border); }
+.saved-vin-delete:hover { color: var(--red); border-color: var(--red-dim); }
+
 /* ── Print ── */
 @media print {
   body { background: #fff; color: #000 }
-  .history-toggle, .history-panel, .toast-container, #decode-btn, .footer { display: none }
+  .history-toggle, .history-panel, .toast-container, #decode-btn, .footer, .user-area, .save-vin-btn { display: none }
   .card { border: 1px solid #ccc; break-inside: avoid }
   .card-body-collapsed { max-height: none; padding: 1.25rem }
   #hero.compact { padding: .5rem }

@@ -13,6 +13,10 @@ const results = $('#results');
 
 // ── State ──
 let currentReport = null;
+let authToken = localStorage.getItem('vin-auth-token');
+let currentUser = null;
+let userPrefs = null;
+let savedVinsList = [];
 
 // ── VIN Validation (client-side quick check) ──
 const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/i;
@@ -81,6 +85,8 @@ form.addEventListener('submit', async (e) => {
 
     // Render results
     renderResults(report);
+    applyPreferences();
+    updateSaveButton(vin);
 
     // Compact hero
     hero.classList.add('compact');
@@ -666,11 +672,6 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Close on Escape
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeHistory();
-});
-
 $('#history-close').addEventListener('click', () => closeHistory());
 
 $('#clear-history').addEventListener('click', () => {
@@ -697,6 +698,338 @@ input.addEventListener('input', () => {
   hideInputError();
 });
 
+// ── Auth ──
+
+function authHeaders() {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+
+async function checkAuth() {
+  if (!authToken) { updateAuthUI(); return; }
+  try {
+    const res = await fetch('/api/auth/me', { headers: authHeaders() });
+    if (!res.ok) throw new Error();
+    currentUser = await res.json();
+    await loadPreferences();
+    await loadSavedVins();
+  } catch {
+    authToken = null;
+    localStorage.removeItem('vin-auth-token');
+    currentUser = null;
+  }
+  updateAuthUI();
+}
+
+function updateAuthUI() {
+  const loginBtn = $('#login-btn');
+  const userMenu = $('#user-menu');
+  if (currentUser) {
+    loginBtn.hidden = true;
+    userMenu.hidden = false;
+    $('#user-email').textContent = currentUser.display_name || currentUser.email;
+  } else {
+    loginBtn.hidden = false;
+    userMenu.hidden = true;
+  }
+  // Save button visibility depends on auth
+  const saveBtn = $('#save-vin-btn');
+  if (saveBtn) saveBtn.hidden = !currentUser || !currentReport;
+}
+
+// Login modal
+$('#login-btn').addEventListener('click', () => {
+  $('#auth-modal').hidden = false;
+});
+$('#auth-close').addEventListener('click', () => {
+  $('#auth-modal').hidden = true;
+});
+$('#auth-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.hidden = true;
+});
+
+// Modal tabs
+$$('.modal-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('.modal-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const isLogin = tab.dataset.tab === 'login';
+    $('#login-form').hidden = !isLogin;
+    $('#register-form').hidden = isLogin;
+  });
+});
+
+// Login form
+$('#login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = $('#login-error');
+  errEl.hidden = true;
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: $('#login-email').value,
+        password: $('#login-password').value,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error; errEl.hidden = false; return; }
+    authToken = data.token;
+    currentUser = data.user;
+    localStorage.setItem('vin-auth-token', authToken);
+    $('#auth-modal').hidden = true;
+    await loadPreferences();
+    await loadSavedVins();
+    updateAuthUI();
+    applyPreferences();
+    toast('Logged in');
+  } catch (err) {
+    errEl.textContent = 'Network error';
+    errEl.hidden = false;
+  }
+});
+
+// Register form
+$('#register-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = $('#reg-error');
+  errEl.hidden = true;
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: $('#reg-email').value,
+        password: $('#reg-password').value,
+        display_name: $('#reg-name').value || undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error; errEl.hidden = false; return; }
+    authToken = data.token;
+    currentUser = data.user;
+    localStorage.setItem('vin-auth-token', authToken);
+    $('#auth-modal').hidden = true;
+    await loadPreferences();
+    await loadSavedVins();
+    updateAuthUI();
+    toast('Account created');
+  } catch (err) {
+    errEl.textContent = 'Network error';
+    errEl.hidden = false;
+  }
+});
+
+// Logout
+$('#logout-btn').addEventListener('click', () => {
+  authToken = null;
+  currentUser = null;
+  userPrefs = null;
+  savedVinsList = [];
+  localStorage.removeItem('vin-auth-token');
+  updateAuthUI();
+  applyPreferences();
+  toast('Logged out');
+});
+
+// ── Saved VINs ──
+
+async function loadSavedVins() {
+  if (!authToken) return;
+  try {
+    const res = await fetch('/api/user/vins', { headers: authHeaders() });
+    if (res.ok) savedVinsList = await res.json();
+  } catch {}
+}
+
+function updateSaveButton(vin) {
+  const saveBtn = $('#save-vin-btn');
+  if (!currentUser || !vin) { saveBtn.hidden = true; return; }
+  saveBtn.hidden = false;
+  const saved = savedVinsList.find(s => s.vin === vin.toUpperCase());
+  if (saved) {
+    saveBtn.classList.add('saved');
+    $('#save-vin-text').textContent = saved.label || 'Saved';
+  } else {
+    saveBtn.classList.remove('saved');
+    $('#save-vin-text').textContent = 'Save';
+  }
+}
+
+$('#save-vin-btn').addEventListener('click', async () => {
+  if (!currentUser || !currentReport) return;
+  const vin = currentReport.vin;
+  const existing = savedVinsList.find(s => s.vin === vin);
+  if (existing) {
+    // Already saved — prompt for label edit
+    const label = prompt('Edit label:', existing.label || '');
+    if (label === null) return;
+    await fetch(`/api/user/vins/${existing.id}`, {
+      method: 'PUT',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    });
+    existing.label = label;
+    updateSaveButton(vin);
+    toast('Label updated');
+  } else {
+    const label = prompt('Label this vehicle (optional):', '');
+    if (label === null) return;
+    try {
+      const res = await fetch('/api/user/vins', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vin, label: label || undefined }),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        savedVinsList.unshift(saved);
+        updateSaveButton(vin);
+        toast('VIN saved');
+      }
+    } catch {}
+  }
+});
+
+// My VINs panel
+$('#my-vins-btn').addEventListener('click', () => {
+  renderSavedVins();
+  const panel = $('#saved-vins-panel');
+  panel.hidden = false;
+  panel.offsetHeight;
+  panel.classList.add('open');
+});
+
+$('#saved-vins-close').addEventListener('click', () => {
+  $('#saved-vins-panel').classList.remove('open');
+});
+
+function renderSavedVins() {
+  const list = $('#saved-vins-list');
+  if (savedVinsList.length === 0) {
+    list.innerHTML = '<li class="empty-state" style="padding:1rem;font-size:.85rem">No saved VINs yet. Decode a VIN and click Save.</li>';
+    return;
+  }
+  list.innerHTML = savedVinsList.map(s => `
+    <li class="saved-vin-item" data-vin="${esc(s.vin)}" data-id="${s.id}">
+      <div class="saved-vin-info">
+        <div class="saved-vin-label">${esc(s.label || [s.year, s.make, s.model].filter(Boolean).join(' ') || 'Unnamed')}</div>
+        <div class="saved-vin-number">${esc(s.vin)}</div>
+      </div>
+      <div class="saved-vin-actions">
+        <button class="saved-vin-decode" title="Decode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+        </button>
+        <button class="saved-vin-delete" title="Remove">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        </button>
+      </div>
+    </li>
+  `).join('');
+
+  $$('.saved-vin-decode', list).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const vin = btn.closest('li').dataset.vin;
+      input.value = vin;
+      form.dispatchEvent(new Event('submit'));
+      $('#saved-vins-panel').classList.remove('open');
+    });
+  });
+
+  $$('.saved-vin-delete', list).forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const li = btn.closest('li');
+      const id = li.dataset.id;
+      await fetch(`/api/user/vins/${id}`, { method: 'DELETE', headers: authHeaders() });
+      savedVinsList = savedVinsList.filter(s => String(s.id) !== id);
+      li.remove();
+      if (savedVinsList.length === 0) renderSavedVins();
+      if (currentReport) updateSaveButton(currentReport.vin);
+      toast('VIN removed');
+    });
+  });
+}
+
+// ── Output Preferences ──
+
+async function loadPreferences() {
+  if (!authToken) { userPrefs = null; return; }
+  try {
+    const res = await fetch('/api/user/preferences', { headers: authHeaders() });
+    if (res.ok) userPrefs = await res.json();
+  } catch {}
+}
+
+function applyPreferences() {
+  const prefs = userPrefs || {};
+  const map = {
+    show_overview: '#card-overview',
+    show_engine: '#card-engine',
+    show_safety_ratings: '#card-safety-ratings',
+    show_fuel_economy: '#card-fuel',
+    show_recalls: '#card-recalls',
+    show_complaints: '#card-complaints',
+    show_safety_equipment: '#card-safety-equip',
+    show_photos: '.hero-photos',
+    show_raw_nhtsa: '#card-raw',
+  };
+  for (const [key, selector] of Object.entries(map)) {
+    const el = $(selector);
+    if (el) {
+      // If no prefs loaded (logged out), show everything. If prefs loaded, use them.
+      el.style.display = userPrefs ? (prefs[key] ? '' : 'none') : '';
+    }
+  }
+}
+
+// Settings modal
+$('#settings-btn').addEventListener('click', () => {
+  syncSettingsUI();
+  $('#settings-modal').hidden = false;
+});
+$('#settings-close').addEventListener('click', () => {
+  $('#settings-modal').hidden = true;
+});
+$('#settings-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.hidden = true;
+});
+
+function syncSettingsUI() {
+  const prefs = userPrefs || {};
+  $$('#settings-toggles input[data-pref]').forEach(input => {
+    const key = input.dataset.pref;
+    input.checked = prefs[key] !== undefined ? !!prefs[key] : true;
+  });
+}
+
+$$('#settings-toggles input[data-pref]').forEach(inp => {
+  inp.addEventListener('change', async () => {
+    if (!authToken) return;
+    const key = inp.dataset.pref;
+    const value = inp.checked;
+    try {
+      const res = await fetch('/api/user/preferences', {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      });
+      if (res.ok) userPrefs = await res.json();
+      applyPreferences();
+    } catch {}
+  });
+});
+
+// Close Escape for all modals
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeHistory();
+    $('#auth-modal').hidden = true;
+    $('#settings-modal').hidden = true;
+    $('#saved-vins-panel').classList.remove('open');
+  }
+});
+
 // ── Init ──
 renderHistory();
 checkUrlVin();
+checkAuth();
