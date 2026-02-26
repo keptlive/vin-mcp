@@ -2,11 +2,43 @@
   "name": "vin-mcp",
   "version": "1.0.0",
   "type": "module",
-  "description": "VIN Decoder MCP Server — free vehicle reports from NHTSA, EPA, and more",
+  "description": "Free VIN decoder MCP server — NHTSA, EPA, safety ratings, recalls, fuel economy, vehicle photos",
   "main": "server.mjs",
+  "bin": {
+    "vin-mcp": "./server.mjs"
+  },
+  "files": [
+    "server.mjs",
+    "lib/",
+    "public/",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "start": "node server.mjs --http --port 3200",
     "dev": "node --watch server.mjs --http --port 3200"
+  },
+  "keywords": [
+    "vin",
+    "vin-decoder",
+    "mcp",
+    "mcp-server",
+    "nhtsa",
+    "vehicle",
+    "car",
+    "recall",
+    "safety-ratings",
+    "model-context-protocol"
+  ],
+  "author": "keptlive",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/keptlive/vin-mcp.git"
+  },
+  "homepage": "https://mcp.vin",
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
