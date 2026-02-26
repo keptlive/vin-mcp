@@ -677,6 +677,193 @@ a:hover { text-decoration: underline }
 @keyframes toast-in { from { opacity: 0; transform: translateY(10px) } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(10px) } }
 
+/* ── MCP Info Section ── */
+.mcp-info {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+.mcp-info-inner {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  padding: 2.5rem;
+}
+.mcp-info-title {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: .5rem;
+  color: var(--text);
+}
+.mcp-info-title svg { color: var(--accent) }
+.mcp-info-desc {
+  color: var(--text-dim);
+  font-size: .95rem;
+  margin-bottom: 2rem;
+}
+.mcp-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+.mcp-method h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: .5rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.mcp-tag {
+  font-size: .65rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: .15rem .5rem;
+  border-radius: 4px;
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-weight: 600;
+}
+.mcp-method p {
+  color: var(--text-dim);
+  font-size: .85rem;
+  margin-bottom: .5rem;
+}
+.mcp-alt {
+  margin-top: .75rem;
+}
+.code-block {
+  position: relative;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.code-block pre {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+}
+.code-block code {
+  font-family: var(--mono);
+  font-size: .8rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.copy-btn {
+  position: absolute;
+  top: .5rem;
+  right: .5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: .3rem .4rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition), border-color var(--transition);
+}
+.code-block:hover .copy-btn { opacity: 1 }
+.copy-btn:hover { color: var(--accent); border-color: var(--accent) }
+.copy-btn.copied { color: var(--green); border-color: var(--green) }
+
+/* MCP Tools grid */
+.mcp-tools { margin-bottom: 2rem }
+.mcp-tools h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: .75rem;
+}
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: .75rem;
+}
+.tool-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+.tool-name {
+  font-family: var(--mono);
+  font-size: .85rem;
+  color: var(--accent);
+  font-weight: 500;
+}
+.tool-card p {
+  color: var(--text-dim);
+  font-size: .8rem;
+  margin-top: .35rem;
+  line-height: 1.5;
+}
+
+/* REST API endpoints */
+.mcp-api { margin-bottom: 2rem }
+.mcp-api h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: .5rem;
+}
+.mcp-api .mcp-info-desc { margin-bottom: 1rem }
+.api-endpoints {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.api-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .45rem .75rem;
+  border-radius: var(--radius-sm);
+  font-size: .85rem;
+  background: var(--bg);
+  border: 1px solid rgba(255,255,255,.03);
+}
+.api-method {
+  font-family: var(--mono);
+  font-size: .7rem;
+  font-weight: 600;
+  padding: .15rem .4rem;
+  border-radius: 3px;
+  background: rgba(34,197,94,.15);
+  color: var(--green);
+  min-width: 36px;
+  text-align: center;
+}
+.api-method.post {
+  background: rgba(59,130,246,.15);
+  color: var(--blue);
+}
+.api-path {
+  font-family: var(--mono);
+  font-size: .8rem;
+  color: var(--text);
+}
+.api-row span {
+  color: var(--text-muted);
+  font-size: .8rem;
+  margin-left: auto;
+}
+
+.mcp-source {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: .85rem;
+}
+
+@media (max-width: 768px) {
+  .mcp-info-inner { padding: 1.5rem }
+  .mcp-methods { grid-template-columns: 1fr }
+  .tools-grid { grid-template-columns: 1fr }
+  .api-row span { display: none }
+}
+
 /* ── Footer ── */
 .footer {
   text-align: center;

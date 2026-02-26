@@ -156,6 +156,118 @@
   <!-- Toast container -->
   <div id="toast-container" class="toast-container"></div>
 
+  <!-- MCP Connection Info -->
+  <section id="mcp-info" class="mcp-info">
+    <div class="mcp-info-inner">
+      <h2 class="mcp-info-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        Connect via MCP
+      </h2>
+      <p class="mcp-info-desc">Use this server as an MCP tool in Claude Code, Claude Desktop, or any MCP-compatible client. No API key needed.</p>
+
+      <div class="mcp-methods">
+        <!-- Claude Code (stdio) -->
+        <div class="mcp-method">
+          <h3>Claude Code <span class="mcp-tag">stdio</span></h3>
+          <p>Add to your project's <code>.mcp.json</code>:</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+            <pre><code>{
+  "mcpServers": {
+    "vin-mcp": {
+      "command": "npx",
+      "args": ["-y", "vin-mcp"]
+    }
+  }
+}</code></pre>
+          </div>
+          <p class="mcp-alt">Or clone and run locally:</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+            <pre><code>{
+  "mcpServers": {
+    "vin-mcp": {
+      "command": "node",
+      "args": ["/path/to/vin-mcp/server.mjs"]
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- Remote HTTP -->
+        <div class="mcp-method">
+          <h3>Claude Desktop / Remote <span class="mcp-tag">HTTP</span></h3>
+          <p>Use the remote MCP endpoint:</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+            <pre><code>https://mcp.vin/mcp</code></pre>
+          </div>
+          <p class="mcp-alt">Or in config:</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+            <pre><code>{
+  "mcpServers": {
+    "vin-mcp": {
+      "url": "https://mcp.vin/mcp"
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Available Tools -->
+      <div class="mcp-tools">
+        <h3>Available Tools</h3>
+        <div class="tools-grid">
+          <div class="tool-card">
+            <code class="tool-name">decode_vin</code>
+            <p>Full VIN decode with specs, recalls, complaints, safety ratings, fuel economy, and photos</p>
+          </div>
+          <div class="tool-card">
+            <code class="tool-name">validate_vin</code>
+            <p>Quick checksum validation, WMI decode, and year detection &mdash; no API calls</p>
+          </div>
+          <div class="tool-card">
+            <code class="tool-name">lookup_recalls</code>
+            <p>Search recalls by VIN or make/model/year</p>
+          </div>
+          <div class="tool-card">
+            <code class="tool-name">batch_decode</code>
+            <p>Decode up to 50 VINs in a single request</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- REST API -->
+      <div class="mcp-api">
+        <h3>REST API</h3>
+        <p class="mcp-info-desc">All endpoints are free and require no authentication.</p>
+        <div class="api-endpoints">
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin</code><span>Full decode</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/validate</code><span>Quick validation</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/recalls</code><span>Recalls only</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/complaints</code><span>Complaints only</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/safety</code><span>Safety ratings</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/fuel</code><span>Fuel economy</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/photo</code><span>Vehicle photo (redirect)</span></div>
+          <div class="api-row"><code class="api-method post">POST</code><code class="api-path">/api/batch</code><span>Batch decode (up to 50)</span></div>
+        </div>
+      </div>
+
+      <p class="mcp-source">Open source: <a href="https://github.com/keptlive/vin-mcp" target="_blank" rel="noopener noreferrer">github.com/keptlive/vin-mcp</a></p>
+    </div>
+  </section>
+
   <footer class="footer">
     <p>Data from <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener noreferrer">NHTSA</a>, <a href="https://fueleconomy.gov" target="_blank" rel="noopener noreferrer">EPA</a>, <a href="https://www.imagin.studio" target="_blank" rel="noopener noreferrer">IMAGIN.studio</a> &mdash; All free, no API key required</p>
   </footer>

@@ -561,6 +561,26 @@ function toast(msg, type = '') {
   }, 4000);
 }
 
+// ── Copy code block ──
+window.copyCode = function(btn) {
+  const code = btn.closest('.code-block').querySelector('code');
+  navigator.clipboard.writeText(code.textContent.trim()).then(() => {
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1500);
+  }).catch(() => {
+    // Fallback
+    const range = document.createRange();
+    range.selectNodeContents(code);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('copy');
+    sel.removeAllRanges();
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1500);
+  });
+};
+
 // ── History ──
 const HISTORY_KEY = 'vin-history';
 const MAX_HISTORY = 15;
