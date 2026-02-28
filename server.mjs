@@ -782,7 +782,8 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
 
   function adminAuth(req, res, next) {
     const key = req.headers['x-admin-key'] || req.query.key;
-    if (!key || key !== ADMIN_KEY) {
+    if (!key || typeof key !== 'string' || key.length !== ADMIN_KEY.length ||
+        !crypto.timingSafeEqual(Buffer.from(key), Buffer.from(ADMIN_KEY))) {
       logSecurityEvent.run('admin_auth_fail', req.ip, req.path, 'high');
       return res.status(403).json({ error: 'Forbidden' });
     }
