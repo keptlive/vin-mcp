@@ -1,11 +1,11 @@
 {
   "name": "vin-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Free VIN decoder MCP server — NHTSA, EPA, safety ratings, recalls, fuel economy, vehicle photos",
   "main": "server.mjs",
   "bin": {
-    "vin-mcp": "./server.mjs"
+    "vin-mcp": "server.mjs"
   },
   "files": [
     "server.mjs",
@@ -34,7 +34,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/keptlive/vin-mcp.git"
+    "url": "git+https://github.com/keptlive/vin-mcp.git"
   },
   "homepage": "https://mcp.vin",
   "engines": {
@@ -45,6 +45,7 @@
     "better-sqlite3": "^12.6.2",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "zod": "^3.25.0 || ^4.0.0"
   }
 }
