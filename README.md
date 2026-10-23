@@ -1,9 +1,9 @@
 # VIN MCP
 
-**Free VIN decoder for humans and AI. No API keys. No accounts. No limits.**
+**Free VIN decoder for humans and AI. No API keys or accounts required for public vehicle lookups. Rate limits apply.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js 18+](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org)
+[![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-green.svg)](https://nodejs.org)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-purple.svg)](https://modelcontextprotocol.io)
 [![Smithery](https://smithery.ai/badge/@keptlive/vin-mcp)](https://smithery.ai/server/@keptlive/vin-mcp)
 
@@ -173,7 +173,7 @@ The letters I, O, and Q are never used in VINs to avoid confusion with 1, 0, and
 
 ## Tech Stack
 
-- **Runtime:** Node.js 18+
+- **Runtime:** Node.js 22+ (required by the supported dependency stack)
 - **Server:** Express 5
 - **MCP SDK:** `@modelcontextprotocol/sdk` with stdio and Streamable HTTP transports
 - **Frontend:** Vanilla HTML, CSS, and JavaScript
