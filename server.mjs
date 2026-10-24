@@ -16,8 +16,16 @@ import db, { logRequest, logSecurityEvent, pruneOldLogs } from './lib/db.mjs';
 import { hashPassword, verifyPassword, createToken, verifyJwt } from './lib/auth.mjs';
 import crypto from 'node:crypto';
 import { loadRuntimeSecrets } from './lib/secrets.mjs';
+import { catalog, epaRecord, emissions, fuelPrices, dimensions, ownerMpg, InputError } from './lib/research.mjs';
+import { investigations } from './lib/investigations.mjs';
+import { rateBenchmarks } from './lib/rate-benchmarks.mjs';
+import { scenario } from './lib/scenario.mjs';
+import { communications } from './lib/communications.mjs';
+import { capabilities } from './lib/capabilities.mjs';
+import { vinRecallStatus } from './lib/recall-status.mjs';
 
 const { JWT_SECRET, ADMIN_KEY } = loadRuntimeSecrets();
+const MCP_TOOL_NAMES = ['decode_vin','validate_vin','lookup_recalls','batch_decode','list_saved_vins','save_vin','remove_saved_vin','get_output_preferences','update_output_preferences','explore_capabilities','vin_recall_status','vehicle_catalog','epa_vehicle','vehicle_emissions','fuel_price_assumptions','owner_reported_mpg','defect_investigations','auto_loan_benchmarks','vehicle_dimensions','manufacturer_communications','compare_vehicles','ownership_scenario'];
 
 // ---- HTML escaping (prevent XSS) ----
 function escHtml(str) {
@@ -27,6 +35,11 @@ function escHtml(str) {
 // ---- Full VIN report (aggregates all sources) ----
 
 async function fullReport(vin) {
+  const report = await fullReportBase(vin);
+  return report.vehicle ? {...report, recall_status:await vinRecallStatus(report.vin, report.vehicle.make)} : report;
+}
+
+async function fullReportBase(vin) {
   vin = normalizeVin(vin);
   const cached = vinCache.get(vin);
   if (cached) return cached;
@@ -63,9 +76,11 @@ async function fullReport(vin) {
     safety_ratings: ratings || { rated: false },
     fuel_economy: fuel || { available: false },
     photos, raw_nhtsa: decoded.raw,
+    provenance: { assembled_at: new Date().toISOString(), specifications: 'NHTSA vPIC manufacturer-submitted VIN data', recalls: 'NHTSA make/model/year campaigns, not VIN repair status', complaints: 'NHTSA owner reports; not confirmed defects or incidence rates', fuel: 'EPA matched configuration when unambiguous', photos: 'Representative stock imagery, not this exact vehicle' },
   };
 
-  if (recalls?.available !== false && complaints?.available !== false && fuel?.reason !== 'upstream_error') vinCache.set(vin, report);
+  const transientFuelFailure = ['upstream_error', 'invalid_response'].includes(fuel?.reason);
+  if (recalls?.available !== false && complaints?.available !== false && !transientFuelFailure) vinCache.set(vin, report);
   return report;
 }
 
@@ -119,10 +134,40 @@ function mcpReport(report) {
   return { ...rest, complaints: compactComplaints(report.complaints) };
 }
 
+async function compareVehicles(vins) {
+  if (!Array.isArray(vins) || vins.length < 2 || vins.length > 4 || vins.some(v => typeof v !== 'string' || !validateVin(v).valid)) throw new InputError('Provide 2–4 valid VINs');
+  const normalized=vins.map(normalizeVin);
+  if (new Set(normalized).size !== normalized.length) throw new InputError('Choose distinct VINs');
+  const results=await Promise.all(normalized.map(async vin=>{
+    try {return {vin,report:mcpReport(await fullReport(vin))};}
+    catch {return {vin,error:'Report unavailable; retry later'};}
+  }));
+  return {results,note:'Recall and complaint counts are model-year data, not a ranking of individual vehicle safety. Missing data is not zero.'};
+}
+
 // ---- MCP Server factory ----
 
 function createMcpServer() {
-  const server = new McpServer({ name: 'vin-mcp', version: '1.2.1' });
+  const server = new McpServer({ name: 'vin-mcp', version: '1.3.0' });
+
+  const researchTool=(name,description,schema,fn)=>server.tool(name,description,schema,async args=>{
+    try {const result=await fn(args);return {content:[{type:'text',text:JSON.stringify(result)}],...(result?.available===false?{isError:true}:{})};}
+    catch(err){return {content:[{type:'text',text:err instanceof InputError?err.message:'Research request failed'}],isError:true};}
+  });
+  const vehicleQuery={year:z.number().int(),make:z.string().min(1).max(100),model:z.string().min(1).max(100)};
+  researchTool('explore_capabilities','Discover supported features and explicit coverage gaps.',{},()=>capabilities);
+  researchTool('vin_recall_status','VIN-specific manufacturer-reported open and completed recall status. Tesla only; unsupported makes and upstream failures remain unknown. Not a complete service history.',{vin:z.string()},({vin})=>vinRecallStatus(vin));
+  researchTool('vehicle_catalog','Browse EPA year, make, model and configuration menus. Not sale listings.',{level:z.enum(['year','make','model','options']),year:z.number().int().optional(),make:z.string().optional(),model:z.string().optional()},({level,...query})=>catalog(level,query));
+  researchTool('epa_vehicle','Get an explicitly selected EPA test configuration; not an exact VIN match.',{id:z.string()},({id})=>epaRecord(id));
+  researchTool('vehicle_emissions','Get EPA emissions for an explicit EPA vehicle ID.',{id:z.string()},({id})=>emissions(id));
+  researchTool('fuel_price_assumptions','EPA fuel-price assumptions, not local station prices.',{},fuelPrices);
+  researchTool('owner_reported_mpg','Voluntary owner-reported MPG for an EPA configuration, including sample size and limitations.',{id:z.string()},({id})=>ownerMpg(id));
+  researchTool('defect_investigations','Search NHTSA model-year defect investigations with retained source variants and snapshot dates.',{...vehicleQuery,offset:z.number().int().min(0).optional(),limit:z.number().int().min(1).max(50).optional()},investigations);
+  researchTool('auto_loan_benchmarks','Dated Federal Reserve new-car loan benchmark snapshot, not personalized or live loan rates.',{},rateBenchmarks);
+  researchTool('vehicle_dimensions','Canadian model-variant dimensions in cm and kg. Not VIN-specific.',vehicleQuery,dimensions);
+  researchTool('manufacturer_communications','Search indexed NHTSA communications, with source coverage. Bulletins are not recalls.',{...vehicleQuery,offset:z.number().int().min(0).optional(),limit:z.number().int().min(1).max(50).optional()},communications);
+  researchTool('compare_vehicles','Compare 2–4 distinct VINs without treating missing data as zero or counts as safety rankings.',{vins:z.array(z.string()).min(2).max(4)},({vins})=>compareVehicles(vins));
+  researchTool('ownership_scenario','Calculate fixed-rate payments and optional ownership costs from explicit assumptions; not lender or tax quotes.',{price:z.number(),apr:z.number(),months:z.number().int(),down_payment:z.number().optional(),tax_amount:z.number().optional(),fees:z.number().optional(),ownership:z.object({years:z.number().int(),annual_miles:z.number(),resale_value:z.number(),annual_insurance:z.number(),annual_maintenance:z.number(),annual_repairs:z.number(),energy_type:z.enum(['gas','electric']),energy_price:z.number(),efficiency:z.number()}).optional()},scenario);
 
   server.tool('decode_vin',
     'Decode a VIN and return a vehicle report: specs, recalls, a complaint summary with the most recent complaints, safety ratings, fuel economy, and photo URLs.',
@@ -662,6 +707,23 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     res.status(500).json({ error: 'Internal server error' });
   }
 
+  const researchHandler=fn=>async(req,res)=>{
+    try {const result=await fn(req);res.status(result?.available===false?(result.reason==='dataset_not_indexed'?503:502):200).json(result);}
+    catch(err){res.status(err instanceof InputError?400:500).json({error:err instanceof InputError?err.message:'Research request failed'});}
+  };
+  app.get('/api/research/capabilities', (req,res)=>res.json(capabilities));
+  app.get('/api/research/catalog/:level',rateGuard(30),researchHandler(req=>catalog(req.params.level,req.query)));
+  app.get('/api/research/epa/:id',rateGuard(30),researchHandler(req=>epaRecord(req.params.id)));
+  app.get('/api/research/epa/:id/emissions',rateGuard(30),researchHandler(req=>emissions(req.params.id)));
+  app.get('/api/research/fuel-prices',rateGuard(30),researchHandler(()=>fuelPrices()));
+  app.get('/api/research/epa/:id/owner-mpg',rateGuard(30),researchHandler(req=>ownerMpg(req.params.id)));
+  app.get('/api/research/investigations',rateGuard(30),researchHandler(req=>investigations(req.query)));
+  app.get('/api/research/rate-benchmarks',rateGuard(30),researchHandler(()=>rateBenchmarks()));
+  app.get('/api/research/dimensions',rateGuard(30),researchHandler(req=>dimensions(req.query)));
+  app.get('/api/research/communications',rateGuard(30),researchHandler(req=>communications(req.query)));
+  app.post('/api/research/scenario',rateGuard(30),researchHandler(req=>scenario(req.body)));
+  app.post('/api/research/compare',rateGuard(5),researchHandler(req=>compareVehicles(req.body?.vins)));
+
   app.get('/api/vin/:vin', rateGuard(30), async (req, res) => {
     try { res.json(await fullReport(req.params.vin)); } catch (err) { safeError(res, err); }
   });
@@ -669,6 +731,8 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   app.get('/api/vin/:vin/validate', rateGuard(60), (req, res) => {
     res.json(validateVin(req.params.vin));
   });
+
+  app.get('/api/vin/:vin/recall-status',rateGuard(30),researchHandler(req=>vinRecallStatus(req.params.vin)));
 
   app.get('/api/vin/:vin/recalls', rateGuard(30), async (req, res) => {
     try {
@@ -836,7 +900,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   // ---- Public status ----
 
   app.get('/api/status', (req, res) => {
-    res.json({ status: 'ok', server: 'vin-mcp', version: '1.2.1', tools: ['decode_vin', 'validate_vin', 'lookup_recalls', 'batch_decode', 'list_saved_vins', 'save_vin', 'remove_saved_vin', 'get_output_preferences', 'update_output_preferences'] });
+    res.json({ status: 'ok', server: 'vin-mcp', version: '1.3.0', tools: MCP_TOOL_NAMES });
   });
 
   app.get('/health', (req, res) => {
@@ -997,7 +1061,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   });
 
   app.listen(port, () => {
-    console.error(`VIN MCP Server (HTTP) v1.2.1 listening on port ${port}`);
+    console.error(`VIN MCP Server (HTTP) v1.3.0 listening on port ${port}`);
     console.error(`  Frontend: http://localhost:${port}`);
     console.error(`  API: http://localhost:${port}/api/vin/{vin}`);
     console.error(`  MCP: http://localhost:${port}/mcp`);

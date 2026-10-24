@@ -128,6 +128,7 @@ function renderHero(r) {
   const v = r.vehicle;
   const title = [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ');
   $('#vehicle-title').textContent = title;
+  $('#research-model-link').href = '/research/?' + new URLSearchParams({year:r.vehicle?.year || '',make:r.vehicle?.make || '',model:r.vehicle?.model || ''}) + '#communications';
 
   // VIN segments
   const vin = r.vin;
@@ -305,6 +306,19 @@ function renderFuel(r) {
 
 // ── Recalls Card ──
 function renderRecalls(r) {
+  renderCampaigns(r);
+  const s = r.recall_status;
+  const link = s?.verification_url || 'https://www.nhtsa.gov/recalls';
+  const content = s?.available
+    ? `<p>${esc(s.open_count ?? 'Unknown')} open · ${esc(s.completed_count)} manufacturer-reported completed · ${esc(s.unknown_count)} unknown status</p>
+       <p>Checked ${esc(s.source.retrieved_at)} · Tesla Service</p>
+       ${s.recalls.map(x => `<div class="recall-item"><strong>${esc(x.campaign_number)} · ${esc(x.manufacturer_status)}</strong><p>${esc(x.summary || '')}</p>${x.remedy ? `<p><span class="recall-detail-label">Remedy:</span> ${esc(x.remedy)}</p>` : ''}${x.document_url ? `<a href="${esc(x.document_url)}" target="_blank" rel="noopener">Manufacturer bulletin</a>` : ''}</div>`).join('')}
+       <p>${esc(s.note)}</p>`
+    : `<p>VIN-specific repair status ${s?.reason === 'manufacturer_not_supported' ? 'is not automated for this manufacturer' : 'is currently unavailable'}. Check the official VIN lookup. Model-year campaigns do not establish completed repairs.</p>`;
+  $('#recalls-body').innerHTML = `<div class="recall-item"><h3>VIN-specific recall repair status</h3>${content}<p><a href="${esc(link)}" target="_blank" rel="noopener">Verify this VIN with the official source</a></p></div><h3>Model-year recall campaigns</h3>` + $('#recalls-body').innerHTML;
+}
+
+function renderCampaigns(r) {
   const rec = r.recalls;
   const count = rec?.count || 0;
   const badge = $('#recall-count');

@@ -1,0 +1,119 @@
+{
+  "format": "mcp.vin endpoint guide v1",
+  "base_url": "same origin; source build must be running",
+  "authentication": "Research endpoints require no API key; per-route limits apply. Existing account routes unchanged.",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/research/capabilities",
+      "description": "Supported features and gaps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/catalog/{level}",
+      "parameters": {
+        "level": "year | make | model | options",
+        "year": "required except level=year",
+        "make": "required for model and options",
+        "model": "required for options"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/epa/{id}",
+      "description": "EPA configuration, not an exact VIN match"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/epa/{id}/emissions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/fuel-prices"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/dimensions",
+      "parameters": {
+        "year": "integer",
+        "make": "string",
+        "model": "string"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/communications",
+      "parameters": {
+        "year": "integer",
+        "make": "exact make, case-insensitive",
+        "model": "exact model, case-insensitive",
+        "offset": "integer, 0\u2013100000",
+        "limit": "integer, 1\u201350"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/research/compare",
+      "example": {
+        "vins": [
+          "1HGCM82633A004352",
+          "1M8GDM9AXKP042788"
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/research/scenario",
+      "example": {
+        "price": 25000,
+        "apr": 7,
+        "months": 60,
+        "down_payment": 5000,
+        "tax_amount": 0,
+        "fees": 0,
+        "ownership": {
+          "years": 5,
+          "annual_miles": 12000,
+          "resale_value": 12500,
+          "annual_insurance": 1500,
+          "annual_maintenance": 600,
+          "annual_repairs": 500,
+          "energy_type": "gas",
+          "energy_price": 4,
+          "efficiency": 30
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/epa/{id}/owner-mpg"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/rate-benchmarks",
+      "description": "Dated snapshot, not a live quote"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/investigations",
+      "parameters": {
+        "year": "integer",
+        "make": "exact, case-insensitive",
+        "model": "exact, case-insensitive",
+        "offset": "integer 0\u2013100000",
+        "limit": "integer 1\u201350"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/vin/{vin}/recall-status",
+      "description": "Tesla VIN-specific manufacturer-reported open and completed recalls. Other makes unknown; official lookup link included."
+    }
+  ],
+  "errors": {
+    "400": "invalid input",
+    "429": "rate limit",
+    "502": "public upstream unavailable",
+    "503": "communications dataset not installed"
+  }
+}
