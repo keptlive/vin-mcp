@@ -72,7 +72,7 @@ second=build('data-and-methodology.pdf','Data and methodology',[
  p('Data sources and methodology','title'),p('mcp.vin | Evidence, coverage and appropriate use','deck'),
  table(['Primary source','Implemented use','Interpretation'],sources,[117,183,228]),
  p('Verified implementation','head'),
- p('<b>101 Node tests</b> and two index integrity tests passed. Live checks exercised REST, the JavaScript client and MCP. The interface was reviewed on desktop and at 390-pixel width. This is implementation verification, not an independent accuracy certification.'),
+ p('<b>102 Node tests</b> and two index integrity tests passed. Live checks exercised REST, the JavaScript client and MCP. The interface was reviewed on desktop and at 390-pixel width. This is implementation verification, not an independent accuracy certification.'),
  p('Investigation index: <b>5,351 distinct actions</b> across 154,439 association rows. The manufacturer-communications index contains 5,834,958 vehicle/component associations across seven archives; that is not a count of unique bulletins.'),
  p('Illustrative source check','head'),
  p('2003 Honda Accord V6 automatic, EPA ID 18657: <b>22 combined EPA MPG</b>; <b>23.5 owner-reported harmonic mean MPG</b> from 29 submitted records, range 15-34 MPG. These measures use different methods and samples. The Honda Accord 2003 investigation query returned five distinct actions. Values reflect the 24 Oct 2026 UTC verification.'),

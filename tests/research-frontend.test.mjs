@@ -125,3 +125,13 @@ test('printing a different workspace section remains available without a cost ca
  const w=workspace();for(const s of w.sections)s.hidden=s.id!=='coverage';
  w.get('#print-view').onclick();assert.equal(w.printCalls(),1);assert.match(w.get('#print-meta').textContent,/coverage/);
 });
+
+test('comparison and printable summary label manufacturer handoffs accurately and keep Nissan history unknown',async()=>{
+ const vins=['1N4AL3APXFN868842','KM8K53AG0MU098173','5XXGR4A60FG353263','4T1BF1FK0CU123456'];
+ const w=workspace({compare:async()=>({note:'Fixture scope.',results:vins.map((vin,i)=>({report:{vehicle:{make:['Nissan','Hyundai','Kia','Toyota'][i]},recall_status:i===0?{available:true,open_count:1,completed_count:null,source:{provider:'Nissan U.S. VIN Recall Search',retrieved_at:'2026-10-24T12:00:00Z'}}:{available:false,open_count:null,completed_count:null,reason:'interactive_verification_required'}}}))})});
+ for(const s of w.sections)s.hidden=s.id!=='compare';w.get('#vins').value=vins.join('\n');
+ await w.get('#compare-form').onsubmit({preventDefault(){},submitter:{disabled:false}});
+ const html=w.get('#compare-result').innerHTML;assert.match(html,/Nissan U.S. VIN Recall Search/);assert.equal((html.match(/Official interactive verification/g)||[]).length,3);assert.doesNotMatch(html,/Toyota interactive verification/);
+ assert.match(html,/<th scope="row">Manufacturer-reported completed\/closed recalls<\/th>(<td>Unknown<\/td>){4}/);assert.match(html,/Nissan supplies positive VIN-matched open safety recalls/);assert.match(html,/Toyota, Hyundai and Kia require interactive official verification/);
+ w.get('#print-view').onclick();assert.equal(w.printCalls(),1);assert.match(w.get('#print-meta').textContent,/compare/);
+});
