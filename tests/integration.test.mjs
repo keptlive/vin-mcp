@@ -13,7 +13,7 @@ import { validateVin } from '../lib/validate.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const stage=await mkdtemp(path.join(tmpdir(),'vin-mcp-tests-'));
-for(const f of ['server.mjs','package.json','lib','public','tests/mock-upstream.mjs','tests/mopar-fixture.mjs'])await cp(path.join(root,f),path.join(stage,f),{recursive:true});
+for(const f of ['server.mjs','package.json','lib','public','tests/mock-upstream.mjs','tests/mopar-fixture.mjs','tests/manufacturer-fixtures.mjs'])await cp(path.join(root,f),path.join(stage,f),{recursive:true});
 await symlink(path.join(root,'node_modules'),path.join(stage,'node_modules'),'dir');
 const port=23291, base=`http://127.0.0.1:${port}`;
 const env={...process.env,JWT_SECRET:'isolated-test-secret',ADMIN_KEY:'a'.repeat(64),NODE_ENV:'production'};
@@ -148,4 +148,16 @@ test('Mopar and Toyota recall paths preserve unknown history through REST, repor
  const report=await(await req('/api/vin/'+mopar)).json();assert.equal(report.recall_status.open_count,null);assert.equal(report.recall_status.open_record_count,3);assert.equal(report.recalls.scope,'make_model_year');
  const comparison=await(await req('/api/research/compare',{vins:[mopar,toyota]})).json();assert.equal(comparison.results[0].report.recall_status.completed_count,null);assert.equal(comparison.results[1].report.recall_status.reason,'interactive_verification_required');
  const client=new Client({name:'mopar-status-test',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));try{await client.connect(transport);const r=await client.callTool({name:'vin_recall_status',arguments:{vin:mopar}});assert.equal(JSON.parse(r.content[0].text).open_count,null);assert.equal(JSON.parse(r.content[0].text).open_record_count,3);}finally{await transport.close();}
+});
+
+test('Ford, GM and Honda VIN status survives REST, full reports, comparisons and real MCP transport',async()=>{
+ const cases=[['1FTEX1EP4FFD06976',1,1,1],['1G1FW6S06H4188545',1,2,2],['5J6RS6H82RL008945',1,null,0]];
+ const client=new Client({name:'manufacturer-status-test',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+ try{await client.connect(transport);for(const [vin,open,complete,programs] of cases){
+  const status=await(await req('/api/vin/'+vin+'/recall-status')).json();assert.equal(status.available,true);assert.equal(status.open_count,open);assert.equal(status.completed_count,complete);assert.equal(status.service_campaigns.length,programs);assert.ok(status.source.retrieved_at);
+  const report=await(await req('/api/vin/'+vin)).json();assert.equal(report.recall_status.open_count,open);assert.equal(report.recalls.scope,'make_model_year');
+  const r=await client.callTool({name:'vin_recall_status',arguments:{vin}});assert.equal(JSON.parse(r.content[0].text).completed_count,complete);
+ }
+ const c=await(await req('/api/research/compare',{vins:cases.map(x=>x[0])})).json();assert.deepEqual(c.results.map(x=>x.report.recall_status.completed_count),[1,2,null]);
+ }finally{await transport.close();}
 });
