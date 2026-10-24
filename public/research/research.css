@@ -46,4 +46,7 @@ h2{font-size:23px;letter-spacing:-.35px}
  .bulletin{border-color:#cbd5e1}.tag{color:#475569;border-color:#cbd5e1}
  .bar{background:#e2e8f0}.bar i{background:#64748b}
  .bar-row{margin:5pt 0;break-inside:avoid}
+ #compare-status{display:none}
+ #compare th,#compare td{padding:5pt 4pt}
+ #compare thead th:not(:first-child){font-size:8pt;white-space:nowrap}
 }
