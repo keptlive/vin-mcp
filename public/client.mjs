@@ -1,6 +1,6 @@
 export class VinClient {
  constructor({baseUrl='http://127.0.0.1:3200',fetchImpl=globalThis.fetch,timeout=45000}={}){this.baseUrl=baseUrl.replace(/\/$/,'');this.fetch=(...args)=>fetchImpl(...args);this.timeout=timeout;}
- async request(path,body){const r=await this.fetch(this.baseUrl+path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(this.timeout)});const data=await r.json();if(!r.ok){const e=new Error(data.error||data.reason||`HTTP ${r.status}`);e.status=r.status;e.data=data;throw e;}return data;}
+ async request(path,body){const r=await this.fetch(this.baseUrl+path,{cache:'no-store',method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(this.timeout)});const data=await r.json();if(!r.ok){const e=new Error(data.error||data.reason||`HTTP ${r.status}`);e.status=r.status;e.data=data;throw e;}return data;}
  decode(vin){return this.request('/api/vin/'+encodeURIComponent(vin));}
  recallStatus(vin){return this.request('/api/vin/'+encodeURIComponent(vin)+'/recall-status');}
  validate(vin){return this.request('/api/vin/'+encodeURIComponent(vin)+'/validate');}

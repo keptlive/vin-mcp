@@ -1,4 +1,5 @@
 /* ── VIN Decoder Frontend ── */
+const apiFetch=(url,options={})=>fetch(url,{...options,cache:'no-store'});
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -61,7 +62,7 @@ form.addEventListener('submit', async (e) => {
   setBtnLoading(true);
 
   try {
-    const res = await fetch(`/api/vin/${encodeURIComponent(vin)}`);
+    const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Server error' }));
       throw new Error(err.error || `HTTP ${res.status}`);
@@ -742,7 +743,7 @@ function authHeaders() {
 async function checkAuth() {
   if (!authToken) { updateAuthUI(); return; }
   try {
-    const res = await fetch('/api/auth/me', { headers: authHeaders() });
+    const res = await apiFetch('/api/auth/me', { headers: authHeaders() });
     if (!res.ok) throw new Error();
     currentUser = await res.json();
     await loadPreferences();
@@ -799,7 +800,7 @@ $('#login-form').addEventListener('submit', async (e) => {
   const errEl = $('#login-error');
   errEl.hidden = true;
   try {
-    const res = await fetch('/api/auth/login', {
+    const res = await apiFetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -830,7 +831,7 @@ $('#register-form').addEventListener('submit', async (e) => {
   const errEl = $('#reg-error');
   errEl.hidden = true;
   try {
-    const res = await fetch('/api/auth/register', {
+    const res = await apiFetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -872,7 +873,7 @@ $('#logout-btn').addEventListener('click', () => {
 async function loadSavedVins() {
   if (!authToken) return;
   try {
-    const res = await fetch('/api/user/vins', { headers: authHeaders() });
+    const res = await apiFetch('/api/user/vins', { headers: authHeaders() });
     if (res.ok) savedVinsList = await res.json();
   } catch {}
 }
@@ -899,7 +900,7 @@ $('#save-vin-btn').addEventListener('click', async () => {
     // Already saved — prompt for label edit
     const label = prompt('Edit label:', existing.label || '');
     if (label === null) return;
-    await fetch(`/api/user/vins/${existing.id}`, {
+    await apiFetch(`/api/user/vins/${existing.id}`, {
       method: 'PUT',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ label }),
@@ -911,7 +912,7 @@ $('#save-vin-btn').addEventListener('click', async () => {
     const label = prompt('Label this vehicle (optional):', '');
     if (label === null) return;
     try {
-      const res = await fetch('/api/user/vins', {
+      const res = await apiFetch('/api/user/vins', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ vin, label: label || undefined }),
@@ -975,7 +976,7 @@ function renderSavedVins() {
     btn.addEventListener('click', async () => {
       const li = btn.closest('li');
       const id = li.dataset.id;
-      await fetch(`/api/user/vins/${id}`, { method: 'DELETE', headers: authHeaders() });
+      await apiFetch(`/api/user/vins/${id}`, { method: 'DELETE', headers: authHeaders() });
       savedVinsList = savedVinsList.filter(s => String(s.id) !== id);
       li.remove();
       if (savedVinsList.length === 0) renderSavedVins();
@@ -990,7 +991,7 @@ function renderSavedVins() {
 async function loadPreferences() {
   if (!authToken) { userPrefs = null; return; }
   try {
-    const res = await fetch('/api/user/preferences', { headers: authHeaders() });
+    const res = await apiFetch('/api/user/preferences', { headers: authHeaders() });
     if (res.ok) userPrefs = await res.json();
   } catch {}
 }
@@ -1043,7 +1044,7 @@ $$('#settings-toggles input[data-pref]').forEach(inp => {
     const key = inp.dataset.pref;
     const value = inp.checked;
     try {
-      const res = await fetch('/api/user/preferences', {
+      const res = await apiFetch('/api/user/preferences', {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ [key]: value }),
@@ -1080,7 +1081,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
     description: 'Decode a Vehicle Identification Number (VIN) to get the full vehicle report including make, model, year, engine specs, safety ratings, model-year recall campaigns, consumer complaints, fuel economy, and photos.',
     inputSchema: vinParam,
     execute: async ({ vin }) => {
-      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}`);
+      const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}`);
       if (!res.ok) return { error: `Failed to decode VIN: HTTP ${res.status}` };
       const report = await res.json();
       // Also render in the UI
@@ -1103,7 +1104,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
     description: 'Check if a VIN is valid (format, characters, checksum) without performing a full decode.',
     inputSchema: vinParam,
     execute: async ({ vin }) => {
-      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/validate`);
+      const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}/validate`);
       if (!res.ok) return { error: `Validation failed: HTTP ${res.status}` };
       return await res.json();
     },
@@ -1114,7 +1115,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
     description: 'Look up NHTSA safety recalls for a vehicle by VIN. Returns recall campaigns, affected components, consequences, and remedies.',
     inputSchema: vinParam,
     execute: async ({ vin }) => {
-      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/recalls`);
+      const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}/recalls`);
       if (!res.ok) return { error: `Recall lookup failed: HTTP ${res.status}` };
       return await res.json();
     },
@@ -1125,7 +1126,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
     description: 'Look up NHTSA consumer complaints for a vehicle by VIN. Returns complaint summaries, crash/fire/injury counts.',
     inputSchema: vinParam,
     execute: async ({ vin }) => {
-      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/complaints`);
+      const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}/complaints`);
       if (!res.ok) return { error: `Complaint lookup failed: HTTP ${res.status}` };
       return await res.json();
     },
@@ -1136,7 +1137,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
     description: 'Get NHTSA crash test safety ratings for a vehicle by VIN. Returns overall rating and individual test scores (frontal, side, rollover).',
     inputSchema: vinParam,
     execute: async ({ vin }) => {
-      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/safety`);
+      const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}/safety`);
       if (!res.ok) return { error: `Safety rating lookup failed: HTTP ${res.status}` };
       return await res.json();
     },
@@ -1147,7 +1148,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
     description: 'Get EPA fuel economy data for a vehicle by VIN. Returns city/highway/combined MPG, annual fuel cost, CO2 emissions.',
     inputSchema: vinParam,
     execute: async ({ vin }) => {
-      const res = await fetch(`/api/vin/${encodeURIComponent(vin)}/fuel`);
+      const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}/fuel`);
       if (!res.ok) return { error: `Fuel economy lookup failed: HTTP ${res.status}` };
       return await res.json();
     },
@@ -1162,7 +1163,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
       required: ['vins'],
     },
     execute: async ({ vins }) => {
-      const res = await fetch('/api/batch', {
+      const res = await apiFetch('/api/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vins }),

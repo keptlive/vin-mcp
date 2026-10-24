@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, symlink, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, cp, symlink, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -120,7 +120,7 @@ test('batch limits still reject excessive requests within their own route',async
 });
 
 test('research routes preserve explicit scope and validate malformed requests',async()=>{
- const page=await req('/research/');assert.equal(page.status,200);assert.equal(page.headers.get('cache-control'),'no-cache');assert.match(await page.text(),/research\.js\?v=1\.4\.0/);assert.match(await(await req('/')).text(),/app\.js\?v=1\.4\.0/);assert.equal((await req('/api/status')).headers.get('cache-control'),'no-store');assert.equal((await req('/client.mjs')).status,200);
+ const page=await req('/research/');assert.equal(page.status,200);assert.equal(page.headers.get('cache-control'),'no-cache');const digest=async file=>crypto.createHash('sha256').update(await readFile(path.join(root,'public',file))).digest('hex').slice(0,12);assert.ok((await page.text()).includes('/research/research.js?v='+await digest('research/research.js')));assert.ok((await(await req('/')).text()).includes('app.js?v='+await digest('app.js')));assert.equal((await req('/api/status')).headers.get('cache-control'),'no-store');assert.equal((await req('/client.mjs')).status,200);
  const caps=await(await req('/api/research/capabilities')).json();assert.equal(caps.find(x=>x.feature==='Plate-to-VIN').status,'gap');
  const r=await req('/api/research/scenario',{price:20000,apr:0,months:40});assert.equal(r.status,200);assert.equal((await r.json()).financing.monthly_payment,500);
  assert.equal((await req('/api/research/scenario',{price:'20000',apr:0,months:40})).status,400);
