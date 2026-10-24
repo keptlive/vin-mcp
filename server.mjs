@@ -15,15 +15,9 @@ import { vinCache, recallCache, ratingCache, fuelCache } from './lib/cache.mjs';
 import db, { logRequest, logSecurityEvent, pruneOldLogs } from './lib/db.mjs';
 import { hashPassword, verifyPassword, createToken, verifyJwt } from './lib/auth.mjs';
 import crypto from 'node:crypto';
+import { loadRuntimeSecrets } from './lib/secrets.mjs';
 
-const JWT_SECRET = process.env.JWT_SECRET || (() => {
-  const s = crypto.randomBytes(32).toString('hex');
-  console.error('WARNING: JWT_SECRET not set — sessions won\'t survive restarts');
-  return s;
-})();
-
-const ADMIN_KEY = process.env.ADMIN_KEY || crypto.randomBytes(32).toString('hex');
-if (!process.env.ADMIN_KEY) console.error(`ADMIN_KEY (auto-generated): ${ADMIN_KEY}`);
+const { JWT_SECRET, ADMIN_KEY } = loadRuntimeSecrets();
 
 // ---- HTML escaping (prevent XSS) ----
 function escHtml(str) {
@@ -49,12 +43,13 @@ async function fullReport(vin) {
 
   const { year, make, model } = decoded.vehicle;
   const cacheKey = `${make}|${model}|${year}`;
+  const fuelKey = `${cacheKey}|${JSON.stringify([decoded.engine, decoded.transmission])}`;
 
   const [recalls, complaints, ratings, fuel] = await Promise.all([
-    recallCache.has(cacheKey) ? recallCache.get(cacheKey) : getRecalls(make, model, year).then(r => { if (r) recallCache.set(cacheKey, r); return r; }),
+    recallCache.has(cacheKey) ? recallCache.get(cacheKey) : getRecalls(make, model, year).then(r => { if (r?.available !== false) recallCache.set(cacheKey, r); return r; }),
     getComplaints(make, model, year),
     ratingCache.has(cacheKey) ? ratingCache.get(cacheKey) : getSafetyRatings(make, model, year).then(r => { if (r) ratingCache.set(cacheKey, r); return r; }),
-    fuelCache.has(cacheKey) ? fuelCache.get(cacheKey) : getFuelEconomy(year, make, model).then(r => { if (r) fuelCache.set(cacheKey, r); return r; }),
+    fuelCache.has(fuelKey) ? fuelCache.get(fuelKey) : getFuelEconomy(year, make, model, decoded).then(r => { if (r?.available) fuelCache.set(fuelKey, r); return r; }),
   ]);
 
   const photos = make && model && year ? getPhotoUrls(make, model, year) : null;
@@ -70,20 +65,70 @@ async function fullReport(vin) {
     photos, raw_nhtsa: decoded.raw,
   };
 
-  vinCache.set(vin, report);
+  if (recalls?.available !== false && complaints?.available !== false && fuel?.reason !== 'upstream_error') vinCache.set(vin, report);
   return report;
+}
+
+// ---- MCP output ----
+// MCP clients put tool results straight into a model's context. A common car
+// can have thousands of NHTSA complaints (2,013 for a 2003 Accord, about 1.8 MB
+// of JSON), far past what clients accept, so the tools return complaint counts
+// and the most recent complaints, and leave out the raw NHTSA fields. The REST
+// API still returns everything.
+
+const MCP_RECENT_COMPLAINTS = 10;
+const MCP_SUMMARY_CHARS = 500;
+
+function filedDate(c) {
+  const [m, d, y] = String(c.date_complaint_filed || '').split('/');
+  return y ? `${y}-${m}-${d}` : '';
+}
+
+function compactComplaints(complaints) {
+  const list = complaints?.complaints || [];
+  const byComponent = new Map();
+  for (const c of list) {
+    for (const part of String(c.component || 'UNKNOWN').split(',')) {
+      const name = part.trim() || 'UNKNOWN';
+      byComponent.set(name, (byComponent.get(name) || 0) + 1);
+    }
+  }
+  const recent = [...list]
+    .sort((a, b) => filedDate(b).localeCompare(filedDate(a)))
+    .slice(0, MCP_RECENT_COMPLAINTS)
+    .map(c => ({
+      ...c,
+      summary: c.summary && c.summary.length > MCP_SUMMARY_CHARS ? c.summary.slice(0, MCP_SUMMARY_CHARS) + '...' : c.summary,
+    }));
+  return {
+    ...complaints,
+    complaints: undefined,
+    count: complaints?.available === false ? null : list.length,
+    summary: complaints?.summary,
+    top_components: [...byComponent].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([component, count]) => ({ component, count })),
+    recent,
+    ...(list.length > recent.length && {
+      note: `Showing the ${recent.length} most recent of ${list.length} complaints. The REST endpoint /api/vin/{vin}/complaints returns all of them.`,
+    }),
+  };
+}
+
+function mcpReport(report) {
+  if (!report?.vehicle) return report;
+  const { raw_nhtsa, ...rest } = report;
+  return { ...rest, complaints: compactComplaints(report.complaints) };
 }
 
 // ---- MCP Server factory ----
 
 function createMcpServer() {
-  const server = new McpServer({ name: 'vin-mcp', version: '1.2.0' });
+  const server = new McpServer({ name: 'vin-mcp', version: '1.2.1' });
 
   server.tool('decode_vin',
-    'Decode a VIN and return a comprehensive vehicle report with specs, recalls, complaints, safety ratings, fuel economy, and photos.',
+    'Decode a VIN and return a vehicle report: specs, recalls, a complaint summary with the most recent complaints, safety ratings, fuel economy, and photo URLs.',
     { vin: z.string().describe('17-character Vehicle Identification Number') },
     async ({ vin }) => {
-      const report = await fullReport(vin);
+      const report = mcpReport(await fullReport(vin));
       return { content: [{ type: 'text', text: JSON.stringify(report, null, 2) }] };
     }
   );
@@ -121,8 +166,13 @@ function createMcpServer() {
     'Decode multiple VINs at once (up to 50).',
     { vins: z.array(z.string()).describe('Array of VINs to decode (max 50)') },
     async ({ vins }) => {
-      if (vins.length > 50) return { content: [{ type: 'text', text: 'Maximum 50 VINs per batch' }] };
-      const results = await batchDecode(vins.map(normalizeVin));
+      if (vins.length > 50) return { content: [{ type: 'text', text: 'Maximum 50 VINs per batch' }], isError: true };
+      if (!vins.length || vins.some(v => !validateVin(v).valid)) return { content: [{ type: 'text', text: 'Provide 1–50 valid VINs (format and checksum)' }], isError: true };
+      const results = (await batchDecode(vins.map(normalizeVin))).map(r => {
+        if (!r) return r;
+        const { raw, ...rest } = r;
+        return rest;
+      });
       return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
     }
   );
@@ -229,16 +279,8 @@ if (useHttp) {
   const cors = (await import('cors')).default;
 
   const app = express();
+  app.disable('x-powered-by');
   app.set('trust proxy', 'loopback');
-
-  // ---- Security headers ----
-  app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-    next();
-  });
 
   app.use(express.json({ limit: '100kb' }));
   app.use(express.urlencoded({ extended: false, limit: '100kb' }));
@@ -251,6 +293,7 @@ if (useHttp) {
       cb(null, false);
     },
     credentials: true,
+    exposedHeaders: ['Mcp-Session-Id', 'MCP-Protocol-Version', 'WWW-Authenticate'],
   }));
 
   // ---- Observability middleware ----
@@ -288,7 +331,7 @@ if (useHttp) {
   function rateGuard(max = 30) {
     return (req, res, next) => {
       const ip = req.ip;
-      if (!checkRate(ip, max)) {
+      if (!checkRate(`${ip}|${req.method}|${req.route?.path || req.path}`, max)) {
         try { logSecurityEvent.run('rate_limit', ip, `${req.method} ${req.path} (limit: ${max}/min)`, 'warn'); } catch {}
         return res.status(429).json({ error: 'Rate limited. Try again in a minute.' });
       }
@@ -376,12 +419,26 @@ if (useHttp) {
     const client = clients.get(client_id);
     if (!client) return res.status(400).send('Unknown client');
 
+    // Browsers apply form-action to the redirect that follows the Allow POST,
+    // so the CSP has to name the client's redirect target as well as 'self'.
+    if (client.redirect_uris.length > 0 && !client.redirect_uris.includes(redirect_uri)) {
+      return res.status(400).send('Invalid redirect URI for this client');
+    }
+    let redirectSource;
+    try {
+      const u = new URL(redirect_uri);
+      if (/^(javascript|data|vbscript|file):$/i.test(u.protocol)) throw new Error('scheme');
+      redirectSource = u.origin !== 'null' ? u.origin : u.protocol;
+    } catch {
+      return res.status(400).send('Invalid redirect URI');
+    }
+
     // Generate CSRF token
     const csrf = crypto.randomBytes(32).toString('hex');
     csrfTokens.set(csrf, { expires: Date.now() + 10 * 60 * 1000 });
 
     res.setHeader('Content-Type', 'text/html');
-    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', `default-src 'none'; style-src 'unsafe-inline'; form-action 'self' ${redirectSource}`);
     res.setHeader('X-Frame-Options', 'DENY');
     res.send(`<!DOCTYPE html>
 <html lang="en"><head>
@@ -505,6 +562,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
       if (!rt || rt.type !== 'refresh' || Date.now() > rt.expires) {
         return res.status(400).json({ error: 'invalid_grant' });
       }
+      if (rt.client_id !== client_id) return res.status(400).json({ error: 'invalid_grant' });
       // Rotate refresh token
       tokens.delete(refresh_token);
       const access_token = crypto.randomBytes(32).toString('hex');
@@ -532,7 +590,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
 
   setInterval(() => {
     const now = Date.now();
-    for (const [id, s] of mcpSessions) { if (now > s.expires_at) mcpSessions.delete(id); }
+    for (const [id, s] of mcpSessions) { if (now > s.expires_at) { mcpSessions.delete(id); void s.server.close().catch(() => {}); } }
     vinCache.prune();
   }, 60000);
 
@@ -549,6 +607,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
 
   app.post('/mcp', mcpAuth, rateGuard(60), async (req, res) => {
     const sessionId = req.headers['mcp-session-id'];
+    if (sessionId && !mcpSessions.has(sessionId)) return res.status(404).json({ jsonrpc: '2.0', id: req.body?.id ?? null, error: { code: -32001, message: 'Session not found; initialize a new session' } });
     let session;
     if (sessionId && mcpSessions.has(sessionId)) {
       session = mcpSessions.get(sessionId);
@@ -643,7 +702,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
       const decoded = await nhtsaDecode(normalizeVin(req.params.vin));
       if (!decoded) return res.status(400).json({ error: 'Could not decode VIN' });
       const { make, model, year } = decoded.vehicle;
-      res.json(await getFuelEconomy(year, make, model) || { available: false });
+      res.json(await getFuelEconomy(year, make, model, decoded) || { available: false });
     } catch (err) { safeError(res, err); }
   });
 
@@ -659,6 +718,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     const { vins } = req.body;
     if (!Array.isArray(vins) || vins.length === 0) return res.status(400).json({ error: 'Provide { vins: [...] }' });
     if (vins.length > 50) return res.status(400).json({ error: 'Maximum 50 VINs' });
+    if (vins.some(v => typeof v !== 'string' || !validateVin(v).valid)) return res.status(400).json({ error: 'Every VIN must be valid (format and checksum)' });
     try {
       const results = await batchDecode(vins.map(normalizeVin));
       res.json({ count: results.length, results });
@@ -678,7 +738,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
 
   app.post('/api/auth/register', rateGuard(5), async (req, res) => {
     const { email, password, display_name } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) return res.status(400).json({ error: 'Email and password required' });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Invalid email' });
     if (String(email).length > 254) return res.status(400).json({ error: 'Email too long' });
     if (password.length < 8 || password.length > 128) return res.status(400).json({ error: 'Password must be 8-128 characters' });
@@ -696,7 +756,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
 
   app.post('/api/auth/login', rateGuard(5), async (req, res) => {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) return res.status(400).json({ error: 'Email and password required' });
     const user = db.prepare('SELECT id, email, password_hash, salt, display_name FROM users WHERE email = ?').get(email);
     if (!user) {
       logSecurityEvent.run('login_fail', req.ip, `unknown email: ${String(email).slice(0, 50)}`, 'info');
@@ -776,7 +836,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   // ---- Public status ----
 
   app.get('/api/status', (req, res) => {
-    res.json({ status: 'ok', server: 'vin-mcp', version: '1.2.0', tools: ['decode_vin', 'validate_vin', 'lookup_recalls', 'batch_decode', 'list_saved_vins', 'save_vin', 'remove_saved_vin', 'get_output_preferences', 'update_output_preferences'] });
+    res.json({ status: 'ok', server: 'vin-mcp', version: '1.2.1', tools: ['decode_vin', 'validate_vin', 'lookup_recalls', 'batch_decode', 'list_saved_vins', 'save_vin', 'remove_saved_vin', 'get_output_preferences', 'update_output_preferences'] });
   });
 
   app.get('/health', (req, res) => {
@@ -787,7 +847,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
 
   function adminAuth(req, res, next) {
     const key = req.headers['x-admin-key'] || req.query.key;
-    if (!key || typeof key !== 'string' || key.length !== ADMIN_KEY.length ||
+    if (!key || typeof key !== 'string' || Buffer.byteLength(key) !== Buffer.byteLength(ADMIN_KEY) ||
         !crypto.timingSafeEqual(Buffer.from(key), Buffer.from(ADMIN_KEY))) {
       logSecurityEvent.run('admin_auth_fail', req.ip, req.path, 'high');
       return res.status(403).json({ error: 'Forbidden' });
@@ -913,6 +973,18 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     });
   });
 
+  // /api/decode/:vin -> redirect to /api/vin/:vin (common guess path)
+  app.get("/api/decode/:vin", (req, res) => {
+    res.redirect(301, "/api/vin/" + req.params.vin);
+  });
+
+  app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+    if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });
+    if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Request body too large' });
+    safeError(res, err);
+  });
+
   // ---- Static files ----
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   app.use(express.static(path.join(__dirname, 'public')));
@@ -925,7 +997,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   });
 
   app.listen(port, () => {
-    console.error(`VIN MCP Server (HTTP) v1.2.0 listening on port ${port}`);
+    console.error(`VIN MCP Server (HTTP) v1.2.1 listening on port ${port}`);
     console.error(`  Frontend: http://localhost:${port}`);
     console.error(`  API: http://localhost:${port}/api/vin/{vin}`);
     console.error(`  MCP: http://localhost:${port}/mcp`);

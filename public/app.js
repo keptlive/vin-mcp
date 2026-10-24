@@ -148,9 +148,11 @@ function renderHero(r) {
 
   const recallCount = r.recalls?.count || 0;
   if (recallCount > 0) {
-    badges.push(`<span class="badge badge-red">${recallCount} Recall${recallCount > 1 ? 's' : ''}</span>`);
+    badges.push(`<span class="badge badge-red">${recallCount} Recall Campaign${recallCount > 1 ? 's' : ''}</span>`);
+  } else if (r.recalls?.available === false) {
+    badges.push(`<span class="badge badge-neutral">Recall lookup unavailable</span>`);
   } else {
-    badges.push(`<span class="badge badge-green">No Recalls</span>`);
+    badges.push(`<span class="badge badge-green">No model-year campaigns found</span>`);
   }
 
   if (r.safety_ratings?.rated) {
@@ -171,6 +173,7 @@ function renderHero(r) {
       : Array.isArray(photos) ? photos : [photos];
 
     if (urls.length > 0) {
+      mainImg.style.display = '';
       mainImg.src = urls[0];
       mainImg.alt = title;
       thumbsEl.innerHTML = urls.map((url, i) =>
@@ -270,7 +273,10 @@ function renderSafetyRatings(r) {
 function renderFuel(r) {
   const f = r.fuel_economy;
   if (!f || !f.available) {
-    $('#fuel-body').innerHTML = '<div class="empty-state">No fuel economy data available</div>';
+    const message = f?.reason === 'ambiguous_variant' ? 'Multiple EPA variants match. Fuel economy cannot be assigned confidently to this VIN.'
+      : f?.reason === 'no_matching_variant' ? 'No EPA variant matches the decoded engine and transmission.'
+      : f?.reason === 'upstream_error' ? 'EPA lookup is temporarily unavailable. Please try again.' : 'No fuel economy data available';
+    $('#fuel-body').innerHTML = `<div class="empty-state">${message}</div>`;
     return;
   }
 
@@ -289,7 +295,8 @@ function renderFuel(r) {
     ['CO2 (tailpipe)', f.co2_tailpipe],
     ['Fuel Grade', f.fuel_grade],
     ['EV Range', f.ev_range ? `${f.ev_range} mi` : null],
-    ['Charge Time (240V)', f.charge_time_240v ? `${f.charge_time_240v} hr` : null],
+    ['Charge Time (240V)', f.ev_charge_time_240v ? `${f.ev_charge_time_240v} hr` : null],
+    ['EPA Variant', f.matched_variant],
     ['kWh/100mi', f.kwh_per_100mi],
   ];
 
@@ -302,10 +309,16 @@ function renderRecalls(r) {
   const count = rec?.count || 0;
   const badge = $('#recall-count');
 
+  if (rec?.available === false) {
+    badge.textContent = '?';
+    badge.className = 'count-badge';
+    $('#recalls-body').innerHTML = '<div class="empty-state">Recall lookup is temporarily unavailable. Please try again.</div>';
+    return;
+  }
   if (count === 0) {
     badge.textContent = '0';
     badge.className = 'count-badge count-green';
-    $('#recalls-body').innerHTML = '<div class="empty-state">No recalls found</div>';
+    $('#recalls-body').innerHTML = '<div class="empty-state">No campaigns found for this make, model and year. Check your VIN at NHTSA for unrepaired recalls.</div>';
     return;
   }
 
@@ -335,13 +348,14 @@ function renderRecalls(r) {
          </div>`).join('')}</div>`
     : '';
 
-  $('#recalls-body').innerHTML = items + showMore;
+  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected. <a href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener">Check VIN-specific repair status at NHTSA</a>.</p>' + items + showMore;
 }
 
 window.toggleRecalls = function(btn) {
   const overflow = btn.nextElementSibling;
   overflow.hidden = !overflow.hidden;
-  btn.textContent = overflow.hidden ? btn.textContent : 'Show less';
+  if (!btn.dataset.moreLabel) btn.dataset.moreLabel = btn.textContent;
+  btn.textContent = overflow.hidden ? btn.dataset.moreLabel : 'Show less';
 };
 
 // ── Complaints Card ──
@@ -350,6 +364,12 @@ function renderComplaints(r) {
   const count = c?.count || 0;
   const badge = $('#complaint-count');
 
+  if (c?.available === false) {
+    badge.textContent = '?';
+    badge.className = 'count-badge';
+    $('#complaints-body').innerHTML = '<div class="empty-state">Complaint lookup is temporarily unavailable. Please try again.</div>';
+    return;
+  }
   if (count === 0) {
     badge.textContent = '0';
     badge.className = 'count-badge count-green';
@@ -416,7 +436,8 @@ function renderComplaints(r) {
 window.toggleComplaints = function(btn) {
   const overflow = btn.nextElementSibling;
   overflow.hidden = !overflow.hidden;
-  btn.textContent = overflow.hidden ? btn.textContent : 'Show less';
+  if (!btn.dataset.moreLabel) btn.dataset.moreLabel = btn.textContent;
+  btn.textContent = overflow.hidden ? btn.dataset.moreLabel : 'Show less';
 };
 
 // ── Safety Equipment Card ──
@@ -1042,7 +1063,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
 
   navigator.modelContext.registerTool({
     name: 'decode_vin',
-    description: 'Decode a Vehicle Identification Number (VIN) to get the full vehicle report including make, model, year, engine specs, safety ratings, open recalls, consumer complaints, fuel economy, and photos.',
+    description: 'Decode a Vehicle Identification Number (VIN) to get the full vehicle report including make, model, year, engine specs, safety ratings, model-year recall campaigns, consumer complaints, fuel economy, and photos.',
     inputSchema: vinParam,
     execute: async ({ vin }) => {
       const res = await fetch(`/api/vin/${encodeURIComponent(vin)}`);

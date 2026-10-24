@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Sitemap: https://mcp.vin/sitemap.xml
+
+# See https://llmstxt.org/
+llms.txt: https://mcp.vin/llms.txt
+llms-full.txt: https://mcp.vin/llms-full.txt
