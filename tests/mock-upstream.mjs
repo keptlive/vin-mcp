@@ -1,9 +1,19 @@
+import https from 'node:https';
+import {Readable} from 'node:stream';
+import {EventEmitter} from 'node:events';
+const nativeGet=https.get;
+https.get=(url,opts,callback)=>{
+ if(String(url).includes('teslaservice-api.tesla.com')){
+  const response=Readable.from([Buffer.from(JSON.stringify({success:true,responseObject:[{recallNumber:'24V051',recallStatus:'Recall Incomplete'},{recallNumber:'18V204',recallStatus:'Recall Completed'}]}))]);
+  response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
+ }
+ return nativeGet(url,opts,callback);
+};
 const json = data => new Response(JSON.stringify(data), {headers:{'content-type':'application/json'}});
 const nativeFetch = globalThis.fetch;
 const detailAttempts=new Map();
 globalThis.fetch=async (input,opts)=>{
  const u=String(input);
- if(u.includes('teslaservice-api.tesla.com'))return json({success:true,responseObject:[{recallNumber:'24V051',recallStatus:'Recall Incomplete'},{recallNumber:'18V204',recallStatus:'Recall Completed'}]});
  if(u.includes('vpic.nhtsa.dot.gov')){
   const vin=u.includes('DecodeVINValuesBatch')?'1HGCM82633A004352':decodeURIComponent(u.split('/').at(-1).split('?')[0]);
   const four=vin.endsWith('353');
