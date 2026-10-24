@@ -24,8 +24,8 @@ and 23.5 owner-reported harmonic mean MPG from 29 submitted records (range 15-34
 The measures use different methods and samples. Counts reflect the dated verification.
 
 Full auto.dev parity is incomplete. There is no verified nationwide plate-to-VIN API,
-inventory feed, universal factory build-sheet source or VIN-specific unrepaired-recall feed
-in this release. Official recall lookup remains linked. Cost results use explicit assumptions;
+inventory feed, universal factory build-sheet source or universal VIN repair-status coverage
+in this release. Tesla VIN status is integrated; official lookup remains linked for other makes. Cost results use explicit assumptions;
 resale, maintenance and insurance values are not predictions.
 
 Source availability, timestamps, limits and exports accompany research results. The capability
