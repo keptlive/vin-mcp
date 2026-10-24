@@ -231,3 +231,5 @@ in the agent's tools. The API supplies comparisons, scenario calculations, prove
 Configuration/model-year data and VIN-specific facts retain their distinct scopes.
 
 VIN recall repair status: Tesla manufacturer-reported open/completed statuses and Mopar VIN-matched open recall/campaign records are included in reports and comparisons, with `vin_recall_status`, `GET /api/vin/{vin}/recall-status` and `VinClient.recallStatus(vin)`. Mopar safety-recall count and completed history remain unknown because its feed mixes campaign types. Toyota/Lexus/Scion require interactive official verification. Other makes remain unknown. See the [source and coverage notes](docs/data-sources.md#vin-specific-recall-repair-status).
+
+Deployment caching: HTML must revalidate, API responses must not be stored by shared caches, and changed JavaScript/PDF links use a release query version. Preserve these policies in any reverse proxy so updated recall records are rendered by the matching client code.

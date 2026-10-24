@@ -120,7 +120,7 @@ test('batch limits still reject excessive requests within their own route',async
 });
 
 test('research routes preserve explicit scope and validate malformed requests',async()=>{
- assert.equal((await req('/research/')).status,200);assert.equal((await req('/client.mjs')).status,200);
+ const page=await req('/research/');assert.equal(page.status,200);assert.equal(page.headers.get('cache-control'),'no-cache');assert.match(await page.text(),/research\.js\?v=1\.4\.0/);assert.match(await(await req('/')).text(),/app\.js\?v=1\.4\.0/);assert.equal((await req('/api/status')).headers.get('cache-control'),'no-store');assert.equal((await req('/client.mjs')).status,200);
  const caps=await(await req('/api/research/capabilities')).json();assert.equal(caps.find(x=>x.feature==='Plate-to-VIN').status,'gap');
  const r=await req('/api/research/scenario',{price:20000,apr:0,months:40});assert.equal(r.status,200);assert.equal((await r.json()).financing.monthly_payment,500);
  assert.equal((await req('/api/research/scenario',{price:'20000',apr:0,months:40})).status,400);

@@ -324,6 +324,7 @@ if (useHttp) {
   const cors = (await import('cors')).default;
 
   const app = express();
+  app.use('/api', (req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
   app.disable('x-powered-by');
   app.set('trust proxy', 'loopback');
 
@@ -1051,7 +1052,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
 
   // ---- Static files ----
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  app.use(express.static(path.join(__dirname, 'public')));
+  app.use(express.static(path.join(__dirname, 'public'), {setHeaders(res,file){if(file.endsWith('.html'))res.setHeader('Cache-Control','no-cache');}}));
 
   app.get('/:vin', (req, res, next) => {
     if (/^[A-HJ-NPR-Z0-9]{17}$/i.test(req.params.vin)) {
