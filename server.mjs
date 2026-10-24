@@ -148,7 +148,7 @@ async function compareVehicles(vins) {
 // ---- MCP Server factory ----
 
 function createMcpServer() {
-  const server = new McpServer({ name: 'vin-mcp', version: '1.5.0' });
+  const server = new McpServer({ name: 'vin-mcp', version: '1.6.0' });
 
   const researchTool=(name,description,schema,fn)=>server.tool(name,description,schema,async args=>{
     try {const result=await fn(args);return {content:[{type:'text',text:JSON.stringify(result)}],...(result?.available===false?{isError:true}:{})};}
@@ -156,7 +156,7 @@ function createMcpServer() {
   });
   const vehicleQuery={year:z.number().int(),make:z.string().min(1).max(100),model:z.string().min(1).max(100)};
   researchTool('explore_capabilities','Discover supported features and explicit coverage gaps.',{},()=>capabilities);
-  researchTool('vin_recall_status','VIN-specific manufacturer-reported open and completed recall status. Tesla and Ford open/completed states; GM completed/closed states with explicit repair dates where supplied; Honda active safety recalls; Mopar positive open records matched to the full VIN. Service programs are separate. Toyota requires interactive verification. Unknowns are never zero. Not a complete service history.',{vin:z.string()},({vin})=>vinRecallStatus(vin));
+  researchTool('vin_recall_status','VIN-specific manufacturer-reported open and completed recall status. Tesla and Ford open/completed states; GM completed/closed states with explicit repair dates where supplied; Honda active safety recalls; Nissan positive open safety recalls; Mopar positive open records matched to the full VIN. Service programs are separate. Toyota, Hyundai and Kia require interactive official verification. Unknowns are never zero. Not a complete service history.',{vin:z.string()},({vin})=>vinRecallStatus(vin));
   researchTool('vehicle_catalog','Browse EPA year, make, model and configuration menus. Not sale listings.',{level:z.enum(['year','make','model','options']),year:z.number().int().optional(),make:z.string().optional(),model:z.string().optional()},({level,...query})=>catalog(level,query));
   researchTool('epa_vehicle','Get an explicitly selected EPA test configuration; not an exact VIN match.',{id:z.string()},({id})=>epaRecord(id));
   researchTool('vehicle_emissions','Get EPA emissions for an explicit EPA vehicle ID.',{id:z.string()},({id})=>emissions(id));
@@ -901,7 +901,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   // ---- Public status ----
 
   app.get('/api/status', (req, res) => {
-    res.json({ status: 'ok', server: 'vin-mcp', version: '1.5.0', tools: MCP_TOOL_NAMES });
+    res.json({ status: 'ok', server: 'vin-mcp', version: '1.6.0', tools: MCP_TOOL_NAMES });
   });
 
   app.get('/health', (req, res) => {
@@ -1062,7 +1062,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   });
 
   app.listen(port, () => {
-    console.error(`VIN MCP Server (HTTP) v1.5.0 listening on port ${port}`);
+    console.error(`VIN MCP Server (HTTP) v1.6.0 listening on port ${port}`);
     console.error(`  Frontend: http://localhost:${port}`);
     console.error(`  API: http://localhost:${port}/api/vin/{vin}`);
     console.error(`  MCP: http://localhost:${port}/mcp`);
