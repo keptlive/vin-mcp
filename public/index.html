@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VIN Decoder — mcp.vin</title>
   <meta name="description" content="Free VIN decoder — decode any vehicle by VIN number. Safety ratings, recalls, complaints, fuel economy, photos. Also available as an MCP server for Claude.">
-  <meta name="theme-color" content="#6366f1">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <meta name="theme-color" content="#6366f1">
+  <link rel="manifest" href="/site.webmanifest">
   <link rel="canonical" href="https://mcp.vin">
 
   <!-- Open Graph -->
@@ -40,10 +43,116 @@
   }
   </script>
 
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=20261021">
+  <link rel="stylesheet" href="article.css?v=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    .supp-divider {
+      max-width: 800px;
+      margin: 2rem auto 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .supp-section {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 1.5rem 1.5rem 2rem;
+    }
+    .supp-faq { margin-bottom: 1.25rem; }
+    .supp-heading {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted, #666);
+      cursor: pointer;
+      list-style: none;
+      padding: 0.5rem 0;
+      user-select: none;
+    }
+    .supp-heading::-webkit-details-marker { display: none; }
+    .supp-heading::before {
+      content: '▸ ';
+      font-size: 0.7rem;
+    }
+    details[open] > .supp-heading::before {
+      content: '▾ ';
+    }
+    .supp-faq-list {
+      margin-top: 0.5rem;
+    }
+    .supp-faq-item {
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .supp-faq-item:last-child { border-bottom: none; }
+    .supp-faq-q {
+      padding: 0.6rem 0;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text, #fff);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    .supp-faq-q:hover { color: var(--accent, #6366f1); }
+    .supp-faq-icon {
+      font-size: 0.9rem;
+      color: var(--text-muted, #666);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+      margin-left: 0.75rem;
+    }
+    .supp-faq-item.open .supp-faq-icon { transform: rotate(45deg); }
+    .supp-faq-a {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      font-size: 0.82rem;
+      color: var(--text-dim, #999);
+      line-height: 1.65;
+      padding-left: 0;
+    }
+    .supp-faq-item.open .supp-faq-a {
+      max-height: 300px;
+      padding-bottom: 0.5rem;
+    }
+    .supp-articles {
+      padding-top: 0.25rem;
+    }
+    .supp-articles-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted, #666);
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    .supp-articles-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem 0.75rem;
+    }
+    .supp-article-link {
+      font-size: 0.82rem;
+      color: var(--text-dim, #999);
+      text-decoration: none;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .supp-article-link:hover {
+      color: var(--accent, #6366f1);
+      border-bottom-color: var(--accent, #6366f1);
+    }
+    @media (max-width: 600px) {
+      .supp-section { padding: 1rem 1rem 1.5rem; }
+    }
+  </style>
 </head>
 <body>
   <!-- User area -->
@@ -261,6 +370,126 @@
   <!-- Toast container -->
   <div id="toast-container" class="toast-container"></div>
 
+
+    <!-- Supplementary Content -->
+  <div class="supp-divider"></div>
+  <section class="supp-section">
+    <details class="supp-faq">
+      <summary class="supp-heading">Frequently Asked Questions</summary>
+      <div class="supp-faq-list">
+        <div class="supp-faq-item">
+          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
+            <span>What is a VIN and what does it stand for?</span>
+            <span class="supp-faq-icon">+</span>
+          </div>
+          <div class="supp-faq-a">A VIN (Vehicle Identification Number) is a unique 17-character code assigned to every vehicle manufactured since 1981. It's stamped on the dashboard, the driver-side door jamb, and the engine block. Each character encodes specific information: the manufacturer, the country of origin, the vehicle type, engine specs, model year, assembly plant, and a serial number. No two vehicles in operation share the same VIN.</div>
+        </div>
+        <div class="supp-faq-item">
+          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
+            <span>Where do I find the VIN on my car?</span>
+            <span class="supp-faq-icon">+</span>
+          </div>
+          <div class="supp-faq-a">The easiest place to find it is on the driver-side dashboard &mdash; look through the windshield at the base where the dash meets the glass. You'll also find it on the driver-side door jamb sticker (the same one with the tire pressure info), on your vehicle registration card, and on your insurance card. Some cars also have the VIN stamped on the engine block or frame rail.</div>
+        </div>
+        <div class="supp-faq-item">
+          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
+            <span>Is mcp.vin really free? What's the catch?</span>
+            <span class="supp-faq-icon">+</span>
+          </div>
+          <div class="supp-faq-a">Yes, it's genuinely free &mdash; no signup, no API key, no hidden charges. mcp.vin pulls data from public government databases (NHTSA and EPA) that are already funded by taxpayers. There are no paid tiers or premium features. The REST API and MCP server are also free to use. The project is open source on GitHub.</div>
+        </div>
+        <div class="supp-faq-item">
+          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
+            <span>What data does a VIN decode include?</span>
+            <span class="supp-faq-icon">+</span>
+          </div>
+          <div class="supp-faq-a">A full VIN decode at mcp.vin returns the make, model, model year, body class, engine displacement, number of cylinders, fuel type, drive type, transmission, plant city and country, vehicle type, GVWR class, and safety equipment. It also includes NHTSA safety ratings, model-year recall campaigns, consumer complaints, EPA fuel economy data, and vehicle photos when available.</div>
+        </div>
+        <div class="supp-faq-item">
+          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
+            <span>Does it work for vehicles outside the United States?</span>
+            <span class="supp-faq-icon">+</span>
+          </div>
+          <div class="supp-faq-a">The NHTSA database primarily covers vehicles sold in the US market. However, many international manufacturers register their VIN patterns with the NHTSA, so vehicles from Japan, Germany, South Korea, and other major auto-producing countries often decode correctly even if they weren't sold in the US. The WMI (World Manufacturer Identifier) portion of the VIN is standardized globally by the ISO.</div>
+        </div>
+        <div class="supp-faq-item">
+          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
+            <span>What's the difference between a free VIN check and a paid vehicle history report?</span>
+            <span class="supp-faq-icon">+</span>
+          </div>
+          <div class="supp-faq-a">A free VIN check decodes the factory specs from the VIN itself (make, model, year, engine, etc.) and checks for open safety recalls. A paid vehicle history report from Carfax or AutoCheck adds accident records, title history, odometer readings over time, previous ownership count, and service records. Start with the free check to verify the basics, then consider a paid report ($25&ndash;$40) if you're seriously considering buying the car.</div>
+        </div>
+      </div>
+    </details>
+    <div class="supp-articles">
+      <span class="supp-articles-label">Learn more</span>
+      <div class="supp-articles-links">
+        <a href="/free-vin-check/" class="supp-article-link">Free VIN Check Before Buying a Used Car</a>
+        <a href="/vin-decoder-api/" class="supp-article-link">VIN Decoder API for Developers</a>
+        <a href="/vehicle-safety-recalls/" class="supp-article-link">How to Check Vehicle Safety Recalls by VIN</a>
+        <a href="/vehicle-history-reports/" class="supp-article-link">Understanding Vehicle History Reports</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is a VIN and what does it stand for?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A VIN (Vehicle Identification Number) is a unique 17-character code assigned to every vehicle manufactured since 1981. It's stamped on the dashboard, the driver-side door jamb, and the engine block. Each character encodes specific information: the manufacturer, the country of origin, the vehicle type, engine specs, model year, assembly plant, and a serial number. No two vehicles in operation share the same VIN."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Where do I find the VIN on my car?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The easiest place to find it is on the driver-side dashboard — look through the windshield at the base where the dash meets the glass. You'll also find it on the driver-side door jamb sticker, on your vehicle registration card, and on your insurance card."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is mcp.vin really free? What's the catch?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, it's genuinely free — no signup, no API key, no hidden charges. mcp.vin pulls data from public government databases (NHTSA and EPA) that are already funded by taxpayers. There are no paid tiers or premium features. The REST API and MCP server are also free to use. The project is open source on GitHub."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What data does a VIN decode include?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A full VIN decode at mcp.vin returns the make, model, model year, body class, engine displacement, number of cylinders, fuel type, drive type, transmission, plant city and country, vehicle type, GVWR class, and safety equipment. It also includes NHTSA safety ratings, model-year recall campaigns, consumer complaints, EPA fuel economy data, and vehicle photos when available."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it work for vehicles outside the United States?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The NHTSA database primarily covers vehicles sold in the US market. However, many international manufacturers register their VIN patterns with the NHTSA, so vehicles from Japan, Germany, South Korea, and other major auto-producing countries often decode correctly even if they weren't sold in the US."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What's the difference between a free VIN check and a paid vehicle history report?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A free VIN check decodes the factory specs from the VIN itself and checks for open safety recalls. A paid vehicle history report from Carfax or AutoCheck adds accident records, title history, odometer readings over time, previous ownership count, and service records. Start with the free check, then consider a paid report if you're seriously considering buying the car."
+        }
+      }
+    ]
+  }
+  </script>
+
   <!-- MCP Connection Info -->
   <section id="mcp-info" class="mcp-info">
     <div class="mcp-info-inner">
@@ -377,6 +606,14 @@
     <p>Data from <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener noreferrer">NHTSA</a>, <a href="https://fueleconomy.gov" target="_blank" rel="noopener noreferrer">EPA</a>, <a href="https://www.imagin.studio" target="_blank" rel="noopener noreferrer">IMAGIN.studio</a> &mdash; All free, no API key required</p>
   </footer>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=20261021"></script>
+<script data-goatcounter=https://helloandy.goatcounter.com/count async src=//gc.zgo.at/count.js></script>
+<div style="text-align:center;padding:1.5rem 1rem;margin-top:2rem;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;color:#888;font-family:-apple-system,sans-serif;">
+  Built by <a href="https://helloandy.net" style="color:#7c3aed;text-decoration:none;">Andy</a> &middot;
+  <a href="https://qrcode.host" style="color:#06b6d4;text-decoration:none;">Build a microsite</a> &middot;
+  <a href="https://qrmcp.dev" style="color:#06b6d4;text-decoration:none;">Generate QR codes</a> &middot;
+  <a href="https://webmcplist.com" style="color:#06b6d4;text-decoration:none;">WebMCP Directory</a> &middot;
+  <a href="https://contextwire.dev" style="color:#10b981;text-decoration:none;">ContextWire Search</a>
+</div>
 </body>
 </html>

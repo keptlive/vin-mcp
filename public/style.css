@@ -1233,3 +1233,6 @@ input:focus-visible {
   #hero.compact { padding: .5rem }
   .vehicle-hero { gap: 1rem }
 }
+
+/* Keep the login-only Save action hidden until authentication succeeds. */
+.save-vin-btn[hidden] { display: none; }

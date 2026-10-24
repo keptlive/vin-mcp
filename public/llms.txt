@@ -1,0 +1,37 @@
+# mcp.vin — Free VIN Decoder & MCP Server
+> Full docs: https://mcp.vin/llms-full.txt
+
+## About
+mcp.vin is a free Vehicle Identification Number (VIN) decoder that aggregates 6 government data sources. No API key required. Also available as an MCP server for Claude Code and claude.ai.
+
+## Features
+- VIN validation and decode (NHTSA)
+- Safety ratings (NHTSA 5-star)
+- Recall notices
+- Consumer complaints
+- EPA fuel economy data
+- Vehicle photos
+
+## API
+- GET https://mcp.vin/api/vin/:vin — Decode a single VIN
+- GET https://mcp.vin/api/vin/:vin/validate — Quick validation
+- GET https://mcp.vin/api/vin/:vin/recalls — Recalls only
+- GET https://mcp.vin/api/vin/:vin/complaints — Complaints only
+- GET https://mcp.vin/api/vin/:vin/safety — Safety ratings
+- GET https://mcp.vin/api/vin/:vin/fuel — Fuel economy
+- GET https://mcp.vin/api/vin/:vin/photo — Vehicle photo
+- POST https://mcp.vin/api/batch — Decode multiple VINs (JSON array, up to 50)
+
+## MCP Server
+- Stdio: npx -y vin-mcp (or node server.mjs)
+- HTTP: POST https://mcp.vin/mcp (Streamable HTTP transport)
+- Tools: decode_vin, validate_vin, lookup_recalls, batch_decode
+
+## Articles
+- https://mcp.vin/free-vin-check/ — Free VIN Check Before Buying a Used Car
+- https://mcp.vin/vin-decoder-api/ — VIN Decoder API for Developers
+- https://mcp.vin/vehicle-safety-recalls/ — How to Check Vehicle Safety Recalls by VIN
+- https://mcp.vin/vehicle-history-reports/ — Understanding Vehicle History Reports
+
+## Source
+https://github.com/keptlive/vin-mcp

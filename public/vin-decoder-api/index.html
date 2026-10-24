@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIN Decoder API &mdash; Free Vehicle Data API for Developers | mcp.vin</title>
+  <meta name="description" content="Free VIN decoder API with no signup or API key. GET request returns JSON with make, model, year, engine specs. Code examples for curl, JavaScript, and Python.">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <meta name="theme-color" content="#6366f1">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="canonical" href="https://mcp.vin/vin-decoder-api/">
+
+  <meta property="og:title" content="VIN Decoder API &mdash; Free Vehicle Data API | mcp.vin">
+  <meta property="og:description" content="Free VIN decoder API with no signup. Returns JSON with make, model, year, engine specs. Code examples included.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://mcp.vin/vin-decoder-api/">
+  <meta property="og:image" content="https://mcp.vin/og-image.png">
+  <meta property="og:site_name" content="mcp.vin">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="VIN Decoder API &mdash; Free Vehicle Data API | mcp.vin">
+  <meta name="twitter:description" content="Free VIN decoder API. No signup, no API key. GET request returns JSON.">
+  <meta name="twitter:image" content="https://mcp.vin/og-image.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "VIN Decoder API — Free Vehicle Data API for Developers",
+    "description": "Free VIN decoder API with no signup or API key. Returns JSON with make, model, year, engine specs.",
+    "author": {"@type": "Organization", "name": "mcp.vin", "url": "https://mcp.vin"},
+    "publisher": {"@type": "Organization", "name": "mcp.vin"},
+    "datePublished": "2026-03-15",
+    "url": "https://mcp.vin/vin-decoder-api/"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://mcp.vin/"},
+      {"@type": "ListItem", "position": 2, "name": "VIN Decoder API", "item": "https://mcp.vin/vin-decoder-api/"}
+    ]
+  }
+  </script>
+
+  <link rel="stylesheet" href="/style.css?v=2">
+  <link rel="stylesheet" href="/article.css?v=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="article-nav">
+    <a href="/" class="nav-brand">mcp<span class="dot">.</span>vin</a>
+    <a href="/" class="nav-back">&larr; Back to decoder</a>
+  </nav>
+
+  <div class="article-wrap">
+    <div class="breadcrumb">
+      <a href="/">Home</a><span>&rsaquo;</span>VIN Decoder API
+    </div>
+
+    <div class="article-meta">
+      <span class="meta-tag">API</span>
+      <span class="meta-tag">Developers</span>
+      <span class="meta-tag">Free</span>
+      <span class="meta-date">March 2026</span>
+    </div>
+
+    <h1>VIN Decoder API for Developers &mdash; Free Vehicle Data API</h1>
+
+    <p class="article-lead">Need to pull vehicle data from a VIN programmatically? The mcp.vin API takes a 17-character VIN and returns structured JSON &mdash; make, model, year, engine, transmission, plant of assembly &mdash; with a single GET request. No API key. No signup.</p>
+
+    <div class="toc">
+      <div class="toc-title">In this article</div>
+      <ol>
+        <li><a href="#why-api">Why use a VIN decoder API?</a></li>
+        <li><a href="#endpoints">API endpoints</a></li>
+        <li><a href="#response">Response format</a></li>
+        <li><a href="#code-examples">Code examples</a></li>
+        <li><a href="#mcp-server">Using as an MCP server</a></li>
+        <li><a href="#use-cases">Real-world use cases</a></li>
+        <li><a href="#alternatives">Comparison with other VIN APIs</a></li>
+      </ol>
+    </div>
+
+    <h2 id="why-api">Why Use a VIN Decoder API?</h2>
+
+    <p>If you're building anything that touches vehicle data &mdash; a used car marketplace, a fleet management dashboard, an insurance quoting tool, a parts catalog &mdash; you need structured vehicle specs, and the VIN is the only reliable input you've got.</p>
+
+    <p>You could scrape the NHTSA website. That works until the markup changes and your parser breaks at 2 AM. A proper API gives you a stable JSON contract that won't shift under you.</p>
+
+    <p>Most VIN decoder APIs charge per request or require a monthly subscription. The mcp.vin API doesn't. It wraps the NHTSA's vPIC (Vehicle Product Information Catalog) database behind a clean REST endpoint and returns everything the NHTSA knows about that VIN.</p>
+
+    <h2 id="endpoints">API Endpoints</h2>
+
+    <p>All endpoints are free and require no authentication.</p>
+
+    <div class="info-card">
+      <div class="info-card-title">Full decode</div>
+      <div class="info-card-desc"><code>GET https://mcp.vin/api/vin/{VIN}</code> &mdash; Returns make, model, year, engine, drivetrain, body, plant, and more.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">Quick validation</div>
+      <div class="info-card-desc"><code>GET https://mcp.vin/api/vin/{VIN}/validate</code> &mdash; Checksum validation, WMI decode, and year detection with no API calls.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">Recalls</div>
+      <div class="info-card-desc"><code>GET https://mcp.vin/api/vin/{VIN}/recalls</code> &mdash; Open and completed safety recalls from NHTSA.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">Complaints</div>
+      <div class="info-card-desc"><code>GET https://mcp.vin/api/vin/{VIN}/complaints</code> &mdash; Consumer complaints filed with NHTSA.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">Safety ratings</div>
+      <div class="info-card-desc"><code>GET https://mcp.vin/api/vin/{VIN}/safety</code> &mdash; NHTSA 5-star crash test ratings.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">Fuel economy</div>
+      <div class="info-card-desc"><code>GET https://mcp.vin/api/vin/{VIN}/fuel</code> &mdash; EPA fuel economy data (MPG city/highway/combined).</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">Batch decode</div>
+      <div class="info-card-desc"><code>POST https://mcp.vin/api/batch</code> &mdash; Decode up to 50 VINs in a single request. Send a JSON array of VIN strings.</div>
+    </div>
+
+    <h2 id="response">Response Format</h2>
+
+    <p>Here's an actual response for VIN <code>5YJSA1DG9DFP14705</code> &mdash; a 2013 Tesla Model S:</p>
+
+<pre><code>{
+  "vin": "5YJSA1DG9DFP14705",
+  "make": "TESLA",
+  "model": "Model S",
+  "year": 2013,
+  "trim": "Base",
+  "body_class": "Sedan/Saloon",
+  "vehicle_type": "PASSENGER CAR",
+  "drive_type": "RWD/Rear-Wheel Drive",
+  "fuel_type": "Electric",
+  "engine_displacement_l": null,
+  "engine_cylinders": null,
+  "plant_city": "Fremont",
+  "plant_state": "CALIFORNIA",
+  "plant_country": "UNITED STATES (USA)",
+  "doors": 4,
+  "error_code": "0",
+  "error_text": "0 - VIN decoded clean"
+}</code></pre>
+
+    <p>Fields that don't apply &mdash; like <code>engine_displacement_l</code> for an electric vehicle &mdash; come back as <code>null</code>. The <code>error_code</code> field tells you if the decode was clean. Always check <code>error_code</code> before trusting the other fields.</p>
+
+    <div class="insight-box">
+      <div class="insight-label">Error handling</div>
+      Invalid VINs (wrong length, bad check digit, unknown pattern) still return HTTP 200 with <code>error_code</code> and <code>error_text</code> explaining what went wrong. Your code should always check <code>error_code</code> before using the data.
+    </div>
+
+    <h2 id="code-examples">Code Examples</h2>
+
+    <h3>curl</h3>
+
+<pre><code># Decode a 2003 Honda Accord
+curl -s https://mcp.vin/api/vin/1HGCM82633A004352 | jq .
+
+# Just grab make, model, and year
+curl -s https://mcp.vin/api/vin/1HGCM82633A004352 | jq '{make, model, year}'</code></pre>
+
+    <h3>JavaScript (fetch)</h3>
+
+<pre><code>async function decodeVin(vin) {
+  const res = await fetch(`https://mcp.vin/api/vin/${vin}`);
+  const data = await res.json();
+
+  if (data.error_code !== "0") {
+    throw new Error(`VIN decode failed: ${data.error_text}`);
+  }
+  return data;
+}
+
+const vehicle = await decodeVin("5YJSA1DG9DFP14705");
+console.log(`${vehicle.year} ${vehicle.make} ${vehicle.model}`);
+// Output: "2013 TESLA Model S"</code></pre>
+
+    <h3>Python (requests)</h3>
+
+<pre><code>import requests
+
+def decode_vin(vin: str) -> dict:
+    resp = requests.get(f"https://mcp.vin/api/vin/{vin}")
+    resp.raise_for_status()
+    data = resp.json()
+
+    if data["error_code"] != "0":
+        raise ValueError(f"VIN decode failed: {data['error_text']}")
+    return data
+
+vehicle = decode_vin("1HGCM82633A004352")
+print(f"{vehicle['year']} {vehicle['make']} {vehicle['model']}")
+# Output: "2003 HONDA Accord"</code></pre>
+
+    <h3>Python (standard library only)</h3>
+
+<pre><code>import json, urllib.request
+
+def decode_vin(vin: str) -> dict:
+    url = f"https://mcp.vin/api/vin/{vin}"
+    with urllib.request.urlopen(url) as resp:
+        return json.loads(resp.read())
+
+vehicle = decode_vin("5YJSA1DG9DFP14705")
+print(vehicle["make"], vehicle["model"], vehicle["year"])</code></pre>
+
+    <h2 id="mcp-server">Using mcp.vin as an MCP Server</h2>
+
+    <p>mcp.vin implements the Model Context Protocol (MCP), which means AI assistants like Claude can connect to it and call VIN decode tools natively. The agent sends a VIN, receives structured JSON, and can reason about the vehicle data without any custom integration code.</p>
+
+    <h3>Claude Code (stdio)</h3>
+    <p>Add to your project's <code>.mcp.json</code>:</p>
+
+<pre><code>{
+  "mcpServers": {
+    "vin-mcp": {
+      "command": "npx",
+      "args": ["-y", "vin-mcp"]
+    }
+  }
+}</code></pre>
+
+    <h3>Claude Desktop / Remote (HTTP)</h3>
+
+<pre><code>{
+  "mcpServers": {
+    "vin-mcp": {
+      "url": "https://mcp.vin/mcp"
+    }
+  }
+}</code></pre>
+
+    <p>Four tools are available: <code>decode_vin</code> (full decode), <code>validate_vin</code> (quick check), <code>lookup_recalls</code> (recall search), and <code>batch_decode</code> (up to 50 VINs).</p>
+
+    <h2 id="use-cases">Real-World Use Cases</h2>
+
+    <div class="info-card">
+      <div class="info-card-title">Used car marketplaces</div>
+      <div class="info-card-desc">Auto-populate listing fields when a seller enters a VIN. Catches typos, fills in specs, and ensures listings are accurate without manual data entry.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">Fleet management</div>
+      <div class="info-card-desc">Decode VINs for an entire vehicle fleet to build a specs database. Track which vehicles are due for recall repairs. The batch endpoint handles up to 50 VINs per request.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">Insurance quoting</div>
+      <div class="info-card-desc">Pull vehicle specs from a VIN to pre-fill quote forms. Engine size, body type, safety features, and safety ratings all affect premiums.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">Parts catalogs</div>
+      <div class="info-card-desc">Map a VIN to the exact engine, transmission, and body configuration to show compatible parts. Eliminates the "does this fit my car?" guesswork.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card-title">AI agents and chatbots</div>
+      <div class="info-card-desc">Connect via MCP and let your AI agent decode VINs, check recalls, and answer vehicle questions without building a custom integration.</div>
+    </div>
+
+    <h2 id="alternatives">How It Compares to Other VIN APIs</h2>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>mcp.vin</th>
+          <th>Typical paid APIs</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Price</td>
+          <td>Free</td>
+          <td>$0.01&ndash;$0.50 per request</td>
+        </tr>
+        <tr>
+          <td>API key required</td>
+          <td>No</td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <td>Signup required</td>
+          <td>No</td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <td>Data source</td>
+          <td>NHTSA vPIC + EPA</td>
+          <td>NHTSA + proprietary</td>
+        </tr>
+        <tr>
+          <td>Safety ratings</td>
+          <td>Yes (NHTSA)</td>
+          <td>Varies</td>
+        </tr>
+        <tr>
+          <td>Recalls</td>
+          <td>Yes</td>
+          <td>Varies</td>
+        </tr>
+        <tr>
+          <td>Vehicle photos</td>
+          <td>Yes</td>
+          <td>Rare</td>
+        </tr>
+        <tr>
+          <td>MCP support</td>
+          <td>Yes (stdio + HTTP)</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Batch decode</td>
+          <td>Up to 50</td>
+          <td>Varies</td>
+        </tr>
+        <tr>
+          <td>Open source</td>
+          <td>Yes</td>
+          <td>Rarely</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The main thing you won't get from mcp.vin is vehicle history data (accident reports, title changes, odometer records). That requires paid databases like Carfax or AutoCheck. For factory specs, recalls, safety ratings, and fuel economy, the free API covers everything you need.</p>
+
+    <div class="cta-box">
+      <p>Try the API now &mdash; no signup needed.</p>
+      <a href="/" class="cta-btn">Decode a VIN</a>
+    </div>
+
+    <div class="article-footer">
+      <p style="color:var(--text-dim);font-size:.9rem;margin-bottom:1rem;">Related articles on mcp.vin:</p>
+      <div class="article-footer-links">
+        <a href="/free-vin-check/">Free VIN Check Guide</a>
+        <a href="/vehicle-safety-recalls/">Vehicle Safety Recalls</a>
+        <a href="/vehicle-history-reports/">Vehicle History Reports</a>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>Data from <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener noreferrer">NHTSA</a>, <a href="https://fueleconomy.gov" target="_blank" rel="noopener noreferrer">EPA</a>, <a href="https://www.imagin.studio" target="_blank" rel="noopener noreferrer">IMAGIN.studio</a></p>
+  </footer>
+
+  <div style="text-align:center;padding:1.5rem 1rem;margin-top:2rem;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;color:#888;font-family:-apple-system,sans-serif;">
+    Built by <a href="https://helloandy.net" style="color:#7c3aed;text-decoration:none;">Andy</a> &middot;
+    <a href="https://qrcode.host" style="color:#06b6d4;text-decoration:none;">Build a microsite</a> &middot;
+    <a href="https://qrmcp.dev" style="color:#06b6d4;text-decoration:none;">Generate QR codes</a> &middot;
+    <a href="https://webmcplist.com" style="color:#06b6d4;text-decoration:none;">WebMCP Directory</a>
+  </div>
+
+  <script data-goatcounter="https://helloandy.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
