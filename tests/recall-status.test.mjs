@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {vinRecallStatus} from '../lib/recall-status.mjs';
+import {createRecallStatusLookup} from '../lib/recall-status.mjs';
 import {validateVin} from '../lib/validate.mjs';
+const vinRecallStatus=createRecallStatusLookup((...args)=>globalThis.fetch(...args));
 const original = globalThis.fetch;
 test.after(()=>{globalThis.fetch=original;});
 let seq=10000;
