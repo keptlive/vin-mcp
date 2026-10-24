@@ -1,9 +1,19 @@
 import {moparFixture} from './mopar-fixture.mjs';
+import {fordPage,fordState,gmFixture,hondaFixture,hondaPage,hondaVin} from './manufacturer-fixtures.mjs';
 import https from 'node:https';
 import {Readable} from 'node:stream';
 import {EventEmitter} from 'node:events';
 const nativeGet=https.get;
 https.get=(url,opts,callback)=>{
+ if(String(url).includes('ford.com/support/recalls-details/')){
+  const vin=new URL(url).pathname.split('/').filter(Boolean).at(-1);const response=Readable.from([Buffer.from(fordPage(fordState(vin)))]);response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
+ }
+ if(String(url).includes('experience.gm.com/ownercenter/api/')){
+  const vin=new URL(url).pathname.split('/').at(-2);const response=Readable.from([Buffer.from(JSON.stringify(gmFixture(vin)))]);response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
+ }
+ if(String(url).startsWith('https://mygarage.honda.com/s/recall-search')){
+  const response=Readable.from([Buffer.from(hondaPage())]);response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
+ }
  if(String(url).includes('wrecall.extra.chrysler.com')){
   const response=Readable.from([Buffer.from(moparFixture())]);response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
  }
@@ -12,6 +22,14 @@ https.get=(url,opts,callback)=>{
   response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
  }
  return nativeGet(url,opts,callback);
+};
+const nativeRequest=https.request;
+https.request=(url,opts,callback)=>{
+ if(String(url).includes('mygarage.honda.com/s/sfsites/aura')){
+  const req=new EventEmitter();req.end=body=>{const vin=JSON.parse(new URLSearchParams(body).get('message')).actions[0].params.params.productIdentifier;
+   const response=Readable.from([Buffer.from(JSON.stringify(hondaFixture(vin===hondaVin?vin:'NOT_CONFIRMED')))]);response.statusCode=200;queueMicrotask(()=>callback(response));};return req;
+ }
+ return nativeRequest(url,opts,callback);
 };
 const json = data => new Response(JSON.stringify(data), {headers:{'content-type':'application/json'}});
 const nativeFetch = globalThis.fetch;

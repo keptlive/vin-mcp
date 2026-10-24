@@ -24,7 +24,7 @@ test('invalid, rejected, null and upstream error responses stay unknown and are 
  const vin=nextVin();globalThis.fetch=async()=>{throw Error('offline');};const r=await vinRecallStatus(vin);assert.equal(r.available,false);assert.equal(r.open_count,null);
 });
 test('unsupported makes never call upstream or invent completed repairs; invalid VINs rejected',async()=>{
- globalThis.fetch=async()=>{throw Error('Unexpected network call');};const r=await vinRecallStatus('1HGCM82633A004352');assert.equal(r.reason,'manufacturer_not_supported');assert.equal(r.completed_count,null);await assert.rejects(()=>vinRecallStatus('invalid'),/valid/);
+ globalThis.fetch=async()=>{throw Error('Unexpected network call');};let v='WBA'+nextVin().slice(3);v=v.slice(0,8)+validateVin(v).checksum.expected+v.slice(9);const r=await vinRecallStatus(v);assert.equal(r.reason,'manufacturer_not_supported');assert.equal(r.completed_count,null);await assert.rejects(()=>vinRecallStatus('invalid'),/valid/);
 });
 test('successful snapshots deduplicate concurrent lookups and are cached per VIN',async()=>{
  let calls=0;globalThis.fetch=async()=>{calls++;await new Promise(r=>setTimeout(r,10));return new Response(JSON.stringify({success:true,responseObject:[]}));};
