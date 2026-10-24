@@ -566,7 +566,12 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
       };
       session = { server: mcpInstance, transport, expires_at: Date.now() + SESSION_TTL };
     }
-    await session.transport.handleRequest(req, res);
+    // Pass req.body as the parsedBody argument so the SDK doesn't try to re-read
+    // the request stream — express.json() has already consumed it. Without this,
+    // POSTs from external MCP clients (Apify, ChatGPT remote MCP, etc.) fail with
+    // "Parse error: Invalid JSON" (-32700) because the stream is empty by the time
+    // the transport reads it.
+    await session.transport.handleRequest(req, res, req.body);
     const newSid = res.getHeader('mcp-session-id');
     if (newSid && !mcpSessions.has(newSid)) mcpSessions.set(newSid, session);
   });
