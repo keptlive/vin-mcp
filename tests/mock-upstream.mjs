@@ -1,10 +1,14 @@
 import {moparFixture} from './mopar-fixture.mjs';
 import {fordPage,fordState,gmFixture,hondaFixture,hondaPage,hondaVin} from './manufacturer-fixtures.mjs';
+import {nissanPage,nissanFixture} from './manufacturer-fixtures.mjs';
 import https from 'node:https';
 import {Readable} from 'node:stream';
 import {EventEmitter} from 'node:events';
 const nativeGet=https.get;
 https.get=(url,opts,callback)=>{
+ if(String(url)==='https://www.nissanusa.com/owners/recalls-vin.html'){
+  const response=Readable.from([Buffer.from(nissanPage)]);response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
+ }
  if(String(url).includes('ford.com/support/recalls-details/')){
   const vin=new URL(url).pathname.split('/').filter(Boolean).at(-1);const response=Readable.from([Buffer.from(fordPage(fordState(vin)))]);response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
  }
@@ -25,6 +29,9 @@ https.get=(url,opts,callback)=>{
 };
 const nativeRequest=https.request;
 https.request=(url,opts,callback)=>{
+ if(String(url).startsWith('https://www.nissanusa.com/content/nissan_prod/')){
+  const req=new EventEmitter();req.end=body=>{const vin=JSON.parse(new URLSearchParams(body).get('vinNums'))[0];const response=Readable.from([Buffer.from(JSON.stringify(nissanFixture(vin)))]);response.statusCode=200;queueMicrotask(()=>callback(response));};return req;
+ }
  if(String(url).includes('mygarage.honda.com/s/sfsites/aura')){
   const req=new EventEmitter();req.end=body=>{const vin=JSON.parse(new URLSearchParams(body).get('message')).actions[0].params.params.productIdentifier;
    const response=Readable.from([Buffer.from(JSON.stringify(hondaFixture(vin===hondaVin?vin:'NOT_CONFIRMED')))]);response.statusCode=200;queueMicrotask(()=>callback(response));};return req;

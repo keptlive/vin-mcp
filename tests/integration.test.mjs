@@ -161,3 +161,16 @@ test('Ford, GM and Honda VIN status survives REST, full reports, comparisons and
  const c=await(await req('/api/research/compare',{vins:cases.map(x=>x[0])})).json();assert.deepEqual(c.results.map(x=>x.report.recall_status.completed_count),[1,2,null]);
  }finally{await transport.close();}
 });
+
+test('Nissan status and Hyundai/Kia handoffs survive REST, reports, comparison and MCP',async()=>{
+ const vins=['1N4AL3APXFN868842','KM8K53AG0MU098173','5XXGR4A60FG353263'];
+ const client=new Client({name:'nissan-status-test',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+ try{await client.connect(transport);for(const [i,vin] of vins.entries()){
+  const res=await req('/api/vin/'+vin+'/recall-status'),s=await res.json();assert.equal(res.status,i===0?200:502);assert.equal(s.completed_count,null);assert.equal(s.open_count,i===0?1:null);assert.equal(s.available,i===0);
+  if(i>0){assert.equal(s.reason,'interactive_verification_required');assert.match(s.verification_url,i===1?/hyundaiusa.com/:/owners.kia.com/);}
+  const report=await(await req('/api/vin/'+vin)).json();assert.equal(report.recall_status.open_count,i===0?1:null);assert.equal(report.recalls.scope,'make_model_year');
+  const r=JSON.parse((await client.callTool({name:'vin_recall_status',arguments:{vin}})).content[0].text);assert.equal(r.available,i===0);assert.equal(r.completed_count,null);
+ }
+ const c=await(await req('/api/research/compare',{vins})).json();assert.deepEqual(c.results.map(x=>x.report.recall_status.open_count),[1,null,null]);
+ }finally{await transport.close();}
+});

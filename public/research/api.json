@@ -107,7 +107,7 @@
     {
       "method": "GET",
       "path": "/api/vin/{vin}/recall-status",
-      "description": "Tesla open/completed recall status; Mopar positive open records with full VIN match. Toyota interactive verification and empty Mopar results stay unknown."
+      "description": "Manufacturer-reported VIN status: Tesla/Ford open and completed, GM open and completed or closed, Honda active safety recalls, positive Nissan safety recalls and Mopar mixed open records. Toyota, Hyundai and Kia require official interactive verification. Unknown is never zero."
     }
   ],
   "errors": {

@@ -4,7 +4,43 @@ import {parseFord,parseGm,parseHonda,hondaContext,hondaRequest,isoDate,HONDA_API
 import {createRecallStatusLookup} from '../lib/recall-status.mjs';
 import {validateVin} from '../lib/validate.mjs';
 import {fordVin,gmVin,hondaVin,fordState,fordPage,gmFixture,hondaFixture,hondaPage,guestContext} from './manufacturer-fixtures.mjs';
+import {NISSAN_LOOKUP,HYUNDAI_LOOKUP,KIA_LOOKUP,nissanEndpoint,nissanRequest,parseNissan} from '../lib/manufacturer-recalls.mjs';
+import {nissanVin,nissanPage,nissanFixture} from './manufacturer-fixtures.mjs';
 const json=b=>new Response(JSON.stringify(b)),html=b=>new Response(b);
+test('Nissan discovers only its bounded same-origin public recall endpoint and sends the normal VIN form',()=>{
+ const u=nissanEndpoint(nissanPage);assert.match(u,/^https:\/\/www.nissanusa.com\/content\/nissan_prod\/en_US\//);
+ const opts=nissanRequest(nissanVin);assert.equal(opts.method,'POST');assert.deepEqual(JSON.parse(new URLSearchParams(opts.body).get('vinNums')),[nissanVin]);
+ for(const page of ['<h1>Challenge</h1>',nissanPage+nissanPage,nissanPage.replace('/content/nissan_prod/','https://evil.invalid/'),nissanPage.replace('/index/','/../'),nissanPage.replace('/en_US/','/en_CA/')])assert.throws(()=>nissanEndpoint(page));
+});
+test('Nissan confirms positive safety recalls without claiming completed history or repair dates',()=>{
+ const b=nissanFixture(),r=parseNissan(b,nissanVin);assert.equal(r.open_count,1);assert.equal(r.completed_count,null);assert.equal(r.recalls[0].repair_status,'open');assert.equal(r.recalls[0].repair_completed_at,null);assert.equal(r.recalls[0].recall_date,'2020-05-28');assert.equal(r.recalls[0].source_effective_date,'2021-06-23');assert.equal(r.coverage.zero_open_verifiable,false);assert.equal(r.coverage.since,'1994-03-15');
+ b.recalls.push(structuredClone(b.recalls[0]));assert.equal(parseNissan(b,nissanVin).open_count,1);b.recalls[1].primaryDescription='Changed';assert.throws(()=>parseNissan(b,nissanVin),/Conflicting/);
+});
+test('Nissan empty results, any mismatched VIN or wrong brand never become zero recalls',()=>{
+ assert.equal(parseNissan({recalls:[]},nissanVin),null);assert.equal(parseNissan(nissanFixture(hondaVin),nissanVin),null);
+ const b=nissanFixture();b.recalls[0].brand='INFINITI';assert.equal(parseNissan(b,nissanVin),null);b.recalls.push(nissanFixture().recalls[0]);assert.equal(parseNissan(b,nissanVin),null);
+});
+test('Nissan rejects changed schemas and unfamiliar campaign classifications',()=>{
+ for(const mutate of [b=>b.recalls=null,b=>b.recalls[0].typeCode='Service Campaign',b=>b.recalls[0].typeCode='Future Type',b=>b.recalls[0].govtRecallId='',b=>b.recalls[0].nissanRecallId='']){const b=nissanFixture();mutate(b);assert.throws(()=>parseNissan(b,nissanVin));}
+ const b=nissanFixture();b.recalls[0].defectInfoRptDate='2025-02-30';assert.equal(parseNissan(b,nissanVin).recalls[0].recall_date,null);
+});
+test('Nissan lookup caches positive results, shares page discovery and deduplicates requests',async()=>{
+ let pages=0,posts=0;const lookup=createRecallStatusLookup(async(url,opts)=>{if(url===NISSAN_LOOKUP){pages++;return html(nissanPage);}posts++;assert.equal(url,nissanEndpoint(nissanPage));return json(nissanFixture(JSON.parse(new URLSearchParams(opts.body).get('vinNums'))[0]));});
+ const [a,b]=await Promise.all([lookup(nissanVin,'TOYOTA'),lookup(nissanVin)]);assert.equal(a,b);assert.equal(a.available,true);assert.equal(a.source.reference_url,NISSAN_LOOKUP);assert.equal(await lookup(nissanVin),a);assert.equal(pages,1);assert.equal(posts,1);
+ let other=nissanVin.slice(0,-1)+'3';other=other.slice(0,8)+validateVin(other).checksum.expected+other.slice(9);assert.equal((await lookup(other)).available,true);assert.equal(pages,1);assert.equal(posts,2);
+});
+test('Nissan 404, blocked, malformed and empty responses stay unknown and retry',async()=>{
+ for(const response of [()=>new Response('',{status:404}),()=>new Response('Forbidden',{status:403}),()=>html('<h1>Challenge</h1>'),()=>json({recalls:[]}),()=>json(nissanFixture(hondaVin))]){
+  let calls=0;const lookup=createRecallStatusLookup(async url=>url===NISSAN_LOOKUP?html(nissanPage):(++calls,response()));
+  for(let i=0;i<2;i++){const r=await lookup(nissanVin);assert.equal(r.available,false);assert.equal(r.open_count,null);assert.equal(r.completed_count,null);}assert.equal(calls,2);
+ }
+});
+test('Toyota, Hyundai and Kia route to their official interactive verification without protected requests',async()=>{
+ let calls=0;const lookup=createRecallStatusLookup(async()=>{calls++;throw Error('Protected flow must not be called');});
+ for(const [input,url,make] of [['4T1BF1FK0CU123456','https://www.toyota.com/recall/','Toyota'],['KM8K53AG0MU098173',HYUNDAI_LOOKUP,'Hyundai'],['5XXGR4A60FG353263',KIA_LOOKUP,'Kia']]){
+  const vin=input.slice(0,8)+validateVin(input).checksum.expected+input.slice(9),r=await lookup(vin,'TESLA');assert.equal(r.reason,'interactive_verification_required');assert.equal(r.open_count,null);assert.equal(r.completed_count,null);assert.equal(r.verification_url,url);assert.match(r.note,new RegExp(make));
+ }assert.equal(calls,0);
+});
 test('Ford reads split page data without executing scripts; recalls and service programs stay separate',()=>{
  const r=parseFord(fordPage(fordState(),true)+'<script>throw Error("Do not execute")</script>',fordVin);
  assert.equal(r.open_count,1);assert.equal(r.completed_count,1);assert.equal(r.service_campaigns.length,1);assert.equal(r.recalls[1].remedy_available,false);assert.equal(r.recalls[0].repair_completed_at,null);assert.equal(r.coverage.since,'2004-01-01');
