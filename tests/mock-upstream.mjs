@@ -1,8 +1,12 @@
+import {moparFixture} from './mopar-fixture.mjs';
 import https from 'node:https';
 import {Readable} from 'node:stream';
 import {EventEmitter} from 'node:events';
 const nativeGet=https.get;
 https.get=(url,opts,callback)=>{
+ if(String(url).includes('wrecall.extra.chrysler.com')){
+  const response=Readable.from([Buffer.from(moparFixture())]);response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
+ }
  if(String(url).includes('teslaservice-api.tesla.com')){
   const response=Readable.from([Buffer.from(JSON.stringify({success:true,responseObject:[{recallNumber:'24V051',recallStatus:'Recall Incomplete'},{recallNumber:'18V204',recallStatus:'Recall Completed'}]}))]);
   response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
@@ -18,7 +22,7 @@ globalThis.fetch=async (input,opts)=>{
   const vin=u.includes('DecodeVINValuesBatch')?'1HGCM82633A004352':decodeURIComponent(u.split('/').at(-1).split('?')[0]);
   const four=vin.endsWith('353');
   const model=vin.endsWith('354')?'Recovery Accord':vin.endsWith('355')?'MCP Recovery Accord':'Accord';
-  return json({Results:[{VIN:vin,ModelYear:'2003',Make:vin.startsWith('5YJ')?'TESLA':'HONDA',Model:model,EngineCylinders:four?'4':'6',DisplacementL:four?'2.4':'2.998832712',TransmissionStyle:'Automatic',TransmissionSpeeds:'5',RearVisibilitySystem:'Standard',CIB:'Standard'}]});
+  return json({Results:[{VIN:vin,ModelYear:'2003',Make:vin.startsWith('1D3')?'DODGE':vin.startsWith('4T1')?'TOYOTA':vin.startsWith('5YJ')?'TESLA':'HONDA',Model:model,EngineCylinders:four?'4':'6',DisplacementL:four?'2.4':'2.998832712',TransmissionStyle:'Automatic',TransmissionSpeeds:'5',RearVisibilitySystem:'Standard',CIB:'Standard'}]});
  }
  if(u.includes('api.nhtsa.gov/recalls'))return json({results:[]});
  if(u.includes('api.nhtsa.gov/complaints'))return json({results:[]});

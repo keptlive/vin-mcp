@@ -110,3 +110,9 @@ test('frontend show-more label survives repeated expand/collapse',()=>{
   ctx.window.toggleRecalls(button);assert.equal(button.textContent,'Show less');ctx.window.toggleRecalls(button);assert.equal(button.textContent,'Show 19 more');
   ctx.window.toggleRecalls(button);assert.equal(button.textContent,'Show less');
 });
+
+test('VIN status renderer shows provider, unknown completed history and escaped Mopar summaries',()=>{
+ const {els,run}=frontend();run(`renderRecalls({recalls:{available:true,count:0},recall_status:{available:true,open_count:2,completed_count:null,unknown_count:0,source:{provider:'Mopar Fleet',retrieved_at:'2026-10-24T16:00:00Z'},note:'Completed history is unknown',recalls:[{campaign_number:'S43',manufacturer_status:'Open recall',summary:'<img src=x onerror=alert(1)>'}]}})`);
+ const html=els.get('#recalls-body').innerHTML;assert.match(html,/Mopar Fleet/);assert.match(html,/Unknown manufacturer-reported completed/);assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<img/);
+ run(`renderRecalls({recalls:{available:true,count:0},recall_status:{available:false,reason:'interactive_verification_required',note:'Toyota requires interactive verification',verification_url:'https://www.toyota.com/recall/'}})`);assert.match(els.get('#recalls-body').innerHTML,/Toyota requires interactive verification/);
+});

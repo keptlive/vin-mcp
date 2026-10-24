@@ -13,7 +13,7 @@ import { validateVin } from '../lib/validate.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const stage=await mkdtemp(path.join(tmpdir(),'vin-mcp-tests-'));
-for(const f of ['server.mjs','package.json','lib','public','tests/mock-upstream.mjs'])await cp(path.join(root,f),path.join(stage,f),{recursive:true});
+for(const f of ['server.mjs','package.json','lib','public','tests/mock-upstream.mjs','tests/mopar-fixture.mjs'])await cp(path.join(root,f),path.join(stage,f),{recursive:true});
 await symlink(path.join(root,'node_modules'),path.join(stage,'node_modules'),'dir');
 const port=23291, base=`http://127.0.0.1:${port}`;
 const env={...process.env,JWT_SECRET:'isolated-test-secret',ADMIN_KEY:'a'.repeat(64),NODE_ENV:'production'};
@@ -141,3 +141,11 @@ test('new MCP calculation and coverage tools execute through actual transport',a
  try{await client.connect(transport);const result=await client.callTool({name:'vin_recall_status',arguments:{vin:tesla}});assert.equal(JSON.parse(result.content[0].text).completed_count,1);}finally{await transport.close();}
  assert.equal((await req('/api/vin/invalid/recall-status')).status,400);
  });
+
+test('Mopar and Toyota recall paths preserve unknown history through REST, reports, comparison and MCP',async()=>{
+ const mopar='1D3HW48K55S152258',toyota='4T1BF1FK'+validateVin('4T1BF1FK0CU123456').checksum.expected+'CU123456';
+ const status=await(await req('/api/vin/'+mopar+'/recall-status')).json();assert.equal(status.open_count,null);assert.equal(status.open_record_count,3);assert.equal(status.completed_count,null);assert.equal(status.service_campaigns.length,1);
+ const report=await(await req('/api/vin/'+mopar)).json();assert.equal(report.recall_status.open_count,null);assert.equal(report.recall_status.open_record_count,3);assert.equal(report.recalls.scope,'make_model_year');
+ const comparison=await(await req('/api/research/compare',{vins:[mopar,toyota]})).json();assert.equal(comparison.results[0].report.recall_status.completed_count,null);assert.equal(comparison.results[1].report.recall_status.reason,'interactive_verification_required');
+ const client=new Client({name:'mopar-status-test',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));try{await client.connect(transport);const r=await client.callTool({name:'vin_recall_status',arguments:{vin:mopar}});assert.equal(JSON.parse(r.content[0].text).open_count,null);assert.equal(JSON.parse(r.content[0].text).open_record_count,3);}finally{await transport.close();}
+});
