@@ -173,7 +173,7 @@ The letters I, O, and Q are never used in VINs to avoid confusion with 1, 0, and
 
 ## Tech Stack
 
-- **Runtime:** Node.js 22+ (required by the supported dependency stack)
+- **Runtime:** Node.js 22+
 - **Server:** Express 5
 - **MCP SDK:** `@modelcontextprotocol/sdk` with stdio and Streamable HTTP transports
 - **Frontend:** Vanilla HTML, CSS, and JavaScript
@@ -189,3 +189,45 @@ MIT
 ---
 
 Built for [mcp.vin](https://mcp.vin)
+
+
+## Public-data research workspace (v1.3.0)
+
+The additive `/research/` workspace includes EPA configurations/emissions, Canadian dimensions,
+manufacturer communications, defect investigations, owner-reported MPG, dated Federal Reserve
+rate benchmarks, 2-4 VIN comparisons, ownership scenarios and developer tools. Existing decoder,
+accounts, saved vehicles, preferences and OAuth remain available. Public data coverage varies.
+
+Research is available through REST, 22 MCP tools, the JavaScript client at `public/client.mjs`
+and the source CLI `cli.mjs`. The hosted service is https://mcp.vin; set `VIN_BASE_URL` for CLI use.
+This release does not publish an updated npm package.
+
+See [data sources and scope](docs/data-sources.md) and the machine-readable guide at
+`public/research/api.json`. Printable capability-comparison and methodology sheets are in
+`public/research/sheets/`. These describe source scope; full auto.dev data parity is incomplete.
+
+### Run and verify
+
+Use Node.js 22 or later, run `npm ci`, then `npm start`. Run `npm test` and
+`node --test test/transport.test.mjs` for the application and actual MCP transport checks.
+The Python importer tests use only the standard library:
+`python3 tests/investigations_test.py` and `python3 tests/communications_storage_test.py`.
+
+Install public indexes with `python3 scripts/import-communications.py` and
+`python3 scripts/import-investigations.py`. Use `--refresh` for a new official snapshot.
+The standard bulletin index needs about 3.4 GB plus archives. To reduce storage without
+changing the API, run `python3 scripts/compact-communications.py data/communications.db data/communications-compact.db`.
+The compact target is a separate file, verified row for row; deploy it under the name
+`data/communications.db`. Never overwrite account data. No automatic source refresh is configured.
+
+With the server and indexes running, `node scripts/research-smoke.mjs` verifies real sources,
+pagination and MCP; set `VIN_BASE_URL` to select a server.
+
+### Agent analysis
+
+Agents can query the structured results, combine them with explicit assumptions, and use
+charting or document tools to create figures and analysis. Custom chart rendering happens
+in the agent's tools. The API supplies comparisons, scenario calculations, provenance and JSON.
+Configuration/model-year data and VIN-specific facts retain their distinct scopes.
+
+VIN recall repair status: Tesla manufacturer-reported open/completed statuses are included in reports and comparisons, with `vin_recall_status`, `GET /api/vin/{vin}/recall-status` and `VinClient.recallStatus(vin)`. Other makes remain unknown. See the [source and coverage notes](docs/data-sources.md#vin-specific-recall-repair-status).

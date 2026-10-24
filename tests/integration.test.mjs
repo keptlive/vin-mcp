@@ -34,6 +34,20 @@ test('registration, login and identity still work',async()=>{
  res=await req('/api/auth/login',{email:'isolated@example.invalid',password:'fixture-password'});assert.equal(res.status,200);
  assert.equal((await(await req('/api/auth/me',undefined,token)).json()).display_name,'Test');
 });
+test('REST full reports retry an invalid EPA response and cache the recovered report',async()=>{
+ let candidate='1HGCM82633A004354';candidate=candidate.slice(0,8)+validateVin(candidate).checksum.expected+candidate.slice(9);
+ const first=await(await req('/api/vin/'+candidate)).json();assert.equal(first.fuel_economy.reason,'invalid_response');
+ const retry=await(await req('/api/vin/'+candidate)).json();assert.equal(retry.fuel_economy.available,true);assert.equal(retry.fuel_economy.combined_mpg,22);
+ const cached=await(await req('/api/vin/'+candidate)).json();assert.equal(cached.provenance.assembled_at,retry.provenance.assembled_at);
+});
+test('MCP full reports also recover after malformed EPA detail',async()=>{
+ let candidate='1HGCM82633A004355';candidate=candidate.slice(0,8)+validateVin(candidate).checksum.expected+candidate.slice(9);
+ const client=new Client({name:'epa-recovery-test',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+ try{await client.connect(transport);
+  const first=await client.callTool({name:'decode_vin',arguments:{vin:candidate}});assert.equal(JSON.parse(first.content[0].text).fuel_economy.reason,'invalid_response');
+  const retry=await client.callTool({name:'decode_vin',arguments:{vin:candidate}});assert.equal(JSON.parse(retry.content[0].text).fuel_economy.available,true);
+ }finally{await transport.terminateSession();await client.close();}
+});
 test('saved VIN create, list, label edit and delete still work',async()=>{
  let res=await req('/api/user/vins',{vin,label:'Fixture'},token);assert.equal(res.status,201);saved=(await res.json()).id;
  let list=await(await req('/api/user/vins',undefined,token)).json();assert.equal(list.length,1);assert.equal(list[0].vin,vin);
@@ -57,10 +71,11 @@ test('bad JSON and malformed batches return JSON errors',async()=>{
 test('admin rejects multibyte key without crashing',async()=>{
  const res=await fetch(base+'/api/admin/system',{headers:{'x-admin-key':'é'.repeat(64)}});assert.equal(res.status,403);
 });
-test('remote MCP initializes, lists nine tools, validates, decodes and updates preferences',async()=>{
+test('remote MCP initializes, lists all twenty-two tools, validates, decodes and updates preferences',async()=>{
  const client=new Client({name:'isolated-http-check',version:'1'});const transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
  try{
- await client.connect(transport);const list=await client.listTools();assert.equal(list.tools.length,9);
+ await client.connect(transport);const list=await client.listTools();assert.equal(list.tools.length,22);
+ const status=await(await req('/api/status')).json();assert.deepEqual(status.tools.toSorted(),list.tools.map(t=>t.name).toSorted());
  let r=await client.callTool({name:'validate_vin',arguments:{vin}});assert.equal(JSON.parse(r.content[0].text).valid,true);
  r=await client.callTool({name:'decode_vin',arguments:{vin}});assert.equal(JSON.parse(r.content[0].text).fuel_economy.cylinders,6);assert.equal(JSON.parse(r.content[0].text).raw_nhtsa,undefined);
  r=await client.callTool({name:'update_output_preferences',arguments:{user_token:token,show_engine:true}});assert.equal(r.isError,undefined);
@@ -77,7 +92,7 @@ test('stale MCP sessions get 404 and browser clients can read session IDs',async
 test('stdio MCP supports authenticated preference updates without ReferenceError',async()=>{
  const client=new Client({name:'isolated-stdio-check',version:'1'});
  const transport=new StdioClientTransport({command:process.execPath,args:['--import',path.join(stage,'tests/mock-upstream.mjs'),path.join(stage,'server.mjs')],cwd:stage,env,stderr:'pipe'});
- try{await client.connect(transport);assert.equal((await client.listTools()).tools.length,9);
+ try{await client.connect(transport);assert.equal((await client.listTools()).tools.length,22);
  const r=await client.callTool({name:'update_output_preferences',arguments:{user_token:token,show_photos:true}});assert.equal(r.isError,undefined);assert.match(r.content[0].text,/updated/);
  }finally{await client.close();}
 });
@@ -103,3 +118,26 @@ test('batch limits still reject excessive requests within their own route',async
  let limited=false;for(let i=0;i<6;i++){const res=await req('/api/batch',{vins:[null]});if(res.status===429)limited=true;}
  assert.equal(limited,true);assert.equal((await req('/api/auth/login',{email:'isolated@example.invalid',password:'fixture-password'})).status,200);
 });
+
+test('research routes preserve explicit scope and validate malformed requests',async()=>{
+ assert.equal((await req('/research/')).status,200);assert.equal((await req('/client.mjs')).status,200);
+ const caps=await(await req('/api/research/capabilities')).json();assert.equal(caps.find(x=>x.feature==='Plate-to-VIN').status,'gap');
+ const r=await req('/api/research/scenario',{price:20000,apr:0,months:40});assert.equal(r.status,200);assert.equal((await r.json()).financing.monthly_payment,500);
+ assert.equal((await req('/api/research/scenario',{price:'20000',apr:0,months:40})).status,400);
+ assert.equal((await req('/api/research/compare',{vins:[vin,vin]})).status,400);
+ const missing=await req('/api/research/communications?year=2003&make=Honda&model=Accord');assert.equal(missing.status,503);assert.equal((await missing.json()).reason,'dataset_not_indexed');
+});
+test('new MCP calculation and coverage tools execute through actual transport',async()=>{
+ const client=new Client({name:'research-test',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+ try{await client.connect(transport);const r=await client.callTool({name:'ownership_scenario',arguments:{price:20000,apr:0,months:40}});assert.equal(JSON.parse(r.content[0].text).financing.monthly_payment,500);const c=await client.callTool({name:'explore_capabilities',arguments:{}});assert.ok(JSON.parse(c.content[0].text).some(x=>x.status==='gap'));}finally{await transport.terminateSession();await client.close();}
+});
+
+ test('VIN recall repair status reaches REST, MCP reports and comparisons without replacing model-year campaigns',async()=>{
+ const tesla='5YJSA1DG9DFP14705';
+ const status=await(await req('/api/vin/'+tesla+'/recall-status')).json();assert.equal(status.open_count,1);assert.equal(status.completed_count,1);
+ const report=await(await req('/api/vin/'+tesla)).json();assert.equal(report.recall_status.open_count,1);assert.equal(report.recalls.scope,'make_model_year');
+ const comparison=await(await req('/api/research/compare',{vins:[vin,tesla]})).json();assert.equal(comparison.results[0].report.recall_status.open_count,null);assert.equal(comparison.results[1].report.recall_status.completed_count,1);
+ const client=new Client({name:'recall-status-test',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+ try{await client.connect(transport);const result=await client.callTool({name:'vin_recall_status',arguments:{vin:tesla}});assert.equal(JSON.parse(result.content[0].text).completed_count,1);}finally{await transport.close();}
+ assert.equal((await req('/api/vin/invalid/recall-status')).status,400);
+ });

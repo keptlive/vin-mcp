@@ -1,0 +1,105 @@
+import {VinClient} from '/client.mjs';
+const api=new VinClient({baseUrl:location.origin}), $=s=>document.querySelector(s);
+const esc=s=>String(s??'Unknown').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
+function status(id,text,error=false){$(id).textContent=text;$(id).classList.toggle('error',error);}
+function source(r){return `<p class="source">${esc(r.scope||'')}<br><a href="${esc(r.source?.url||r.reference_url)}" target="_blank" rel="noopener">${esc(r.source?.provider||r.source||'Source')}</a>${r.source?.retrieved_at?' · Retrieved '+esc(new Date(r.source.retrieved_at).toLocaleString()):''}</p>`;}
+function save(name,value){const u=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+function exportButton(container,data,name){const b=document.createElement('button');b.className='secondary';b.textContent='Export JSON';b.onclick=()=>save(name,data);container.append(b);}
+function metric(value,label){return `<div class="metric"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;}
+function table(headers,rows){return `<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i?`<td>${esc(v)}</td>`:`<th scope="row">${esc(v)}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
+let coverageLoaded=false;
+async function route(){const id=location.hash.slice(1)||'catalog';const selected=['catalog','compare','communications','costs','coverage','developers'].includes(id)?id:'catalog';document.querySelectorAll('main>section').forEach(s=>s.hidden=s.id!==selected);document.querySelectorAll('nav a').forEach(a=>{if(a.hash==='#'+selected)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});if(selected==='coverage'&&!coverageLoaded){try{const r=await api.capabilities();$('#coverage-result').innerHTML=table(['Capability','Status','Scope'],r.map(x=>[x.feature,x.status,x.detail]));coverageLoaded=true;}catch(e){$('#coverage-result').textContent=e.message;}}}
+addEventListener('hashchange',route);route();
+function resetSelect(id,label){$(id).innerHTML=`<option value="">${label}</option>`;$(id).disabled=true;}
+function options(id,items,label){$(id).innerHTML=`<option value="">${label}</option>`+items.map(x=>`<option value="${esc(x.value)}">${esc(x.text)}</option>`).join('');$(id).disabled=false;}
+let menuRevision=0;
+let catalogRevision=0;
+const catalogSubmit=$('#catalog-form button[type=submit]');
+function invalidateCatalog(){catalogRevision++;$('#catalog-result').replaceChildren();catalogSubmit.disabled=false;status('#catalog-status','Selection changed. View a configuration to load its record.');}
+async function loadMenu(level,target,query){const rev=++menuRevision;status('#catalog-status','Loading '+level+'…');try{const r=await api.catalog(level,query);if(rev!==menuRevision)return;options(target,r.data,'Choose '+level);status('#catalog-status',r.data.length?'Choose from '+r.data.length+' '+level+' entries.':'No matching entries in EPA catalog.');}catch(e){if(rev===menuRevision)status('#catalog-status','EPA catalog unavailable. Try choosing again or reload. '+e.message,true);}}
+$('#year').onchange=()=>{resetSelect('#make','Choose year first');resetSelect('#model','Choose make first');resetSelect('#variant','Choose model first');invalidateCatalog();if($('#year').value)loadMenu('make','#make',{year:$('#year').value});else menuRevision++;};
+$('#make').onchange=()=>{resetSelect('#model','Choose make first');resetSelect('#variant','Choose model first');invalidateCatalog();if($('#make').value)loadMenu('model','#model',{year:$('#year').value,make:$('#make').value});else menuRevision++;};
+$('#variant').onchange=invalidateCatalog;
+$('#model').onchange=()=>{resetSelect('#variant','Choose model first');invalidateCatalog();if($('#model').value)loadMenu('options','#variant',{year:$('#year').value,make:$('#make').value,model:$('#model').value});else menuRevision++;};
+loadMenu('year','#year',{});
+$('#catalog-form').onsubmit=async e=>{e.preventDefault();const button=e.submitter||catalogSubmit,revision=++catalogRevision,id=$('#variant').value;button.disabled=true;status('#catalog-status','Fetching the selected configuration…');$('#catalog-result').replaceChildren();try{
+ const r=await api.vehicle(id);if(revision!==catalogRevision||id!==$('#variant').value)return;
+ const v=r.data;const ev=v.fuelType1==='Electricity'&&!v.fuelType2;const content=$('#catalog-result');
+ content.innerHTML=`<h3>${esc(v.year)} ${esc(v.make)} ${esc(v.model)}</h3><p>${esc(v.trany)} · ${esc(v.drive)} · ${esc(v.fuelType)}</p><div class="metrics">${metric(v.comb08,ev?'Combined MPGe':'Combined MPG')}${metric(ev?v.combE:v.city08,ev?'kWh / 100 miles':'City MPG')}${metric(ev?v.range:v.highway08,ev?'EPA range · miles':'Highway MPG')}</div>`+table(['Specification','EPA record'],[['Engine',v.displ?v.displ+' L / '+v.cylinders+' cylinders':'Not specified'],['Vehicle class',v.VClass],['Annual fuel cost',v.fuelCost08?money(v.fuelCost08)+' / EPA assumptions':'Unavailable'],['Tailpipe CO₂',v.co2TailpipeGpm!==null&&v.co2TailpipeGpm!==undefined&&v.co2TailpipeGpm!==''&&Number(v.co2TailpipeGpm)>=0?Number(v.co2TailpipeGpm).toFixed(1)+' g/mile':'Unavailable'],['Charging at 240V',Number(v.charge240)>0?v.charge240+' hours':'Not applicable / not specified']])+source(r);
+ const actions=document.createElement('div');actions.className='actions';content.append(actions);exportButton(actions,r,'epa-'+v.id+'.json');
+ const em=document.createElement('button');em.className='secondary';em.textContent='View emissions';actions.append(em);const dim=document.createElement('button');dim.className='secondary';dim.textContent='Canadian dimensions';actions.append(dim);const detail=document.createElement('div');content.append(detail);
+ const own=document.createElement('button');own.className='secondary';own.textContent='Owner-reported MPG';actions.append(own);
+ own.onclick=async()=>{own.disabled=true;detail.textContent='Loading voluntary owner reports…';try{const data=await api.ownerMpg(v.id),d=data.data;detail.innerHTML='<h3>Owner-reported fuel economy</h3>'+table(['Measure','Value'],[['Submitted records',d.record_count],['Harmonic mean MPG',d.average_mpg===null?'No reports':d.average_mpg.toFixed(1)],['Reported range',d.minimum_mpg===null?'No reports':d.minimum_mpg+'–'+d.maximum_mpg+' MPG']])+source(data)+'<p class="small">'+esc(data.method)+'</p>';exportButton(detail,data,'owner-mpg-'+v.id+'.json');}catch(err){detail.textContent='Owner MPG unavailable: '+err.message;}finally{own.disabled=false;}};
+
+ em.onclick=async()=>{em.disabled=true;detail.textContent='Loading emissions…';try{const data=await api.emissions(v.id);detail.replaceChildren();const pre=document.createElement('pre');pre.textContent=JSON.stringify(data.data,null,2);detail.innerHTML=source(data);detail.append(pre);}catch(err){detail.textContent='Emissions unavailable: '+err.message;}finally{em.disabled=false;}};
+ dim.onclick=async()=>{dim.disabled=true;detail.textContent='Loading dimensions…';try{const d=await api.dimensions({year:v.year,make:v.make,model:v.model});const rows=d.data.map(x=>Object.fromEntries((x.Specs||[]).map(s=>[s.Name,s.Value])));detail.innerHTML='<h3>Canadian configurations · cm and kg</h3><p>Select the relevant body style. These records are not VIN matches.</p>'+table(['Model','Length cm','Width cm','Height cm','Wheelbase cm','Curb kg'],rows.map(x=>[x.Model,x.OL,x.OW,x.OH,x.WB,x.CW]))+(!rows.length?'<p>No matching records in this source.</p>':'')+source(d);}catch(err){detail.textContent='Dimensions unavailable: '+err.message;}finally{dim.disabled=false;}};
+ status('#catalog-status','Loaded EPA configuration '+v.id+'.');
+ }catch(err){if(revision===catalogRevision)status('#catalog-status','Unable to load this configuration: '+err.message,true);}finally{if(revision===catalogRevision)button.disabled=false;}};
+$('#compare-form').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;$('#compare-result').replaceChildren();status('#compare-status','Fetching reports; government sources may take a few seconds…');try{const vins=$('#vins').value.trim().split(/[\s,;]+/);const r=await api.compare(vins);const reports=r.results.map(x=>x.report||{});const known=(v)=>v===null||v===undefined?'Unknown':v;const rows=[['Vehicle',...reports.map(v=>v.vehicle?[v.vehicle.year,v.vehicle.make,v.vehicle.model,v.vehicle.trim].filter(Boolean).join(' '):'Report unavailable')],['Engine',...reports.map(v=>v.engine?.displacement_l?Number(v.engine.displacement_l).toFixed(1)+' L / '+(v.engine.cylinders??'unknown')+' cylinders':'Unknown')],['Combined MPG / MPGe',...reports.map(v=>v.fuel_economy?.available?known(v.fuel_economy.combined_mpg)+(v.fuel_economy.is_ev?' MPGe':' MPG'):'Unknown')],['Model-year recall campaigns',...reports.map(v=>v.recalls?.available===false?'Unavailable':known(v.recalls?.count))],['EPA matching',...reports.map(v=>v.fuel_economy?.matched_variant||v.fuel_economy?.reason?.replaceAll('_',' ')||'Unavailable')],['VIN-specific unrepaired recalls',...reports.map(v=>v.recall_status?.available?(v.recall_status.open_count??'Unknown'):'Check manufacturer / NHTSA')],['Manufacturer-reported completed recalls',...reports.map(v=>v.recall_status?.available?v.recall_status.completed_count:'Unknown')],['VIN recall status checked',...reports.map(v=>v.recall_status?.source?.retrieved_at||'Not checked')]];$('#compare-result').innerHTML=table(['Attribute',...vins],rows)+`<p class="source">${esc(r.note)} VIN recall status is manufacturer-reported; Tesla coverage only. Unknown is not zero. Completed status does not supply a repair date or a full service history.</p>`;const a=document.createElement('div');a.className='actions';$('#compare-result').append(a);exportButton(a,r,'vin-comparison.json');for(const vin of vins){const link=document.createElement('a');link.href='/'+encodeURIComponent(vin);link.textContent='Full report: '+vin;a.append(link);}status('#compare-status','Comparison complete. Review data availability and source scope before use.');if(!$('#compare').hidden)preparePrint();}catch(err){status('#compare-status',err.message,true);}finally{b.disabled=false;}};
+let bulletinQuery=null,nextOffset=null;
+async function bulletins(query){$('#more-bulletins').hidden=true;status('#bulletin-status','Searching the indexed archives…');$('#bulletin-result').replaceChildren();try{const r=await (query.evidence==='investigations'?api.investigations(query):api.communications(query));if(query.evidence==='investigations'){renderInvestigations(r);return;}$('#bulletin-result').innerHTML=r.data.map(x=>`<article class="bulletin"><p class="eyebrow">${esc(x.kind||'Communication')} · NHTSA ${esc(x.id)}</p><h3>${esc(x.bulletin)} — ${esc(x.components)}</h3><p>${esc(x.make)} ${esc(x.model)} ${esc(x.year)} · Issued ${esc(x.issued)}</p><details><summary>Read manufacturer summary</summary><p>${esc(x.summary)}</p></details><p class="small"><a href="${esc(x.archive)}">Original NHTSA data archive</a></p></article>`).join('')+`<p class="source">${esc(r.note)}<br>Indexed ${esc(r.indexed_at)}. ${r.archives.length} received-date archives.<br><a href="${esc(r.reference_url)}">NHTSA source and data documentation</a></p>`;nextOffset=r.next_offset;$('#more-bulletins').hidden=nextOffset===null;status('#bulletin-status',r.total?`${r.total} matching communications. Showing ${r.offset+1}–${r.offset+r.data.length}.`:'No matching communications in the indexed archives. Check exact model spelling and coverage.');exportButton($('#bulletin-result'),r,'manufacturer-communications.json');}catch(err){status('#bulletin-status','Evidence unavailable: '+err.message,true);}}
+$('#bulletin-form').onsubmit=e=>{e.preventDefault();bulletinQuery=Object.fromEntries(new FormData(e.target));bulletins(bulletinQuery);};$('#more-bulletins').onclick=()=>bulletins({...bulletinQuery,offset:nextOffset});
+$('#cost-form [name=energy_type]').onchange=e=>{const electric=e.target.value==='electric';$('#efficiency-label').firstChild.textContent=electric?'Efficiency (kWh / 100 mi)':'Efficiency (MPG)';$('#energy-price-label').firstChild.textContent=electric?'Energy price ($ / kWh)':'Energy price ($ / gallon)';status('#price-status','Energy type changed. Set the matching efficiency and price before calculating.');};
+$('#fuel-prices').onclick=async()=>{try{const r=await api.fuelPrices();$('#price-status').innerHTML='EPA assumptions: '+Object.entries(r.data).map(([k,v])=>`${esc(k)} $${esc(v)}`).join(' · ')+source(r);}catch(e){status('#price-status','Price assumptions unavailable: '+e.message,true);}};
+let costRevision=0,costReport=null;
+const costSubmit=$('#cost-form button:not([type])');
+function costSignature(){return JSON.stringify(Object.fromEntries(new FormData($('#cost-form'))));}
+function costPrintAssumptions(r,calculatedAt){
+ const a=r.assumptions,o=a.ownership,electric=o.energy_type==='electric';
+ return '<div class="print-only" id="cost-print-assumptions"><h3>Calculation inputs · USD</h3>'+table(['Purchase and financing','Value','Operating assumptions','Value'],[
+  ['Price',money(a.price),'Ownership period',o.years+' years'],
+  ['Down payment',money(a.down_payment),'Annual distance',o.annual_miles+' miles'],
+  ['APR',a.apr+'%','Resale value',money(o.resale_value)],
+  ['Loan term',a.months+' months','Insurance / year',money(o.annual_insurance)],
+  ['Tax amount',money(a.tax_amount),'Maintenance / year',money(o.annual_maintenance)],
+  ['Fees',money(a.fees),'Repairs / year',money(o.annual_repairs)],
+  ['Energy type',electric?'Electricity':'Gasoline','Energy price','$'+o.energy_price+(electric?' / kWh':' / gallon')],
+  ['Efficiency',o.efficiency+(electric?' kWh / 100 mi':' MPG'),'Calculated',calculatedAt]
+ ])+'</div>';
+}
+function invalidateCost(){costRevision++;costReport=null;$('#cost-result').replaceChildren();$('#print-meta').textContent='';costSubmit.disabled=false;status('#cost-status','Assumptions changed. Recalculate to generate a current report.');}
+$('#cost-form').addEventListener('input',invalidateCost);
+$('#cost-form').addEventListener('change',invalidateCost);
+$('#cost-form').onsubmit=async e=>{
+ e.preventDefault();const button=e.submitter||costSubmit,revision=++costRevision,signature=costSignature();
+ button.disabled=true;costReport=null;status('#cost-status','Calculating…');$('#cost-result').replaceChildren();
+ try{
+  const f=Object.fromEntries(new FormData($('#cost-form'))),input={};
+  for(const k of ['price','down_payment','apr','months','tax_amount','fees'])input[k]=Number(f[k]);
+  input.ownership={energy_type:f.energy_type};
+  for(const k of ['years','annual_miles','resale_value','annual_insurance','annual_maintenance','annual_repairs','energy_price','efficiency'])input.ownership[k]=Number(f[k]);
+  const r=await api.scenario(input);if(revision!==costRevision)return;
+  if(signature!==costSignature()){invalidateCost();return;}
+  const o=r.ownership,calculatedAt=new Date().toLocaleString();
+  $('#cost-result').innerHTML=costPrintAssumptions(r,calculatedAt)+`<div class="metrics">${metric(money(r.financing.monthly_payment),'Estimated monthly payment')}${metric(money(o.total),o.years+'-year ownership cost')}${metric(o.cost_per_mile===null?'N/A':'$'+o.cost_per_mile,'Estimated cost per mile')}</div>`+Object.entries(o.breakdown).map(([k,v])=>`<div class="bar-row"><span>${esc(k.replaceAll('_',' '))}</span><div class="bar"><i style="width:${o.total?Math.max(0,v/o.total*100):0}%"></i></div><b>${esc(money(v))}</b></div>`).join('')+`<p class="source">${r.notes.map(esc).join('<br>')}</p>`;
+  const details=document.createElement('details');details.innerHTML='<summary>Monthly amortization schedule</summary>'+table(['Month','Payment','Interest','Principal','Balance'],r.schedule.map(x=>[x.month,money(x.payment),money(x.interest),money(x.principal),money(x.balance)]));
+  $('#cost-result').append(details);exportButton($('#cost-result'),r,'ownership-scenario.json');
+  costReport={signature,calculatedAt};status('#cost-status','Calculation complete using the submitted assumptions.');
+  if(!$('#costs').hidden)preparePrint();
+ }catch(err){if(revision===costRevision)status('#cost-status',err.message,true);}
+ finally{if(revision===costRevision)button.disabled=false;}
+};
+$('#api-form').onsubmit=async e=>{e.preventDefault();e.submitter.disabled=true;$('#api-result').textContent='Loading…';try{const start=performance.now();const r=await api.request($('#api-path').value);$('#api-result').textContent=JSON.stringify(r,null,2);status('#api-status','HTTP 200 · '+Math.round(performance.now()-start)+' ms');}catch(err){$('#api-result').textContent=JSON.stringify(err.data||{error:err.message},null,2);status('#api-status','Request failed: '+err.message,true);}finally{e.submitter.disabled=false;}};
+
+const initialQuery=new URLSearchParams(location.search);
+for(const key of ['year','make','model'])if(initialQuery.has(key))$('#bulletin-form [name='+key+']').value=initialQuery.get(key).slice(0,100);
+
+function evidenceDate(v){return /^\d{8}$/.test(v||'')?v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6):v;}
+function renderInvestigations(r){
+ $('#bulletin-result').innerHTML=r.data.map(x=>'<article class="bulletin"><h3>NHTSA '+esc(x.id)+'</h3>'+x.reports.map(v=>'<p><strong>'+esc(v.subject)+'</strong></p><p>'+esc(v.manufacturer)+' · '+esc(v.components)+' · Opened '+esc(evidenceDate(v.opened))+' · '+(v.closed?'Closed '+esc(evidenceDate(v.closed)):'No closing date in source')+'</p><details><summary>Read investigation summary</summary><p>'+esc(v.summary)+'</p></details><details><summary>Linked recall campaigns</summary><p class="small">'+esc(v.recall_campaigns?v.recall_campaigns.split(',').join(', '):'None recorded')+'</p></details>').join('')+'</article>').join('')+source(r)+'<p class="small">'+esc(r.note)+'<br>Snapshot downloaded '+esc(r.source.downloaded_at)+'. Exact model-year matches only; records with unknown model years are not treated as matches.</p>';
+ nextOffset=r.next_offset;$('#more-bulletins').hidden=nextOffset===null;
+ status('#bulletin-status',r.total?r.total+' distinct investigations. Showing '+(r.offset+1)+'–'+(r.offset+r.data.length)+'.':'No matching investigations in this snapshot. Check exact make/model spelling.');
+ exportButton($('#bulletin-result'),r,'defect-investigations.json');
+}
+$('#rate-benchmarks').onclick=async()=>{const b=$('#rate-benchmarks');b.disabled=true;$('#rate-result').textContent='Loading benchmark snapshot…';try{const r=await api.rateBenchmarks();$('#rate-result').innerHTML='<h3>Federal Reserve benchmark snapshot</h3>'+table(['New-car loan term','APR benchmark'],r.data.map(x=>[x.term_months+' months',x.apr_percent.toFixed(2)+'%']))+'<p class="source">Observation period '+esc(r.source.observation_period)+' · Released '+esc(r.source.release_date)+'.<br>'+esc(r.scope)+'<br>'+esc(r.update_policy)+'<br><a href="'+esc(r.source.url)+'">Dated official release</a> · <a href="'+esc(r.current_release_url)+'">Check current release</a></p>'+(r.stale?'<p class="error">This snapshot is over 120 days old. Do not treat it as current.</p>':'');exportButton($('#rate-result'),r,'auto-loan-benchmark.json');}catch(e){$('#rate-result').textContent='Benchmarks unavailable: '+e.message;}finally{b.disabled=false;}};
+
+function preparePrint(){
+ const section=document.querySelector('main>section:not([hidden])');
+ const current=section?.id!=='costs'||(costReport!==null&&costReport.signature===costSignature());
+ if(!current){invalidateCost();status('#cost-status','No current calculation. Recalculate before printing this report.',true);}
+ document.querySelector('#print-meta').textContent='mcp.vin | '+(section?.querySelector('h2')?.textContent||'Vehicle research')+' | Prepared '+new Date().toLocaleString()+(section?.id==='costs'?(current?' | Calculated '+costReport.calculatedAt:' | No current calculation. Recalculate before using this report.'):'')+' | Public-source records; coverage varies by vehicle.';
+ return current;
+}
+addEventListener('beforeprint',preparePrint);
+document.querySelector('#print-view').onclick=()=>{if(preparePrint())window.print();else costSubmit.focus();};

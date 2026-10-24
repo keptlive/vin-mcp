@@ -3,3 +3,8 @@ node_modules/
 data/*.db
 data/*.db-wal
 data/*.db-shm
+
+data/runtime-secrets.json
+
+operations/free-data/
+__pycache__/

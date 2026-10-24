@@ -214,6 +214,7 @@
   <!-- Landing / Input -->
   <header id="hero">
     <div class="hero-inner">
+      <nav aria-label="Vehicle tools" style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:1rem"><a href="/">VIN decoder</a><a href="/research/">Research workspace</a><a href="/research/#developers">Developer tools</a></nav>
       <h1 class="logo">mcp<span class="dot">.</span>vin</h1>
       <p class="tagline">Free VIN decoder &mdash; NHTSA, EPA, safety ratings, recalls &amp; more</p>
       <form id="vin-form" autocomplete="off" toolname="decode_vin" tooldescription="Decode a Vehicle Identification Number to get make, model, year, safety ratings, recalls, complaints, fuel economy, and photos">
@@ -250,6 +251,7 @@
         <h2 id="vehicle-title" class="vehicle-title"></h2>
         <div id="vin-display" class="vin-display"></div>
         <div id="hero-badges" class="hero-badges"></div>
+        <p><a id="research-model-link" href="/research/#communications">Research service bulletins for this model →</a></p>
         <button id="save-vin-btn" class="save-vin-btn" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
           <span id="save-vin-text">Save</span>
@@ -606,7 +608,7 @@
     <p>Data from <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener noreferrer">NHTSA</a>, <a href="https://fueleconomy.gov" target="_blank" rel="noopener noreferrer">EPA</a>, <a href="https://www.imagin.studio" target="_blank" rel="noopener noreferrer">IMAGIN.studio</a> &mdash; All free, no API key required</p>
   </footer>
 
-  <script src="app.js?v=20261021"></script>
+  <script src="app.js?v=20261023"></script>
 <script data-goatcounter=https://helloandy.goatcounter.com/count async src=//gc.zgo.at/count.js></script>
 <div style="text-align:center;padding:1.5rem 1rem;margin-top:2rem;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;color:#888;font-family:-apple-system,sans-serif;">
   Built by <a href="https://helloandy.net" style="color:#7c3aed;text-decoration:none;">Andy</a> &middot;
