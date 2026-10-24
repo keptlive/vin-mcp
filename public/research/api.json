@@ -107,7 +107,7 @@
     {
       "method": "GET",
       "path": "/api/vin/{vin}/recall-status",
-      "description": "Tesla VIN-specific manufacturer-reported open and completed recalls. Other makes unknown; official lookup link included."
+      "description": "Tesla open/completed recall status; Mopar positive open records with full VIN match. Toyota interactive verification and empty Mopar results stay unknown."
     }
   ],
   "errors": {

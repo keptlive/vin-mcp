@@ -191,7 +191,7 @@ MIT
 Built for [mcp.vin](https://mcp.vin)
 
 
-## Public-data research workspace (v1.3.0)
+## Public-data research workspace (v1.4.0)
 
 The additive `/research/` workspace includes EPA configurations/emissions, Canadian dimensions,
 manufacturer communications, defect investigations, owner-reported MPG, dated Federal Reserve
@@ -230,4 +230,4 @@ charting or document tools to create figures and analysis. Custom chart renderin
 in the agent's tools. The API supplies comparisons, scenario calculations, provenance and JSON.
 Configuration/model-year data and VIN-specific facts retain their distinct scopes.
 
-VIN recall repair status: Tesla manufacturer-reported open/completed statuses are included in reports and comparisons, with `vin_recall_status`, `GET /api/vin/{vin}/recall-status` and `VinClient.recallStatus(vin)`. Other makes remain unknown. See the [source and coverage notes](docs/data-sources.md#vin-specific-recall-repair-status).
+VIN recall repair status: Tesla manufacturer-reported open/completed statuses and Mopar VIN-matched open recall/campaign records are included in reports and comparisons, with `vin_recall_status`, `GET /api/vin/{vin}/recall-status` and `VinClient.recallStatus(vin)`. Mopar safety-recall count and completed history remain unknown because its feed mixes campaign types. Toyota/Lexus/Scion require interactive official verification. Other makes remain unknown. See the [source and coverage notes](docs/data-sources.md#vin-specific-recall-repair-status).

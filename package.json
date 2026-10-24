@@ -1,6 +1,6 @@
 {
   "name": "vin-mcp",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "description": "Free VIN decoder MCP server \u2014 NHTSA, EPA, safety ratings, recalls, fuel economy, vehicle photos",
   "main": "server.mjs",
