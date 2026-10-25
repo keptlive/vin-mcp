@@ -18,6 +18,7 @@ let authToken = localStorage.getItem('vin-auth-token');
 let currentUser = null;
 let userPrefs = null;
 let savedVinsList = [];
+let decodeRevision = 0;
 
 // ── VIN Validation (client-side quick check) ──
 const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/i;
@@ -48,18 +49,27 @@ function quickValidate(vin) {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const vin = input.value.trim().toUpperCase();
+  const revision = ++decodeRevision;
+  if (!e.detail?.preserveView) window.VinWorkspace?.navigate('report');
+  currentReport = null;
+  results.hidden = true;
+  window.VinWorkspace?.clearReport();
 
   // Client-side validation
   const check = quickValidate(vin);
   if (!check.valid) {
     showInputError(check.error);
     input.classList.add('invalid');
+    setBtnLoading(false);
+    $('#decode-status').textContent = '';
+    input.focus();
     return;
   }
 
   input.classList.remove('invalid');
   hideInputError();
   setBtnLoading(true);
+  $('#decode-status').textContent = 'Retrieving vehicle and safety records…';
 
   try {
     const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}`);
@@ -69,17 +79,19 @@ form.addEventListener('submit', async (e) => {
     }
 
     const report = await res.json();
-    currentReport = report;
-
+    if (revision !== decodeRevision) return;
     if (!report.valid) {
       showInputError('Invalid VIN — validation failed');
+      $('#decode-status').textContent = '';
       return;
     }
 
     if (!report.vehicle) {
       showInputError(report.error || 'Could not decode VIN');
+      $('#decode-status').textContent = '';
       return;
     }
+    currentReport = report;
 
     // Save to history
     saveToHistory(vin, report);
@@ -92,12 +104,16 @@ form.addEventListener('submit', async (e) => {
     // Compact hero
     hero.classList.add('compact');
     results.hidden = false;
-    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('#decode-status').textContent = 'Report ready. Review source coverage in each section.';
+    if (!location.hash || location.hash === '#report') {
+      history.replaceState(null, '', '/' + encodeURIComponent(vin) + location.search + '#report');
+      results.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+    }
 
   } catch (err) {
-    toast(err.message, 'error');
+    if (revision === decodeRevision) { showInputError(err.message); $('#decode-status').textContent = ''; }
   } finally {
-    setBtnLoading(false);
+    if (revision === decodeRevision) setBtnLoading(false);
   }
 });
 
@@ -122,6 +138,7 @@ function renderResults(report) {
   renderSafetyEquipment(report);
   renderPlant(report);
   renderRaw(report);
+  if (typeof window !== 'undefined') window.VinWorkspace?.reportUpdated(report);
 }
 
 // ── Hero ──
@@ -129,7 +146,7 @@ function renderHero(r) {
   const v = r.vehicle;
   const title = [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ');
   $('#vehicle-title').textContent = title;
-  $('#research-model-link').href = '/research/?' + new URLSearchParams({year:r.vehicle?.year || '',make:r.vehicle?.make || '',model:r.vehicle?.model || ''}) + '#communications';
+  $('#research-model-link').href = '#communications';
 
   // VIN segments
   const vin = r.vin;
@@ -179,10 +196,11 @@ function renderHero(r) {
       mainImg.src = urls[0];
       mainImg.alt = title;
       thumbsEl.innerHTML = urls.map((url, i) =>
-        `<img src="${esc(url)}" alt="View ${i+1}" class="${i === 0 ? 'active' : ''}" data-url="${esc(url)}">`
+        `<img src="${esc(url)}" alt="View ${i+1}" tabindex="0" role="button" aria-label="Show vehicle view ${i+1}" class="${i === 0 ? 'active' : ''}" data-url="${esc(url)}">`
       ).join('');
 
       $$('img', thumbsEl).forEach(img => {
+        img.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); img.click(); } });
         img.addEventListener('click', () => {
           mainImg.src = img.dataset.url;
           $$('img', thumbsEl).forEach(t => t.classList.remove('active'));
@@ -551,6 +569,7 @@ $$('.card-title-toggle').forEach(el => {
     const body = $(`#${target}`);
     el.classList.toggle('open');
     body.classList.toggle('expanded');
+    el.setAttribute('aria-expanded', String(body.classList.contains('expanded')));
   });
 });
 
@@ -590,6 +609,8 @@ function hideInputError() {
 
 function setBtnLoading(loading) {
   btn.disabled = loading;
+  btn.setAttribute('aria-label', loading ? 'Loading vehicle report' : 'View report');
+  btn.setAttribute('aria-busy', String(loading));
   $('.btn-text', btn).hidden = loading;
   $('.btn-spinner', btn).hidden = !loading;
 }
@@ -631,7 +652,8 @@ const MAX_HISTORY = 15;
 
 function getHistory() {
   try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+    const entries = JSON.parse(localStorage.getItem(HISTORY_KEY));
+    return Array.isArray(entries) ? entries.filter(entry => entry && VIN_RE.test(entry.vin)).slice(0,MAX_HISTORY) : [];
   } catch {
     return [];
   }
@@ -655,336 +677,216 @@ function saveToHistory(vin, report) {
 function renderHistory() {
   const history = getHistory();
   const list = $('#history-list');
-
-  if (history.length === 0) {
-    list.innerHTML = '<li style="color:var(--text-muted);font-size:.85rem">No history yet</li>';
-    return;
-  }
-
-  list.innerHTML = history.map(h => `
-    <li data-vin="${esc(h.vin)}">
-      <div class="history-vin">${esc(h.vin)}</div>
-      <div class="history-desc">${esc(h.desc || 'Unknown vehicle')}</div>
-    </li>
-  `).join('');
-
-  $$('li[data-vin]', list).forEach(li => {
-    li.addEventListener('click', () => {
-      input.value = li.dataset.vin;
-      form.dispatchEvent(new Event('submit'));
-      $('#history-panel').classList.remove('open');
-    });
-  });
+  list.innerHTML = history.length ? history.map(h => `<li><button type="button" class="history-entry" data-vin="${esc(h.vin)}"><span class="history-vin">${esc(h.vin)}</span><span class="history-desc" style="display:block">${esc(h.desc || 'Unknown vehicle')}</span></button></li>`).join('') : '<li class="small">No recent reports yet. Start with a VIN.</li>';
+  $$('[data-vin]', list).forEach(button => button.addEventListener('click', () => openVehicle(button.dataset.vin)));
 }
 
-// History toggle
-function openHistory() {
-  const panel = $('#history-panel');
-  panel.hidden = false;
-  // Force reflow so transition plays
-  panel.offsetHeight;
-  panel.classList.add('open');
-  renderHistory();
+function openVehicle(vin) {
+  input.value = vin;
+  window.VinWorkspace?.navigate('report');
+  form.dispatchEvent(new Event('submit'));
 }
+function openHistory() { window.VinWorkspace?.navigate('saved'); renderHistory(); }
+function closeHistory() { /* Recent vehicles are an inline workspace view. */ }
+$('#history-toggle').addEventListener('click', openHistory);
+$('#history-close').addEventListener('click', () => window.VinWorkspace?.navigate('report'));
+$('#clear-history').addEventListener('click', () => { localStorage.removeItem(HISTORY_KEY); renderHistory(); });
 
-function closeHistory() {
-  const panel = $('#history-panel');
-  panel.classList.remove('open');
-}
-
-$('#history-toggle').addEventListener('click', (e) => {
-  e.stopPropagation();
-  const panel = $('#history-panel');
-  if (panel.classList.contains('open')) {
-    closeHistory();
-  } else {
-    openHistory();
-  }
-});
-
-// Close panel when clicking outside
-document.addEventListener('click', (e) => {
-  const panel = $('#history-panel');
-  if (panel.classList.contains('open') && !panel.contains(e.target) && e.target !== $('#history-toggle')) {
-    closeHistory();
-  }
-});
-
-$('#history-close').addEventListener('click', () => closeHistory());
-
-$('#clear-history').addEventListener('click', () => {
-  localStorage.removeItem(HISTORY_KEY);
-  renderHistory();
-});
-
-// ── URL routing (direct VIN link) ──
 function checkUrlVin() {
-  const path = window.location.pathname;
-  const match = path.match(/^\/([A-HJ-NPR-Z0-9]{17})$/i);
-  if (match) {
+  const match = window.location.pathname.match(new RegExp('^/([A-HJ-NPR-Z0-9]{17})$', 'i'));
+  if (match && currentReport?.vin !== match[1].toUpperCase()) {
     input.value = match[1].toUpperCase();
-    form.dispatchEvent(new Event('submit'));
+    form.dispatchEvent(new CustomEvent('submit', {detail:{preserveView:true}}));
   }
 }
-
-// ── Auto-uppercase input ──
+addEventListener('popstate', checkUrlVin);
 input.addEventListener('input', () => {
   const pos = input.selectionStart;
   input.value = input.value.toUpperCase();
   input.setSelectionRange(pos, pos);
   input.classList.remove('invalid');
   hideInputError();
+  decodeRevision++;
+  setBtnLoading(false);
+  $('#decode-status').textContent = '';
+  if (currentReport?.vin !== input.value.trim().toUpperCase()) {
+    currentReport = null;
+    results.hidden = true;
+    window.VinWorkspace?.clearReport();
+  }
 });
 
-// ── Auth ──
-
-function authHeaders() {
-  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+// Dialogs have one focus owner. Saved/recent vehicles are never floating drawers.
+let dialogReturnFocus = null;
+function openDialog(id, focusSelector) {
+  dialogReturnFocus = document.activeElement;
+  $$('.modal-overlay').forEach(el => el.hidden = true);
+  const overlay = $(id); overlay.hidden = false;
+  $('.workspace-layout').inert = true;
+  $('.app-header').inert = true;
+  document.body.style.overflow = 'hidden';
+  (focusSelector ? $(focusSelector) : overlay.querySelector('input,button')).focus();
+  $('#user-menu').open = false;
 }
+function closeDialog(id) {
+  $(id).hidden = true;
+  $('.workspace-layout').inert = false;
+  $('.app-header').inert = false;
+  document.body.style.overflow = '';
+  const collapsedMenu = dialogReturnFocus?.closest('details:not([open])');
+  if (collapsedMenu && dialogReturnFocus !== collapsedMenu.querySelector('summary')) collapsedMenu.querySelector('summary')?.focus();
+  else if (dialogReturnFocus?.isConnected && !dialogReturnFocus.closest('[hidden]')) dialogReturnFocus.focus();
+  else $('#my-vins-btn').focus();
+  dialogReturnFocus = null;
+}
+$$('.modal-overlay').forEach(overlay => overlay.addEventListener('click', e => { if (e.target === overlay) closeDialog('#' + overlay.id); }));
+document.addEventListener('keydown', e => {
+  const overlay = $('.modal-overlay:not([hidden])');
+  if (!overlay) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeDialog('#' + overlay.id); return; }
+  if (e.key === 'Tab') {
+    const focusable = $$('button,input,select,textarea,a[href],[tabindex="0"]', overlay).filter(el => !el.disabled && !el.closest('[hidden]'));
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !overlay.contains(document.activeElement))) { e.preventDefault(); last?.focus(); }
+    else if (!e.shiftKey && (document.activeElement === last || !overlay.contains(document.activeElement))) { e.preventDefault(); first?.focus(); }
+  }
+});
 
+// Account operations only update UI after a successful response.
+let authRevision = 0;
+function authHeaders() { return authToken ? { Authorization: `Bearer ${authToken}` } : {}; }
+async function accountRequest(url, options={}) {
+  const response = await apiFetch(url, { ...options, headers: { ...authHeaders(), ...options.headers } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Request failed (HTTP ${response.status})`);
+  return data;
+}
 async function checkAuth() {
   if (!authToken) { updateAuthUI(); return; }
+  const revision = authRevision;
   try {
-    const res = await apiFetch('/api/auth/me', { headers: authHeaders() });
-    if (!res.ok) throw new Error();
-    currentUser = await res.json();
-    await loadPreferences();
-    await loadSavedVins();
+    const user = await accountRequest('/api/auth/me');
+    if (revision !== authRevision) return;
+    currentUser = user;
+    await Promise.all([loadPreferences(), loadSavedVins()]);
+    if (revision !== authRevision) return;
   } catch {
-    authToken = null;
+    if (revision !== authRevision) return;
+    authToken = null; currentUser = null;
     localStorage.removeItem('vin-auth-token');
-    currentUser = null;
   }
-  updateAuthUI();
+  updateAuthUI(); applyPreferences();
 }
-
 function updateAuthUI() {
-  const loginBtn = $('#login-btn');
-  const userMenu = $('#user-menu');
-  if (currentUser) {
-    loginBtn.hidden = true;
-    userMenu.hidden = false;
-    $('#user-email').textContent = currentUser.display_name || currentUser.email;
-  } else {
-    loginBtn.hidden = false;
-    userMenu.hidden = true;
-  }
-  // Save button visibility depends on auth
-  const saveBtn = $('#save-vin-btn');
-  if (saveBtn) saveBtn.hidden = !currentUser || !currentReport;
+  $('#login-btn').hidden = !!currentUser;
+  $('#user-menu').hidden = !currentUser;
+  $('#user-menu').open = false;
+  $('#saved-signin').hidden = !!currentUser;
+  $('#saved-vins-list').hidden = !currentUser;
+  if (currentUser) $('#user-email').textContent = currentUser.display_name || currentUser.email;
+  updateSaveButton(currentReport?.vin);
+  renderSavedVins();
 }
-
-// Login modal
-$('#login-btn').addEventListener('click', () => {
-  $('#auth-modal').hidden = false;
-});
-$('#auth-close').addEventListener('click', () => {
-  $('#auth-modal').hidden = true;
-});
-$('#auth-modal').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) e.currentTarget.hidden = true;
-});
-
-// Modal tabs
-$$('.modal-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    $$('.modal-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const isLogin = tab.dataset.tab === 'login';
-    $('#login-form').hidden = !isLogin;
-    $('#register-form').hidden = isLogin;
-  });
-});
-
-// Login form
-$('#login-form').addEventListener('submit', async (e) => {
+function showSignIn() {
+  $('#login-form').hidden = false; $('#register-form').hidden = true;
+  $$('.modal-tab').forEach(tab => { const active = tab.dataset.tab === 'login'; tab.classList.toggle('active',active); tab.setAttribute('aria-pressed',String(active)); });
+  openDialog('#auth-modal', '#login-email');
+}
+$('#login-btn').addEventListener('click', showSignIn);
+$('#saved-login-btn').addEventListener('click', showSignIn);
+$('#auth-close').addEventListener('click', () => closeDialog('#auth-modal'));
+$$('.modal-tab').forEach(tab => tab.addEventListener('click', () => {
+  $$('.modal-tab').forEach(t => { t.classList.toggle('active', t === tab); t.setAttribute('aria-pressed', String(t === tab)); });
+  const isLogin = tab.dataset.tab === 'login';
+  $('#login-form').hidden = !isLogin; $('#register-form').hidden = isLogin;
+  $(isLogin ? '#login-email' : '#reg-email').focus();
+}));
+async function authenticate(e, register) {
   e.preventDefault();
-  const errEl = $('#login-error');
-  errEl.hidden = true;
+  const revision = ++authRevision, button = e.target.querySelector('button[type=submit]');
+  const errEl = $(register ? '#reg-error' : '#login-error'); errEl.hidden = true; button.disabled = true;
   try {
-    const res = await apiFetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: $('#login-email').value,
-        password: $('#login-password').value,
-      }),
+    const data = await accountRequest('/api/auth/' + (register ? 'register' : 'login'), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(register ? {email:$('#reg-email').value,password:$('#reg-password').value,display_name:$('#reg-name').value || undefined} : {email:$('#login-email').value,password:$('#login-password').value})
     });
-    const data = await res.json();
-    if (!res.ok) { errEl.textContent = data.error; errEl.hidden = false; return; }
-    authToken = data.token;
-    currentUser = data.user;
+    if (revision !== authRevision) return;
+    authToken = data.token; currentUser = data.user;
     localStorage.setItem('vin-auth-token', authToken);
-    $('#auth-modal').hidden = true;
-    await loadPreferences();
-    await loadSavedVins();
-    updateAuthUI();
-    applyPreferences();
-    toast('Logged in');
-  } catch (err) {
-    errEl.textContent = 'Network error';
-    errEl.hidden = false;
-  }
-});
-
-// Register form
-$('#register-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const errEl = $('#reg-error');
-  errEl.hidden = true;
-  try {
-    const res = await apiFetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: $('#reg-email').value,
-        password: $('#reg-password').value,
-        display_name: $('#reg-name').value || undefined,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) { errEl.textContent = data.error; errEl.hidden = false; return; }
-    authToken = data.token;
-    currentUser = data.user;
-    localStorage.setItem('vin-auth-token', authToken);
-    $('#auth-modal').hidden = true;
-    await loadPreferences();
-    await loadSavedVins();
-    updateAuthUI();
-    toast('Account created');
-  } catch (err) {
-    errEl.textContent = 'Network error';
-    errEl.hidden = false;
-  }
-});
-
-// Logout
+    closeDialog('#auth-modal');
+    await Promise.all([loadPreferences(), loadSavedVins()]);
+    if (revision !== authRevision) return;
+    updateAuthUI(); applyPreferences();
+    if (document.activeElement === document.body || document.activeElement?.closest('[hidden]')) $('#user-email').focus();
+    toast(register ? 'Account created' : 'Signed in');
+  } catch (err) { if (revision === authRevision) { errEl.textContent = err.message; errEl.hidden = false; } }
+  finally { button.disabled = false; }
+}
+$('#login-form').addEventListener('submit', e => authenticate(e, false));
+$('#register-form').addEventListener('submit', e => authenticate(e, true));
 $('#logout-btn').addEventListener('click', () => {
-  authToken = null;
-  currentUser = null;
-  userPrefs = null;
-  savedVinsList = [];
+  authRevision++; authToken = null; currentUser = null; userPrefs = null; savedVinsList = [];
   localStorage.removeItem('vin-auth-token');
-  updateAuthUI();
-  applyPreferences();
-  toast('Logged out');
+  $('#saved-status').textContent = '';
+  updateAuthUI(); applyPreferences(); toast('Signed out');
+  $('#login-btn').focus();
 });
-
-// ── Saved VINs ──
-
 async function loadSavedVins() {
   if (!authToken) return;
+  const token = authToken;
   try {
-    const res = await apiFetch('/api/user/vins', { headers: authHeaders() });
-    if (res.ok) savedVinsList = await res.json();
-  } catch {}
+    const data = await accountRequest('/api/user/vins');
+    if (token !== authToken) return;
+    savedVinsList = data; $('#saved-status').textContent = ''; renderSavedVins();
+  } catch (err) { if (token === authToken) $('#saved-status').textContent = 'Saved vehicles could not be loaded. ' + err.message; }
 }
-
 function updateSaveButton(vin) {
-  const saveBtn = $('#save-vin-btn');
-  if (!currentUser || !vin) { saveBtn.hidden = true; return; }
-  saveBtn.hidden = false;
-  const saved = savedVinsList.find(s => s.vin === vin.toUpperCase());
-  if (saved) {
-    saveBtn.classList.add('saved');
-    $('#save-vin-text').textContent = saved.label || 'Saved';
-  } else {
-    saveBtn.classList.remove('saved');
-    $('#save-vin-text').textContent = 'Save';
-  }
+  const button = $('#save-vin-btn'); button.hidden = !vin;
+  const saved = savedVinsList.find(s => s.vin === vin?.toUpperCase());
+  button.classList.toggle('saved', !!saved);
+  $('#save-vin-text').textContent = !currentUser ? 'Sign in to save' : saved ? (saved.label || 'Saved · edit label') : 'Save vehicle';
 }
-
-$('#save-vin-btn').addEventListener('click', async () => {
-  if (!currentUser || !currentReport) return;
-  const vin = currentReport.vin;
+let labelTarget = null;
+function editVehicleLabel(vin) {
+  if (!currentUser) { showSignIn(); return; }
   const existing = savedVinsList.find(s => s.vin === vin);
-  if (existing) {
-    // Already saved — prompt for label edit
-    const label = prompt('Edit label:', existing.label || '');
-    if (label === null) return;
-    await apiFetch(`/api/user/vins/${existing.id}`, {
-      method: 'PUT',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label }),
-    });
-    existing.label = label;
-    updateSaveButton(vin);
-    toast('Label updated');
-  } else {
-    const label = prompt('Label this vehicle (optional):', '');
-    if (label === null) return;
-    try {
-      const res = await apiFetch('/api/user/vins', {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vin, label: label || undefined }),
-      });
-      if (res.ok) {
-        const saved = await res.json();
-        savedVinsList.unshift(saved);
-        updateSaveButton(vin);
-        toast('VIN saved');
-      }
-    } catch {}
-  }
+  labelTarget = {vin, id:existing?.id};
+  $('#label-title').textContent = existing ? 'Edit vehicle label' : 'Save vehicle';
+  $('#label-vin').textContent = vin;
+  $('#vehicle-label').value = existing?.label || '';
+  $('#label-error').hidden = true;
+  openDialog('#label-modal', '#vehicle-label');
+}
+$('#save-vin-btn').addEventListener('click', () => { if (currentReport) editVehicleLabel(currentReport.vin); });
+$('#label-close').addEventListener('click', () => closeDialog('#label-modal'));
+$('#label-form').addEventListener('submit', async e => {
+  e.preventDefault(); if (!labelTarget || !currentUser) return;
+  const token = authToken, target = {...labelTarget}, label = $('#vehicle-label').value.trim(), button = $('#label-submit');
+  button.disabled = true; $('#label-error').hidden = true;
+  try {
+    await accountRequest(target.id ? '/api/user/vins/' + target.id : '/api/user/vins', {method:target.id ? 'PUT' : 'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vin:target.vin,label})});
+    if (token !== authToken) return;
+    await loadSavedVins(); updateSaveButton(currentReport?.vin); closeDialog('#label-modal'); toast(target.id ? 'Label updated' : 'Vehicle saved');
+  } catch (err) { $('#label-error').textContent = err.message; $('#label-error').hidden = false; }
+  finally { button.disabled = false; }
 });
-
-// My VINs panel
-$('#my-vins-btn').addEventListener('click', () => {
-  renderSavedVins();
-  const panel = $('#saved-vins-panel');
-  panel.hidden = false;
-  panel.offsetHeight;
-  panel.classList.add('open');
-});
-
-$('#saved-vins-close').addEventListener('click', () => {
-  $('#saved-vins-panel').classList.remove('open');
-});
-
+$('#my-vins-btn').addEventListener('click', () => { window.VinWorkspace?.navigate('saved'); renderSavedVins(); if (currentUser) loadSavedVins(); });
+$('#saved-vins-close').addEventListener('click', () => window.VinWorkspace?.navigate('report'));
 function renderSavedVins() {
   const list = $('#saved-vins-list');
-  if (savedVinsList.length === 0) {
-    list.innerHTML = '<li class="empty-state" style="padding:1rem;font-size:.85rem">No saved VINs yet. Decode a VIN and click Save.</li>';
-    return;
-  }
-  list.innerHTML = savedVinsList.map(s => `
-    <li class="saved-vin-item" data-vin="${esc(s.vin)}" data-id="${s.id}">
-      <div class="saved-vin-info">
-        <div class="saved-vin-label">${esc(s.label || [s.year, s.make, s.model].filter(Boolean).join(' ') || 'Unnamed')}</div>
-        <div class="saved-vin-number">${esc(s.vin)}</div>
-      </div>
-      <div class="saved-vin-actions">
-        <button class="saved-vin-decode" title="Decode">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
-        </button>
-        <button class="saved-vin-delete" title="Remove">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-        </button>
-      </div>
-    </li>
-  `).join('');
-
-  $$('.saved-vin-decode', list).forEach(btn => {
-    btn.addEventListener('click', () => {
-      const vin = btn.closest('li').dataset.vin;
-      input.value = vin;
-      form.dispatchEvent(new Event('submit'));
-      $('#saved-vins-panel').classList.remove('open');
-    });
-  });
-
-  $$('.saved-vin-delete', list).forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const li = btn.closest('li');
-      const id = li.dataset.id;
-      await apiFetch(`/api/user/vins/${id}`, { method: 'DELETE', headers: authHeaders() });
-      savedVinsList = savedVinsList.filter(s => String(s.id) !== id);
-      li.remove();
-      if (savedVinsList.length === 0) renderSavedVins();
-      if (currentReport) updateSaveButton(currentReport.vin);
-      toast('VIN removed');
-    });
+  if (!currentUser) { list.replaceChildren(); return; }
+  if (!savedVinsList.length) { list.innerHTML = '<li class="small">No saved vehicles yet. Open a VIN report and choose Save vehicle.</li>'; return; }
+  list.innerHTML = savedVinsList.map(s => `<li class="saved-vin-item" data-vin="${esc(s.vin)}" data-id="${esc(s.id)}"><div class="saved-vin-info"><div class="saved-vin-label">${esc(s.label || [s.year,s.make,s.model].filter(Boolean).join(' ') || 'Vehicle')}</div><div class="saved-vin-number">${esc(s.vin)}</div></div><div class="saved-vin-actions"><button type="button" class="saved-vin-decode" aria-label="Open report ${esc(s.vin)}">Report</button><button type="button" class="saved-vin-compare" aria-label="Compare ${esc(s.vin)}">Compare</button><button type="button" class="saved-vin-rename" aria-label="Rename ${esc(s.vin)}">Rename</button><button type="button" class="saved-vin-delete" aria-label="Remove ${esc(s.vin)}">Remove</button></div></li>`).join('');
+  $$('.saved-vin-decode', list).forEach(b => b.onclick = () => openVehicle(b.closest('li').dataset.vin));
+  $$('.saved-vin-rename', list).forEach(b => b.onclick = () => editVehicleLabel(b.closest('li').dataset.vin));
+  $$('.saved-vin-compare', list).forEach(b => b.onclick = () => window.VinWorkspace?.addComparison(b.closest('li').dataset.vin));
+  $$('.saved-vin-delete', list).forEach(b => b.onclick = async () => {
+    const li = b.closest('li'), id = li.dataset.id, token = authToken; b.disabled = true;
+    try {
+      await accountRequest('/api/user/vins/' + encodeURIComponent(id), {method:'DELETE'});
+      if (token !== authToken) return;
+      savedVinsList = savedVinsList.filter(s => String(s.id) !== id); renderSavedVins(); updateSaveButton(currentReport?.vin); toast('Vehicle removed');
+    } catch (err) { $('#saved-status').textContent = 'Could not remove vehicle. ' + err.message; b.disabled = false; }
   });
 }
 
@@ -992,10 +894,8 @@ function renderSavedVins() {
 
 async function loadPreferences() {
   if (!authToken) { userPrefs = null; return; }
-  try {
-    const res = await apiFetch('/api/user/preferences', { headers: authHeaders() });
-    if (res.ok) userPrefs = await res.json();
-  } catch {}
+  const token = authToken;
+  try { const data = await accountRequest('/api/user/preferences'); if (token === authToken) userPrefs = data; } catch {}
 }
 
 function applyPreferences() {
@@ -1023,14 +923,12 @@ function applyPreferences() {
 // Settings modal
 $('#settings-btn').addEventListener('click', () => {
   syncSettingsUI();
-  $('#settings-modal').hidden = false;
+  openDialog('#settings-modal', '#settings-toggles input');
 });
 $('#settings-close').addEventListener('click', () => {
-  $('#settings-modal').hidden = true;
+  closeDialog('#settings-modal');
 });
-$('#settings-modal').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) e.currentTarget.hidden = true;
-});
+
 
 function syncSettingsUI() {
   const prefs = userPrefs || {};
@@ -1043,28 +941,14 @@ function syncSettingsUI() {
 $$('#settings-toggles input[data-pref]').forEach(inp => {
   inp.addEventListener('change', async () => {
     if (!authToken) return;
-    const key = inp.dataset.pref;
-    const value = inp.checked;
+    const token = authToken, key = inp.dataset.pref, value = inp.checked;
+    inp.disabled = true;
     try {
-      const res = await apiFetch('/api/user/preferences', {
-        method: 'PUT',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [key]: value }),
-      });
-      if (res.ok) userPrefs = await res.json();
-      applyPreferences();
-    } catch {}
+      const data = await accountRequest('/api/user/preferences', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({[key]:value}) });
+      if (token === authToken) { userPrefs = data; applyPreferences(); }
+    } catch (err) { if (token === authToken) { inp.checked = !value; toast('Setting could not be saved. ' + err.message, 'error'); } }
+    finally { inp.disabled = false; }
   });
-});
-
-// Close Escape for all modals
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    closeHistory();
-    $('#auth-modal').hidden = true;
-    $('#settings-modal').hidden = true;
-    $('#saved-vins-panel').classList.remove('open');
-  }
 });
 
 // ── WebMCP (W3C Web Model Context Protocol) ──
@@ -1088,6 +972,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
       const report = await res.json();
       // Also render in the UI
       if (report.valid && report.vehicle) {
+        window.VinWorkspace?.navigate('report');
         input.value = vin.toUpperCase();
         currentReport = report;
         saveToHistory(vin, report);

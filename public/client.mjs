@@ -6,6 +6,7 @@ export class VinClient {
  validate(vin){return this.request('/api/vin/'+encodeURIComponent(vin)+'/validate');}
  batch(vins){return this.request('/api/batch',{vins});}
  capabilities(){return this.request('/api/research/capabilities');}
+ tools(){return this.request('/api/tools');}
  catalog(level,query={}){return this.request('/api/research/catalog/'+encodeURIComponent(level)+'?'+new URLSearchParams(query));}
  vehicle(id){return this.request('/api/research/epa/'+encodeURIComponent(id));}
  emissions(id){return this.request('/api/research/epa/'+encodeURIComponent(id)+'/emissions');}

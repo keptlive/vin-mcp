@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIN Decoder — mcp.vin</title>
+  <title>Vehicle research &amp; VIN reports | mcp.vin</title>
   <meta name="description" content="Free VIN decoder — decode any vehicle by VIN number. Safety ratings, recalls, complaints, fuel economy, photos. Also available as an MCP server for Claude.">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <meta name="theme-color" content="#6366f1">
+    <meta name="theme-color" content="#163c38">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="canonical" href="https://mcp.vin">
 
@@ -43,181 +43,15 @@
   }
   </script>
 
-  <link rel="stylesheet" href="style.css?v=20261021">
-  <link rel="stylesheet" href="article.css?v=1">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css?v=1c4cd01f7de5">
+  <link rel="stylesheet" href="/research/research.css?v=4f6e097847a7">
 
-  <style>
-    .supp-divider {
-      max-width: 800px;
-      margin: 2rem auto 0;
-      border-top: 1px solid rgba(255,255,255,0.06);
-    }
-    .supp-section {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 1.5rem 1.5rem 2rem;
-    }
-    .supp-faq { margin-bottom: 1.25rem; }
-    .supp-heading {
-      font-size: 0.8rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted, #666);
-      cursor: pointer;
-      list-style: none;
-      padding: 0.5rem 0;
-      user-select: none;
-    }
-    .supp-heading::-webkit-details-marker { display: none; }
-    .supp-heading::before {
-      content: '▸ ';
-      font-size: 0.7rem;
-    }
-    details[open] > .supp-heading::before {
-      content: '▾ ';
-    }
-    .supp-faq-list {
-      margin-top: 0.5rem;
-    }
-    .supp-faq-item {
-      border-bottom: 1px solid rgba(255,255,255,0.04);
-    }
-    .supp-faq-item:last-child { border-bottom: none; }
-    .supp-faq-q {
-      padding: 0.6rem 0;
-      font-size: 0.85rem;
-      font-weight: 500;
-      color: var(--text, #fff);
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      user-select: none;
-    }
-    .supp-faq-q:hover { color: var(--accent, #6366f1); }
-    .supp-faq-icon {
-      font-size: 0.9rem;
-      color: var(--text-muted, #666);
-      transition: transform 0.2s;
-      flex-shrink: 0;
-      margin-left: 0.75rem;
-    }
-    .supp-faq-item.open .supp-faq-icon { transform: rotate(45deg); }
-    .supp-faq-a {
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.3s ease;
-      font-size: 0.82rem;
-      color: var(--text-dim, #999);
-      line-height: 1.65;
-      padding-left: 0;
-    }
-    .supp-faq-item.open .supp-faq-a {
-      max-height: 300px;
-      padding-bottom: 0.5rem;
-    }
-    .supp-articles {
-      padding-top: 0.25rem;
-    }
-    .supp-articles-label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted, #666);
-      display: block;
-      margin-bottom: 0.5rem;
-    }
-    .supp-articles-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem 0.75rem;
-    }
-    .supp-article-link {
-      font-size: 0.82rem;
-      color: var(--text-dim, #999);
-      text-decoration: none;
-      padding: 0.25rem 0;
-      border-bottom: 1px solid transparent;
-      transition: color 0.15s, border-color 0.15s;
-    }
-    .supp-article-link:hover {
-      color: var(--accent, #6366f1);
-      border-bottom-color: var(--accent, #6366f1);
-    }
-    @media (max-width: 600px) {
-      .supp-section { padding: 1rem 1rem 1.5rem; }
-    }
-  </style>
 </head>
-<body>
-  <!-- User area -->
-  <div id="user-area" class="user-area">
-    <button id="login-btn" class="login-btn">Log In</button>
-    <div id="user-menu" class="user-menu" hidden>
-      <span id="user-email" class="user-email"></span>
-      <button id="my-vins-btn" class="user-menu-item">My VINs</button>
-      <button id="settings-btn" class="user-menu-item">Settings</button>
-      <button id="logout-btn" class="user-menu-item logout">Log Out</button>
-    </div>
-  </div>
-
-  <!-- Auth Modal -->
-  <div id="auth-modal" class="modal-overlay" hidden>
-    <div class="modal">
-      <button class="modal-close" id="auth-close">&times;</button>
-      <h2 class="modal-logo">mcp<span class="dot">.</span>vin</h2>
-      <div class="modal-tabs">
-        <button class="modal-tab active" data-tab="login">Log In</button>
-        <button class="modal-tab" data-tab="register">Sign Up</button>
-      </div>
-      <form id="login-form" class="modal-form">
-        <input type="email" id="login-email" placeholder="Email" required autocomplete="email">
-        <input type="password" id="login-password" placeholder="Password" required autocomplete="current-password">
-        <button type="submit" class="modal-submit">Log In</button>
-        <div class="form-error" id="login-error" hidden></div>
-      </form>
-      <form id="register-form" class="modal-form" hidden>
-        <input type="email" id="reg-email" placeholder="Email" required autocomplete="email">
-        <input type="text" id="reg-name" placeholder="Display name (optional)" autocomplete="name">
-        <input type="password" id="reg-password" placeholder="Password (min 8 chars)" required minlength="8" autocomplete="new-password">
-        <button type="submit" class="modal-submit">Create Account</button>
-        <div class="form-error" id="reg-error" hidden></div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Settings Modal -->
-  <div id="settings-modal" class="modal-overlay" hidden>
-    <div class="modal modal-settings">
-      <button class="modal-close" id="settings-close">&times;</button>
-      <h2 class="modal-title">Report Settings</h2>
-      <p class="modal-desc">Choose which sections appear in VIN reports.</p>
-      <div class="settings-toggles" id="settings-toggles">
-        <label class="toggle-row"><input type="checkbox" data-pref="show_overview" checked><span>Vehicle Overview</span></label>
-        <label class="toggle-row"><input type="checkbox" data-pref="show_engine" checked><span>Engine & Drivetrain</span></label>
-        <label class="toggle-row"><input type="checkbox" data-pref="show_safety_ratings" checked><span>Safety Ratings</span></label>
-        <label class="toggle-row"><input type="checkbox" data-pref="show_fuel_economy" checked><span>Fuel Economy</span></label>
-        <label class="toggle-row"><input type="checkbox" data-pref="show_recalls" checked><span>Recalls</span></label>
-        <label class="toggle-row"><input type="checkbox" data-pref="show_complaints" checked><span>Consumer Complaints</span></label>
-        <label class="toggle-row"><input type="checkbox" data-pref="show_safety_equipment" checked><span>Safety Equipment</span></label>
-        <label class="toggle-row"><input type="checkbox" data-pref="show_photos" checked><span>Vehicle Photos</span></label>
-        <label class="toggle-row"><input type="checkbox" data-pref="show_raw_nhtsa"><span>Raw NHTSA Data</span></label>
-      </div>
-    </div>
-  </div>
-
-  <!-- Landing / Input -->
-  <header id="hero">
-    <div class="hero-inner">
-      <nav aria-label="Vehicle tools" style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:1rem"><a href="/">VIN decoder</a><a href="/research/">Research workspace</a><a href="/research/#developers">Developer tools</a></nav>
-      <h1 class="logo">mcp<span class="dot">.</span>vin</h1>
-      <p class="tagline">Free VIN decoder &mdash; NHTSA, EPA, safety ratings, recalls &amp; more</p>
-      <form id="vin-form" autocomplete="off" toolname="decode_vin" tooldescription="Decode a Vehicle Identification Number to get make, model, year, safety ratings, recalls, complaints, fuel economy, and photos">
+<body class="workspace"><a class="skip-link" href="#main">Skip to workspace</a>
+<header class="app-header"><a class="brand" href="/#report" aria-label="mcp.vin home">mcp<span>.</span>vin</a><span class="brand-description">Vehicle research</span><div id="user-area" class="user-area"><button id="my-vins-btn" class="secondary" type="button">Saved vehicles</button><button id="login-btn" class="login-btn" type="button">Sign in</button><details id="user-menu" class="user-menu" hidden><summary id="user-email">Account</summary><div class="account-menu"><button id="settings-btn" class="user-menu-item" type="button">Report settings</button><button id="logout-btn" class="user-menu-item logout" type="button">Sign out</button></div></details></div></header>
+<div class="workspace-layout"><aside class="workspace-sidebar"><button id="menu-toggle" type="button" class="mobile-menu secondary" aria-controls="workspace-navigation" aria-expanded="false"><span id="menu-current">VIN report</span><span aria-hidden="true">☰</span></button><nav id="workspace-navigation" aria-label="Workspace"><a href="#report" aria-current="page"><span class="nav-mark" aria-hidden="true">01</span>VIN report</a><a href="#compare"><span class="nav-mark" aria-hidden="true">02</span>Compare vehicles</a><a href="#catalog"><span class="nav-mark" aria-hidden="true">03</span>Specifications</a><a href="#communications"><span class="nav-mark" aria-hidden="true">04</span>Safety records</a><a href="#costs"><span class="nav-mark" aria-hidden="true">05</span>Ownership costs</a><a href="#coverage"><span class="nav-mark" aria-hidden="true">06</span>Data coverage</a><a href="#developers"><span class="nav-mark" aria-hidden="true">07</span>Developer tools</a><div class="nav-divider"></div><a href="#saved">Saved vehicles</a><button id="history-toggle" type="button">Recent reports</button></nav><div class="sidebar-note"><span class="status-dot" aria-hidden="true"></span><strong>Public data. Clear sources.</strong><p>Free research tools with the limits of each source kept visible.</p><a href="#developers">Connect an agent →</a></div></aside>
+<main id="main" tabindex="-1"><div class="workspace-toolbar"><div id="vehicle-context" class="vehicle-context" hidden><span>Current vehicle</span><a href="#report" id="context-title"></a><code id="context-vin"></code></div><div class="toolbar-actions"><a href="/research/sheets/professional-brief.pdf?v=68eaa4357463" download>Information sheets</a><button id="print-view" class="secondary" type="button">Print view</button></div></div><div id="print-meta" class="print-only"></div>
+<section id="report" class="workspace-panel"><div id="hero"><div class="hero-inner"><p class="eyebrow">VEHICLE REPORT</p><h1>Start with a VIN.</h1><p class="tagline">Specifications, safety records and efficiency in one report. Then compare vehicles or build an ownership estimate.</p>      <form id="vin-form" autocomplete="off" toolname="decode_vin" tooldescription="Decode a Vehicle Identification Number to get make, model, year, safety ratings, recalls, complaints, fuel economy, and photos">
         <div class="input-row">
           <input
             id="vin-input"
@@ -229,18 +63,13 @@
             aria-label="Vehicle Identification Number"
           >
           <button id="decode-btn" type="submit">
-            <span class="btn-text">Decode</span>
+            <span class="btn-text">View report</span>
             <span class="btn-spinner" hidden></span>
           </button>
         </div>
-        <div id="input-error" class="input-error" hidden></div>
-        <p class="example">Try: <a href="#" data-vin="1HGCM82633A004352">1HGCM82633A004352</a> (2003 Honda Accord)</p>
-      </form>
-    </div>
-  </header>
-
-  <!-- Results -->
-  <main id="results" hidden>
+        <div id="input-error" class="input-error" role="alert" hidden></div>
+        <p class="example">Example: <a href="#" data-vin="1HGCM82633A004352">1HGCM82633A004352</a> (2003 Honda Accord)</p>
+      </form><p id="decode-status" class="form-status" role="status"></p></div></div><div id="report-welcome"><div class="welcome-heading"><h2>Research from every angle</h2><span>No account or API key needed</span></div><div class="start-options"><a href="#compare"><span class="option-number">01</span><h3>Compare vehicles</h3><p>Two to four VINs, side by side. See differences and missing information.</p><span aria-hidden="true">→</span></a><a href="#catalog"><span class="option-number">02</span><h3>Explore specifications</h3><p>No VIN yet? Look up EPA configurations, fuel economy and dimensions.</p><span aria-hidden="true">→</span></a><a href="#costs"><span class="option-number">03</span><h3>Plan ownership costs</h3><p>Understand financing and operating costs using your assumptions.</p><span aria-hidden="true">→</span></a></div><div class="evidence-note"><strong>Know what the data can tell you.</strong><p>VIN-specific recall status is separate from model-year campaigns. An unknown result never means zero recalls. <a href="#coverage">Review coverage and sources →</a></p></div></div>  <div id="results" hidden aria-live="polite">
     <!-- Vehicle Hero -->
     <section id="vehicle-hero" class="vehicle-hero">
       <div class="hero-photos">
@@ -251,7 +80,7 @@
         <h2 id="vehicle-title" class="vehicle-title"></h2>
         <div id="vin-display" class="vin-display"></div>
         <div id="hero-badges" class="hero-badges"></div>
-        <p><a id="research-model-link" href="/research/#communications">Research service bulletins for this model →</a></p>
+        <p class="photo-note">Photos are representative of the model; equipment may differ.</p><div class="report-actions"><button type="button" id="compare-current" class="secondary">Add to comparison</button><a id="research-model-link" href="#communications" class="button-link secondary">Safety records</a><button type="button" id="cost-current" class="secondary">Estimate costs</button></div>
         <button id="save-vin-btn" class="save-vin-btn" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
           <span id="save-vin-text">Save</span>
@@ -337,90 +166,33 @@
 
       <!-- Raw Data -->
       <section class="card card-full" id="card-raw">
-        <h3 class="card-title card-title-toggle" data-target="raw-body">
+        <h3 class="card-title"><button type="button" class="card-title-toggle" data-target="raw-body" aria-expanded="false">
           <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
           Raw NHTSA Data
           <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-        </h3>
+        </button></h3>
         <div class="card-body card-body-collapsed" id="raw-body"></div>
       </section>
     </div>
-  </main>
+  </div>
 
-  <!-- History sidebar -->
-  <aside id="history-panel" class="history-panel" hidden>
-    <div class="history-header">
-      <h4>Recent VINs</h4>
-      <button id="history-close" class="history-close" aria-label="Close">&times;</button>
-    </div>
-    <ul id="history-list"></ul>
-    <button id="clear-history" class="clear-history">Clear History</button>
-  </aside>
-  <button id="history-toggle" class="history-toggle" title="Recent VINs">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-  </button>
-
-  <!-- My Saved VINs panel -->
-  <aside id="saved-vins-panel" class="history-panel" hidden>
-    <div class="history-header">
-      <h4>My Saved VINs</h4>
-      <button id="saved-vins-close" class="history-close" aria-label="Close">&times;</button>
-    </div>
-    <ul id="saved-vins-list"></ul>
-  </aside>
-
-  <!-- Toast container -->
-  <div id="toast-container" class="toast-container"></div>
-
-
-    <!-- Supplementary Content -->
-  <div class="supp-divider"></div>
-  <section class="supp-section">
+</section><section id="catalog" class="workspace-panel" hidden><div class="section-title"><div><p class="eyebrow">EPA VEHICLE CATALOG</p><h1>Vehicle specifications and efficiency</h1></div><span class="tag">No VIN needed</span></div><p>Select an EPA test configuration to review specifications, emissions, dimensions and owner-reported fuel economy. Configuration records do not establish a vehicle’s exact factory equipment.</p>
+<form id="catalog-form" class="form-row"><label>Model year<select id="year" required><option value="">Loading years…</option></select></label><label>Make<select id="make" required disabled><option value="">Choose year first</option></select></label><label>Model<select id="model" required disabled><option value="">Choose make first</option></select></label><label>Configuration<select id="variant" required disabled><option value="">Choose model first</option></select></label><button type="submit">View configuration</button></form><p id="catalog-status" role="status"></p><div id="catalog-result"></div></section>
+<section id="compare" class="workspace-panel" hidden><p class="eyebrow">VEHICLE COMPARISON</p><h1>Compare vehicles</h1><p>Compare two to four distinct VINs. Separate entries with spaces, commas or new lines. Unavailable fields remain explicit; recall campaign counts should not be used to rank vehicle safety.</p><form id="compare-form"><label>Vehicle identification numbers<textarea id="vins" rows="3" placeholder="One 17-character VIN per line" required></textarea></label><button>Generate comparison</button></form><p class="small" id="compare-context"></p><p id="compare-status" role="status"></p><div id="compare-result"></div></section>
+<section id="communications" class="workspace-panel" hidden><p class="eyebrow">SAFETY RESEARCH</p><h1>Safety records</h1><p>Search NHTSA's indexed service bulletins, campaigns, warranty communications and defect investigations. A bulletin is not a recall or proof of a defect in your vehicle.</p><p id="evidence-context" class="context-note" hidden></p><form id="bulletin-form" class="form-row"><label>Evidence type<select name="evidence"><option value="communications">Manufacturer communications</option><option value="investigations">Defect investigations</option></select></label><label>Model year<input name="year" type="number" min="1971" max="2100" value="2023" required></label><label>Make<input name="make" value="Toyota" maxlength="100" required></label><label>Model<input name="model" value="RAV4" maxlength="100" required></label><button>Search records</button></form><p id="bulletin-status" role="status"></p><div id="bulletin-result"></div><button id="more-bulletins" class="secondary" hidden>Next page →</button></section>
+<section id="costs" class="workspace-panel" hidden><p class="eyebrow">OWNERSHIP SCENARIO</p><h1>Ownership costs</h1><p>Enter purchase, financing and operating assumptions to calculate a payment schedule and ownership-cost breakdown. Default values are illustrative. Results are not lender quotes, tax determinations or repair forecasts.</p><p id="cost-context" class="context-note" hidden></p><form id="cost-form"><fieldset><legend>Purchase &amp; financing · USD</legend><div class="fields">
+<label>Price<input name="price" type="number" value="25000" min="0" max="10000000" step="0.01" required></label><label>Down payment<input name="down_payment" type="number" value="5000" min="0" step="0.01" required></label><label>APR (%)<input name="apr" type="number" value="7" min="0" max="100" step="0.01" required></label><label>Loan term (months)<input name="months" type="number" value="60" min="1" max="120" required></label><label>Tax amount<input name="tax_amount" type="number" value="0" min="0" step="0.01" required></label><label>Fees<input name="fees" type="number" value="0" min="0" step="0.01" required></label></div></fieldset>
+<fieldset><legend>Operating assumptions</legend><div class="fields"><label>Years owned<input name="years" type="number" value="5" min="1" max="10" required></label><label>Annual miles<input name="annual_miles" type="number" value="12000" min="0" max="200000" required></label><label>Resale value at end ($)<input name="resale_value" type="number" value="12500" min="0" step="0.01" required></label><label>Insurance / year ($)<input name="annual_insurance" type="number" value="1500" min="0" step="0.01" required></label><label>Maintenance / year ($)<input name="annual_maintenance" type="number" value="600" min="0" step="0.01" required></label><label>Repairs / year ($)<input name="annual_repairs" type="number" value="500" min="0" step="0.01" required></label><label>Energy type<select name="energy_type"><option value="gas">Gasoline (MPG)</option><option value="electric">Electric (kWh / 100 mi)</option></select></label><label id="efficiency-label">Efficiency (MPG)<input name="efficiency" type="number" value="30" min="0.01" max="1000" step="0.01" required></label><label id="energy-price-label">Energy price ($ / gallon)<input name="energy_price" type="number" value="4" min="0" max="100" step="0.001" required></label></div><p class="small">Electric mode uses kWh per 100 miles, not MPGe. PHEV mixed operation is not modeled.</p></fieldset><div class="actions"><button>Calculate costs</button><button type="button" id="fuel-prices" class="secondary">Check EPA price assumptions</button></div></form><button type="button" id="rate-benchmarks" class="secondary">View dated Federal Reserve rate benchmarks</button><div id="rate-result" aria-live="polite"></div><p id="price-status" role="status"></p><p id="cost-status" role="status"></p><div id="cost-result"></div></section>
+<section id="coverage" class="workspace-panel" hidden><p class="eyebrow">CAPABILITY REGISTER</p><h1>Data coverage</h1><p>Compare implementation scope with auto.dev’s publicly advertised capabilities. Partial coverage indicates a narrower source or function. The comparison does not establish equivalent data quality, coverage or service performance.</p><div class="sheet-links"><h3>Printable information sheets</h3><p><a href="/research/sheets/capability-comparison.pdf?v=0281d499a2c5" download>Capability comparison · 1 page</a><br><a href="/research/sheets/data-and-methodology.pdf?v=81980c193b19" download>Data and methodology · 1 page</a></p><p class="small">Prepared 24 October 2026. mcp.vin entries describe release 1.6.0. Coverage varies by vehicle and source.</p></div><div id="coverage-result"></div><h3>Development priorities</h3><ul><li>Manufacturer-specific build-sheet and recall adapters, starting with verified public access.</li><li>Owner-supplied window stickers, with extracted facts linked to the original document.</li><li>Dealer opt-in inventory feeds with timestamps and permission to reuse photos.</li><li>Recall and bulletin changes between dated snapshots, with user-controlled alerts.</li><li>Region-specific tax rules and automated refresh for the dated rate benchmarks.</li></ul>  <div class="supp-section">
     <details class="supp-faq">
       <summary class="supp-heading">Frequently Asked Questions</summary>
       <div class="supp-faq-list">
-        <div class="supp-faq-item">
-          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
-            <span>What is a VIN and what does it stand for?</span>
-            <span class="supp-faq-icon">+</span>
-          </div>
-          <div class="supp-faq-a">A VIN (Vehicle Identification Number) is a unique 17-character code assigned to every vehicle manufactured since 1981. It's stamped on the dashboard, the driver-side door jamb, and the engine block. Each character encodes specific information: the manufacturer, the country of origin, the vehicle type, engine specs, model year, assembly plant, and a serial number. No two vehicles in operation share the same VIN.</div>
-        </div>
-        <div class="supp-faq-item">
-          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
-            <span>Where do I find the VIN on my car?</span>
-            <span class="supp-faq-icon">+</span>
-          </div>
-          <div class="supp-faq-a">The easiest place to find it is on the driver-side dashboard &mdash; look through the windshield at the base where the dash meets the glass. You'll also find it on the driver-side door jamb sticker (the same one with the tire pressure info), on your vehicle registration card, and on your insurance card. Some cars also have the VIN stamped on the engine block or frame rail.</div>
-        </div>
-        <div class="supp-faq-item">
-          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
-            <span>Is mcp.vin really free? What's the catch?</span>
-            <span class="supp-faq-icon">+</span>
-          </div>
-          <div class="supp-faq-a">Yes, it's genuinely free &mdash; no signup, no API key, no hidden charges. mcp.vin pulls data from public government databases (NHTSA and EPA) that are already funded by taxpayers. There are no paid tiers or premium features. The REST API and MCP server are also free to use. The project is open source on GitHub.</div>
-        </div>
-        <div class="supp-faq-item">
-          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
-            <span>What data does a VIN decode include?</span>
-            <span class="supp-faq-icon">+</span>
-          </div>
-          <div class="supp-faq-a">A full VIN decode at mcp.vin returns the make, model, model year, body class, engine displacement, number of cylinders, fuel type, drive type, transmission, plant city and country, vehicle type, GVWR class, and safety equipment. It also includes NHTSA safety ratings, model-year recall campaigns, consumer complaints, EPA fuel economy data, and vehicle photos when available.</div>
-        </div>
-        <div class="supp-faq-item">
-          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
-            <span>Does it work for vehicles outside the United States?</span>
-            <span class="supp-faq-icon">+</span>
-          </div>
-          <div class="supp-faq-a">The NHTSA database primarily covers vehicles sold in the US market. However, many international manufacturers register their VIN patterns with the NHTSA, so vehicles from Japan, Germany, South Korea, and other major auto-producing countries often decode correctly even if they weren't sold in the US. The WMI (World Manufacturer Identifier) portion of the VIN is standardized globally by the ISO.</div>
-        </div>
-        <div class="supp-faq-item">
-          <div class="supp-faq-q" onclick="this.parentElement.classList.toggle('open')">
-            <span>What's the difference between a free VIN check and a paid vehicle history report?</span>
-            <span class="supp-faq-icon">+</span>
-          </div>
-          <div class="supp-faq-a">A free VIN check decodes the factory specs from the VIN itself (make, model, year, engine, etc.) and checks for open safety recalls. A paid vehicle history report from Carfax or AutoCheck adds accident records, title history, odometer readings over time, previous ownership count, and service records. Start with the free check to verify the basics, then consider a paid report ($25&ndash;$40) if you're seriously considering buying the car.</div>
-        </div>
+        <details class="faq-item"><summary>What is a VIN and what does it stand for?</summary><p>A VIN (Vehicle Identification Number) is a unique 17-character code assigned to every vehicle manufactured since 1981. It's stamped on the dashboard, the driver-side door jamb, and the engine block. Each character encodes specific information: the manufacturer, the country of origin, the vehicle type, engine specs, model year, assembly plant, and a serial number. No two vehicles in operation share the same VIN.</p></details>
+        <details class="faq-item"><summary>Where do I find the VIN on my car?</summary><p>The easiest place to find it is on the driver-side dashboard &mdash; look through the windshield at the base where the dash meets the glass. You'll also find it on the driver-side door jamb sticker (the same one with the tire pressure info), on your vehicle registration card, and on your insurance card. Some cars also have the VIN stamped on the engine block or frame rail.</p></details>
+        <details class="faq-item"><summary>Is mcp.vin really free? What's the catch?</summary><p>Yes, it's genuinely free &mdash; no signup, no API key, no hidden charges. mcp.vin pulls data from public government databases (NHTSA and EPA) that are already funded by taxpayers. There are no paid tiers or premium features. The REST API and MCP server are also free to use. The project is open source on GitHub.</p></details>
+        <details class="faq-item"><summary>What data does a VIN decode include?</summary><p>A full VIN decode at mcp.vin returns the make, model, model year, body class, engine displacement, number of cylinders, fuel type, drive type, transmission, plant city and country, vehicle type, GVWR class, and safety equipment. It also includes NHTSA safety ratings, model-year recall campaigns, consumer complaints, EPA fuel economy data, and vehicle photos when available.</p></details>
+        <details class="faq-item"><summary>Does it work for vehicles outside the United States?</summary><p>The NHTSA database primarily covers vehicles sold in the US market. However, many international manufacturers register their VIN patterns with the NHTSA, so vehicles from Japan, Germany, South Korea, and other major auto-producing countries often decode correctly even if they weren't sold in the US. The WMI (World Manufacturer Identifier) portion of the VIN is standardized globally by the ISO.</p></details>
+        <details class="faq-item"><summary>What's the difference between a free VIN check and a paid vehicle history report?</summary><p>A free VIN check decodes the factory specs from the VIN itself (make, model, year, engine, etc.) and checks for open safety recalls. A paid vehicle history report from Carfax or AutoCheck adds accident records, title history, odometer readings over time, previous ownership count, and service records. Start with the free check to verify the basics, then consider a paid report ($25&ndash;$40) if you're seriously considering buying the car.</p></details>
       </div>
     </details>
     <div class="supp-articles">
@@ -432,9 +204,146 @@
         <a href="/vehicle-history-reports/" class="supp-article-link">Understanding Vehicle History Reports</a>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- FAQ Schema -->
+</section>
+<section id="developers" class="workspace-panel" hidden><p class="eyebrow">DEVELOPER TOOLS</p><h1>Connect your tools</h1><p>REST and MCP expose the research tools. The client and CLI below are included in this source build; they are not yet published to npm.</p>  <div id="mcp-info" class="mcp-info">
+    <div class="mcp-info-inner">
+      <h2 class="mcp-info-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        Connect via MCP
+      </h2>
+      <p class="mcp-info-desc">Use this server as an MCP tool in Claude Code, Claude Desktop, or any MCP-compatible client. Public tools need no API key. Account tools use the client’s OAuth connection.</p>
+
+      <div class="mcp-methods">
+        <!-- Claude Code (stdio) -->
+        <div class="mcp-method">
+          <h3>Claude Code <span class="mcp-tag">stdio</span></h3>
+          <p>Clone <a href="https://github.com/keptlive/vin-mcp">the source repository</a> and run locally. Add to your project’s <code>.mcp.json</code>:</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+            <pre><code>{
+  "mcpServers": {
+    "vin-mcp": {
+      "command": "node",
+      "args": ["/path/to/vin-mcp/server.mjs"]
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- Remote HTTP -->
+        <div class="mcp-method">
+          <h3>Claude Desktop / Remote <span class="mcp-tag">HTTP</span></h3>
+          <p>Use the remote MCP endpoint:</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+            <pre><code>https://mcp.vin/mcp</code></pre>
+          </div>
+          <p class="mcp-alt">Or in config:</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+            <pre><code>{
+  "mcpServers": {
+    "vin-mcp": {
+      "url": "https://mcp.vin/mcp"
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <h3>Complete MCP tool directory</h3><p class="small">Loaded from the running server’s registered tools. Public research is available without an account; saved vehicles and preferences require authentication.</p><div id="tool-directory" aria-live="polite">Loading tool directory…</div>
+      <!-- REST API -->
+      <div class="mcp-api">
+        <h3>REST API</h3>
+        <p class="mcp-info-desc">Vehicle and research endpoints are free and require no API key. Account endpoints require sign-in.</p>
+        <div class="api-endpoints">
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin</code><span>Full decode</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/validate</code><span>Quick validation</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/recalls</code><span>Recalls only</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/complaints</code><span>Complaints only</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/safety</code><span>Safety ratings</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/fuel</code><span>Fuel economy</span></div>
+          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/photo</code><span>Vehicle photo (redirect)</span></div>
+          <div class="api-row"><code class="api-method post">POST</code><code class="api-path">/api/batch</code><span>Batch decode (up to 50)</span></div>
+        </div>
+      </div>
+
+      <p class="mcp-source">Open source: <a href="https://github.com/keptlive/vin-mcp" target="_blank" rel="noopener noreferrer">github.com/keptlive/vin-mcp</a></p>
+    </div>
+  </div>
+
+<div class="code-grid"><div><h3>REST</h3><pre><code>GET /api/research/catalog/options
+  ?year=2003&amp;make=Honda&amp;model=Accord
+GET /api/research/epa/18657
+POST /api/research/scenario</code></pre></div><div><h3>MCP</h3><pre><code>vehicle_catalog
+manufacturer_communications
+compare_vehicles
+ownership_scenario
+explore_capabilities</code></pre></div><div><h3>JavaScript</h3><pre><code>import { VinClient } from './public/client.mjs';
+const vin = new VinClient({ baseUrl });
+await vin.catalog('options', {
+  year: 2003, make: 'Honda', model: 'Accord'
+});</code></pre></div><div><h3>Local CLI</h3><pre><code>node cli.mjs capabilities
+node cli.mjs decode 1HGCM82633A004352
+node cli.mjs catalog options '{"year":2003,
+  "make":"Honda","model":"Accord"}'</code></pre></div></div>
+<h3>API request console</h3><form id="api-form" class="form-row"><label>Endpoint<select id="api-path"><option value="/api/tools">Complete MCP tool directory</option><option value="/api/research/capabilities">Capability register</option><option value="/api/research/epa/18657">EPA example: 2003 Accord V6</option><option value="/api/research/epa/18657/owner-mpg">Owner-reported MPG: Accord V6</option><option value="/api/research/rate-benchmarks">Dated Federal Reserve benchmarks</option><option value="/api/research/investigations?year=2003&amp;make=Honda&amp;model=Accord">NHTSA investigations: Accord</option><option value="/api/research/fuel-prices">EPA fuel-price assumptions</option></select></label><button>Run request</button></form><p id="api-status" role="status"></p><pre id="api-result">The response will appear here.</pre><p><a href="/client.mjs?v=2a80830879a9" download>Download JavaScript client</a> · <a href="/research/api.json">Machine-readable endpoint guide</a></p></section>
+<section id="saved" class="workspace-panel" hidden><p class="eyebrow">YOUR WORKSPACE</p><h1>Saved &amp; recent vehicles</h1><p>Your saved vehicles stay with your account. Recent reports are stored only in this browser.</p><div class="saved-columns"><div id="saved-vins-panel" class="vehicle-list-panel"><div class="list-heading"><h2>Saved vehicles</h2><button id="saved-vins-close" class="text-button" type="button">Back to report</button></div><div id="saved-signin" class="empty-message"><h3>Keep your shortlist together</h3><p>Sign in to save vehicles, add labels and access them across devices. You can research vehicles without an account.</p><button id="saved-login-btn" type="button">Sign in or create an account</button></div><p id="saved-status" role="status"></p><ul id="saved-vins-list"></ul></div><div id="history-panel" class="vehicle-list-panel"><div class="list-heading"><h2>Recent reports</h2><button id="history-close" class="text-button" type="button">Back to report</button></div><p class="small">Available on this browser</p><ul id="history-list"></ul><button id="clear-history" class="secondary" type="button">Clear recent reports</button></div></div></section><footer class="workspace-footer"><p>Free public-source vehicle research. Coverage varies by vehicle and source.</p><p>Data from <a href="https://vpic.nhtsa.dot.gov/api/">NHTSA</a>, <a href="https://fueleconomy.gov">EPA</a> and participating manufacturers. Representative photos: <a href="https://www.imagin.studio">IMAGIN.studio</a>.</p><p><a href="/free-vin-check/">Free VIN checks</a><a href="/vin-decoder-api/">API guide</a><a href="/vehicle-safety-recalls/">Recall guide</a><a href="/vehicle-history-reports/">Vehicle history guide</a><a href="https://github.com/keptlive/vin-mcp">GitHub</a></p><details><summary>Project credits &amp; related tools</summary><p>Built by <a href="https://helloandy.net">Andy</a> · <a href="https://qrcode.host">Build a microsite</a> · <a href="https://qrmcp.dev">Generate QR codes</a> · <a href="https://webmcplist.com">WebMCP Directory</a> · <a href="https://contextwire.dev">ContextWire Search</a></p></details></footer></main></div>  <!-- Auth Modal -->
+  <div id="auth-modal" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <button class="modal-close" id="auth-close" aria-label="Close sign in">&times;</button>
+      <h2 id="auth-title" class="modal-logo">mcp<span class="dot">.</span>vin</h2>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-tab="login">Log In</button>
+        <button class="modal-tab" data-tab="register">Sign Up</button>
+      </div>
+      <form id="login-form" class="modal-form">
+        <label>Email<input type="email" id="login-email" placeholder="Email" required autocomplete="email"></label>
+        <label>Password<input type="password" id="login-password" placeholder="Password" required autocomplete="current-password"></label>
+        <button type="submit" class="modal-submit">Log In</button>
+        <div class="form-error" role="alert" id="login-error" hidden></div>
+      </form>
+      <form id="register-form" class="modal-form" hidden>
+        <label>Email<input type="email" id="reg-email" placeholder="Email" required autocomplete="email"></label>
+        <label>Display name (optional)<input type="text" id="reg-name" placeholder="Display name (optional)" autocomplete="name"></label>
+        <label>Password (at least 8 characters)<input type="password" id="reg-password" placeholder="Password (min 8 chars)" required minlength="8" autocomplete="new-password"></label>
+        <button type="submit" class="modal-submit">Create Account</button>
+        <div class="form-error" role="alert" id="reg-error" hidden></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-overlay" hidden>
+    <div class="modal modal-settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <button class="modal-close" id="settings-close" aria-label="Close report settings">&times;</button>
+      <h2 id="settings-title" class="modal-title">Report Settings</h2>
+      <p class="modal-desc">Choose which sections appear in VIN reports.</p>
+      <div class="settings-toggles" id="settings-toggles">
+        <label class="toggle-row"><input type="checkbox" data-pref="show_overview" checked><span>Vehicle Overview</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_engine" checked><span>Engine & Drivetrain</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_safety_ratings" checked><span>Safety Ratings</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_fuel_economy" checked><span>Fuel Economy</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_recalls" checked><span>Recalls</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_complaints" checked><span>Consumer Complaints</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_safety_equipment" checked><span>Safety Equipment</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_photos" checked><span>Vehicle Photos</span></label>
+        <label class="toggle-row"><input type="checkbox" data-pref="show_raw_nhtsa"><span>Raw NHTSA Data</span></label>
+      </div>
+    </div>
+  </div>
+
+<div id="label-modal" class="modal-overlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="label-title"><button class="modal-close" id="label-close" type="button" aria-label="Close vehicle label">×</button><h2 id="label-title">Save vehicle</h2><p class="modal-desc" id="label-vin"></p><form id="label-form" class="modal-form"><label>Vehicle label (optional)<input id="vehicle-label" maxlength="200" placeholder="e.g. Family car"></label><p id="label-error" class="form-error" role="alert" hidden></p><button type="submit" id="label-submit">Save vehicle</button></form></div></div><div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>  <!-- FAQ Schema -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -492,130 +401,4 @@
   }
   </script>
 
-  <!-- MCP Connection Info -->
-  <section id="mcp-info" class="mcp-info">
-    <div class="mcp-info-inner">
-      <h2 class="mcp-info-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-        Connect via MCP
-      </h2>
-      <p class="mcp-info-desc">Use this server as an MCP tool in Claude Code, Claude Desktop, or any MCP-compatible client. No API key needed.</p>
-
-      <div class="mcp-methods">
-        <!-- Claude Code (stdio) -->
-        <div class="mcp-method">
-          <h3>Claude Code <span class="mcp-tag">stdio</span></h3>
-          <p>Add to your project's <code>.mcp.json</code>:</p>
-          <div class="code-block">
-            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
-            <pre><code>{
-  "mcpServers": {
-    "vin-mcp": {
-      "command": "npx",
-      "args": ["-y", "vin-mcp"]
-    }
-  }
-}</code></pre>
-          </div>
-          <p class="mcp-alt">Or clone and run locally:</p>
-          <div class="code-block">
-            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
-            <pre><code>{
-  "mcpServers": {
-    "vin-mcp": {
-      "command": "node",
-      "args": ["/path/to/vin-mcp/server.mjs"]
-    }
-  }
-}</code></pre>
-          </div>
-        </div>
-
-        <!-- Remote HTTP -->
-        <div class="mcp-method">
-          <h3>Claude Desktop / Remote <span class="mcp-tag">HTTP</span></h3>
-          <p>Use the remote MCP endpoint:</p>
-          <div class="code-block">
-            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
-            <pre><code>https://mcp.vin/mcp</code></pre>
-          </div>
-          <p class="mcp-alt">Or in config:</p>
-          <div class="code-block">
-            <button class="copy-btn" onclick="copyCode(this)" aria-label="Copy">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
-            <pre><code>{
-  "mcpServers": {
-    "vin-mcp": {
-      "url": "https://mcp.vin/mcp"
-    }
-  }
-}</code></pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- Available Tools -->
-      <div class="mcp-tools">
-        <h3>Available Tools</h3>
-        <div class="tools-grid">
-          <div class="tool-card">
-            <code class="tool-name">decode_vin</code>
-            <p>Full VIN decode with specs, recalls, complaints, safety ratings, fuel economy, and photos</p>
-          </div>
-          <div class="tool-card">
-            <code class="tool-name">validate_vin</code>
-            <p>Quick checksum validation, WMI decode, and year detection &mdash; no API calls</p>
-          </div>
-          <div class="tool-card">
-            <code class="tool-name">lookup_recalls</code>
-            <p>Search recalls by VIN or make/model/year</p>
-          </div>
-          <div class="tool-card">
-            <code class="tool-name">batch_decode</code>
-            <p>Decode up to 50 VINs in a single request</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- REST API -->
-      <div class="mcp-api">
-        <h3>REST API</h3>
-        <p class="mcp-info-desc">All endpoints are free and require no authentication.</p>
-        <div class="api-endpoints">
-          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin</code><span>Full decode</span></div>
-          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/validate</code><span>Quick validation</span></div>
-          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/recalls</code><span>Recalls only</span></div>
-          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/complaints</code><span>Complaints only</span></div>
-          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/safety</code><span>Safety ratings</span></div>
-          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/fuel</code><span>Fuel economy</span></div>
-          <div class="api-row"><code class="api-method">GET</code><code class="api-path">/api/vin/:vin/photo</code><span>Vehicle photo (redirect)</span></div>
-          <div class="api-row"><code class="api-method post">POST</code><code class="api-path">/api/batch</code><span>Batch decode (up to 50)</span></div>
-        </div>
-      </div>
-
-      <p class="mcp-source">Open source: <a href="https://github.com/keptlive/vin-mcp" target="_blank" rel="noopener noreferrer">github.com/keptlive/vin-mcp</a></p>
-    </div>
-  </section>
-
-  <footer class="footer">
-    <p>Data from <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener noreferrer">NHTSA</a>, <a href="https://fueleconomy.gov" target="_blank" rel="noopener noreferrer">EPA</a>, <a href="https://www.imagin.studio" target="_blank" rel="noopener noreferrer">IMAGIN.studio</a> &mdash; All free, no API key required</p>
-  </footer>
-
-  <script src="app.js?v=a8070c62b3bc"></script>
-<script data-goatcounter=https://helloandy.goatcounter.com/count async src=//gc.zgo.at/count.js></script>
-<div style="text-align:center;padding:1.5rem 1rem;margin-top:2rem;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;color:#888;font-family:-apple-system,sans-serif;">
-  Built by <a href="https://helloandy.net" style="color:#7c3aed;text-decoration:none;">Andy</a> &middot;
-  <a href="https://qrcode.host" style="color:#06b6d4;text-decoration:none;">Build a microsite</a> &middot;
-  <a href="https://qrmcp.dev" style="color:#06b6d4;text-decoration:none;">Generate QR codes</a> &middot;
-  <a href="https://webmcplist.com" style="color:#06b6d4;text-decoration:none;">WebMCP Directory</a> &middot;
-  <a href="https://contextwire.dev" style="color:#10b981;text-decoration:none;">ContextWire Search</a>
-</div>
-</body>
-</html>
+<script src="/app.js?v=da844b5990c1"></script><script type="module" src="/research/research.js?v=0a22b75d732b"></script><script src="/workspace.js?v=417f05c76cff"></script><script data-goatcounter="https://helloandy.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script></body></html>

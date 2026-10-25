@@ -12,7 +12,7 @@ const record={id:'18657',year:2003,make:'Honda',model:'Accord',fuelType1:'Regula
 function workspace(overrides={}){
  const elements=new Map(),events=new Map();let printCalls=0;
  class Element {
-  constructor(){this.value='';this.disabled=false;this.hidden=false;this.children=[];this.innerHTML='';this.textContent='';this.firstChild={textContent:''};this.listeners=new Map();this.classList={toggle(){}};}
+  constructor(){this.value='';this.disabled=false;this.hidden=false;this.children=[];this.innerHTML='';this.textContent='';this.firstChild={textContent:''};this.listeners=new Map();this.classes=new Set();this.classList={toggle(){},add:k=>this.classes.add(k),remove:k=>this.classes.delete(k),contains:k=>this.classes.has(k)};}
   append(...nodes){this.children.push(...nodes);}
   replaceChildren(...nodes){this.children=[...nodes];this.innerHTML='';this.textContent='';}
   addEventListener(type,fn){if(!this.listeners.has(type))this.listeners.set(type,[]);this.listeners.get(type).push(fn);}
@@ -32,7 +32,7 @@ function workspace(overrides={}){
  elements.set('#catalog-form button[type=submit]',catalogForm.button);
  elements.set('#cost-form button:not([type])',costForm.button);
  costForm.fields={};
- const html=readFileSync(new URL('../public/research/index.html',import.meta.url),'utf8');
+ const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
  const costHtml=html.split('<form id="cost-form">')[1].split('</form>')[0];
  for(const input of costHtml.matchAll(/<input\b[^>]*>/g)){
   const name=input[0].match(/name="([^"]+)"/)[1],value=input[0].match(/value="([^"]*)"/)[1];
@@ -49,6 +49,7 @@ function workspace(overrides={}){
  vm.createContext(context);
  vm.runInContext(readFileSync(new URL('../public/research/research.js',import.meta.url),'utf8').replace(/^import .*\n/,''),context);
  return {get,api,location,sections,printCalls:()=>printCalls,beforePrint:()=>events.get('beforeprint')(),
+  searchEvidence:query=>vm.runInContext('bulletins('+JSON.stringify(query)+')',context),
   submitCost:()=>costForm.onsubmit({target:costForm,preventDefault(){},submitter:costForm.button}),
   submitCatalog:()=>catalogForm.onsubmit({target:catalogForm,preventDefault(){},submitter:catalogForm.button}),
   selectCatalog:()=>{for(const [id,value] of Object.entries({year:'2003',make:'Honda',model:'Accord',variant:'18657'}))get('#'+id).value=value;}
@@ -67,6 +68,37 @@ test('editing assumptions clears the previous calculation and blocks toolbar pri
  w.get('#print-view').onclick();assert.equal(w.printCalls(),1);
 });
 
+test('changing comparison VINs blocks printing and discards an older response',async()=>{
+ const pending=[];
+ const w=workspace({compare:()=>{const d=deferred();pending.push(d);return d.promise;}});
+ for(const s of w.sections)s.hidden=s.id!=='compare';
+ const input=w.get('#vins'),button=w.get('#compare-form button');
+ const submit=()=>w.get('#compare-form').onsubmit({preventDefault(){},submitter:button});
+ input.value='1N4AL3APXFN868842 4T1BF1FK0CU123456';
+ const first=submit();input.value='1N4AL3APXFN868842 5XXGR4A60FG353263';input.dispatch('input');
+ w.get('#print-view').onclick();assert.equal(w.printCalls(),0);
+ const second=submit();
+ const response=model=>({note:'Scope retained',results:[{report:{vehicle:{model}}},{report:{vehicle:{model}}}]});
+ pending[1].resolve(response('Current vehicle'));await second;
+ pending[0].resolve(response('Stale vehicle'));await first;
+ assert.match(w.get('#compare-result').innerHTML,/Current vehicle/);assert.doesNotMatch(w.get('#compare-result').innerHTML,/Stale vehicle/);
+ w.get('#print-view').onclick();assert.equal(w.printCalls(),1);
+ input.value+=' changed';w.beforePrint();assert.equal(w.get('#compare-result').innerHTML,'');
+});
+
+for(const evidence of ['communications','investigations'])test('a late '+evidence+' response cannot replace a newer evidence search',async()=>{
+ const a=deferred(),b=deferred();let calls=0;
+ const next=()=>++calls===1?a.promise:b.promise;
+ const w=workspace({communications:next,investigations:next});
+ const first=w.searchEvidence({year:2003,make:'Honda',model:'Accord',evidence});
+ w.get('#bulletin-form').dispatch('input');
+ const second=w.searchEvidence({year:2015,make:'Nissan',model:'Altima',evidence:'communications'});
+ const result=note=>({data:[],total:0,offset:0,next_offset:null,archives:[],note,source:{url:'https://www.nhtsa.gov',downloaded_at:'2026-10-25'}});
+ b.resolve(result('Current evidence'));await second;
+ a.resolve(result('Stale evidence'));await first;
+ assert.match(w.get('#bulletin-result').innerHTML,/Current evidence/);assert.doesNotMatch(w.get('#bulletin-result').innerHTML,/Stale evidence/);
+});
+
 test('native beforeprint detects unannounced edits and removes a stale calculation',async()=>{
  const w=workspace();await w.submitCost();w.get('#cost-form [name=apr]').value='0';
  w.beforePrint();assert.equal(w.get('#cost-result').innerHTML,'');
@@ -76,6 +108,15 @@ test('native beforeprint detects unannounced edits and removes a stale calculati
 test('editing energy type retains label changes while invalidating the result',async()=>{
  const w=workspace();await w.submitCost();const energy=w.get('#cost-form [name=energy_type]');energy.value='electric';energy.dispatch('change');
  assert.match(w.get('#efficiency-label').firstChild.textContent,/kWh/);assert.equal(w.get('#cost-result').innerHTML,'');
+});
+
+test('successful recalculation removes stale energy guidance and retains source data',async()=>{
+ const w=workspace();const energy=w.get('#cost-form [name=energy_type]');
+ energy.value='electric';energy.dispatch('change');
+ assert.match(w.get('#price-status').textContent,/Energy type changed/);
+ await w.submitCost();assert.equal(w.get('#price-status').textContent,'');
+ const source=w.get('#price-status');source.textContent='EPA price assumptions, retrieved today';
+ await w.submitCost();assert.equal(source.textContent,'EPA price assumptions, retrieved today');
 });
 
 test('a late cost response cannot replace a newer calculation or unlock its active request',async()=>{

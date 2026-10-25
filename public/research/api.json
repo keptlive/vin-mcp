@@ -5,6 +5,11 @@
   "endpoints": [
     {
       "method": "GET",
+      "path": "/api/tools",
+      "description": "Grouped directory of all registered MCP tools; generated from the server registry"
+    },
+    {
+      "method": "GET",
       "path": "/api/research/capabilities",
       "description": "Supported features and gaps"
     },
