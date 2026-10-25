@@ -4,14 +4,12 @@ dotenv.config({ quiet: true });
 
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import * as z from 'zod/v4';
 import { validateVin, normalizeVin } from './lib/validate.mjs';
 import { decodeVin as nhtsaDecode, batchDecode, getRecalls, getComplaints, getSafetyRatings } from './lib/nhtsa.mjs';
 import { getFuelEconomy } from './lib/epa.mjs';
-import { getPhotoUrl, getPhotoUrls } from './lib/photo.mjs';
-import { vinCache, recallCache, ratingCache, fuelCache } from './lib/cache.mjs';
+import { getPhotoUrl } from './lib/photo.mjs';
+import { vinCache } from './lib/cache.mjs';
 import db, { logRequest, logSecurityEvent, pruneOldLogs } from './lib/db.mjs';
 import { hashPassword, verifyPassword, createToken, verifyJwt } from './lib/auth.mjs';
 import crypto from 'node:crypto';
@@ -23,292 +21,16 @@ import { scenario } from './lib/scenario.mjs';
 import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
 import { vinRecallStatus } from './lib/recall-status.mjs';
+import { fullReport, compareVehicles } from './lib/reports.mjs';
+import { createToolRegistry } from './lib/mcp/index.mjs';
+import { VERSION } from './lib/version.mjs';
 
 const { JWT_SECRET, ADMIN_KEY } = loadRuntimeSecrets();
-const MCP_TOOL_NAMES = ['decode_vin','validate_vin','lookup_recalls','batch_decode','list_saved_vins','save_vin','remove_saved_vin','get_output_preferences','update_output_preferences','explore_capabilities','vin_recall_status','vehicle_catalog','epa_vehicle','vehicle_emissions','fuel_price_assumptions','owner_reported_mpg','defect_investigations','auto_loan_benchmarks','vehicle_dimensions','manufacturer_communications','compare_vehicles','ownership_scenario'];
+const { createMcpServer, toolCatalog, toolNames: MCP_TOOL_NAMES } = createToolRegistry({ db, JWT_SECRET });
 
 // ---- HTML escaping (prevent XSS) ----
 function escHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;');
-}
-
-// ---- Full VIN report (aggregates all sources) ----
-
-async function fullReport(vin) {
-  const report = await fullReportBase(vin);
-  return report.vehicle ? {...report, recall_status:await vinRecallStatus(report.vin, report.vehicle.make)} : report;
-}
-
-async function fullReportBase(vin) {
-  vin = normalizeVin(vin);
-  const cached = vinCache.get(vin);
-  if (cached) return cached;
-
-  const validation = validateVin(vin);
-  if (!validation.valid) {
-    return { valid: false, vin, validation, vehicle: null, engine: null, recalls: null, complaints: null, safety_ratings: null, fuel_economy: null, photos: null };
-  }
-
-  const decoded = await nhtsaDecode(vin);
-  if (!decoded) {
-    return { valid: true, vin, validation, vehicle: null, engine: null, error: 'NHTSA decode failed', recalls: null, complaints: null, safety_ratings: null, fuel_economy: null, photos: null };
-  }
-
-  const { year, make, model } = decoded.vehicle;
-  const cacheKey = `${make}|${model}|${year}`;
-  const fuelKey = `${cacheKey}|${JSON.stringify([decoded.engine, decoded.transmission])}`;
-
-  const [recalls, complaints, ratings, fuel] = await Promise.all([
-    recallCache.has(cacheKey) ? recallCache.get(cacheKey) : getRecalls(make, model, year).then(r => { if (r?.available !== false) recallCache.set(cacheKey, r); return r; }),
-    getComplaints(make, model, year),
-    ratingCache.has(cacheKey) ? ratingCache.get(cacheKey) : getSafetyRatings(make, model, year).then(r => { if (r) ratingCache.set(cacheKey, r); return r; }),
-    fuelCache.has(fuelKey) ? fuelCache.get(fuelKey) : getFuelEconomy(year, make, model, decoded).then(r => { if (r?.available) fuelCache.set(fuelKey, r); return r; }),
-  ]);
-
-  const photos = make && model && year ? getPhotoUrls(make, model, year) : null;
-
-  const report = {
-    valid: true, vin, validation,
-    vehicle: decoded.vehicle, engine: decoded.engine, transmission: decoded.transmission,
-    dimensions: decoded.dimensions, plant: decoded.plant, safety_equipment: decoded.safety,
-    recalls: recalls || { count: 0, recalls: [] },
-    complaints: complaints || { count: 0, complaints: [], summary: { crashes: 0, fires: 0, injuries: 0, deaths: 0 } },
-    safety_ratings: ratings || { rated: false },
-    fuel_economy: fuel || { available: false },
-    photos, raw_nhtsa: decoded.raw,
-    provenance: { assembled_at: new Date().toISOString(), specifications: 'NHTSA vPIC manufacturer-submitted VIN data', recalls: 'NHTSA make/model/year campaigns, not VIN repair status', complaints: 'NHTSA owner reports; not confirmed defects or incidence rates', fuel: 'EPA matched configuration when unambiguous', photos: 'Representative stock imagery, not this exact vehicle' },
-  };
-
-  const transientFuelFailure = ['upstream_error', 'invalid_response'].includes(fuel?.reason);
-  if (recalls?.available !== false && complaints?.available !== false && !transientFuelFailure) vinCache.set(vin, report);
-  return report;
-}
-
-// ---- MCP output ----
-// MCP clients put tool results straight into a model's context. A common car
-// can have thousands of NHTSA complaints (2,013 for a 2003 Accord, about 1.8 MB
-// of JSON), far past what clients accept, so the tools return complaint counts
-// and the most recent complaints, and leave out the raw NHTSA fields. The REST
-// API still returns everything.
-
-const MCP_RECENT_COMPLAINTS = 10;
-const MCP_SUMMARY_CHARS = 500;
-
-function filedDate(c) {
-  const [m, d, y] = String(c.date_complaint_filed || '').split('/');
-  return y ? `${y}-${m}-${d}` : '';
-}
-
-function compactComplaints(complaints) {
-  const list = complaints?.complaints || [];
-  const byComponent = new Map();
-  for (const c of list) {
-    for (const part of String(c.component || 'UNKNOWN').split(',')) {
-      const name = part.trim() || 'UNKNOWN';
-      byComponent.set(name, (byComponent.get(name) || 0) + 1);
-    }
-  }
-  const recent = [...list]
-    .sort((a, b) => filedDate(b).localeCompare(filedDate(a)))
-    .slice(0, MCP_RECENT_COMPLAINTS)
-    .map(c => ({
-      ...c,
-      summary: c.summary && c.summary.length > MCP_SUMMARY_CHARS ? c.summary.slice(0, MCP_SUMMARY_CHARS) + '...' : c.summary,
-    }));
-  return {
-    ...complaints,
-    complaints: undefined,
-    count: complaints?.available === false ? null : list.length,
-    summary: complaints?.summary,
-    top_components: [...byComponent].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([component, count]) => ({ component, count })),
-    recent,
-    ...(list.length > recent.length && {
-      note: `Showing the ${recent.length} most recent of ${list.length} complaints. The REST endpoint /api/vin/{vin}/complaints returns all of them.`,
-    }),
-  };
-}
-
-function mcpReport(report) {
-  if (!report?.vehicle) return report;
-  const { raw_nhtsa, ...rest } = report;
-  return { ...rest, complaints: compactComplaints(report.complaints) };
-}
-
-async function compareVehicles(vins) {
-  if (!Array.isArray(vins) || vins.length < 2 || vins.length > 4 || vins.some(v => typeof v !== 'string' || !validateVin(v).valid)) throw new InputError('Provide 2–4 valid VINs');
-  const normalized=vins.map(normalizeVin);
-  if (new Set(normalized).size !== normalized.length) throw new InputError('Choose distinct VINs');
-  const results=await Promise.all(normalized.map(async vin=>{
-    try {return {vin,report:mcpReport(await fullReport(vin))};}
-    catch {return {vin,error:'Report unavailable; retry later'};}
-  }));
-  return {results,note:'Recall and complaint counts are model-year data, not a ranking of individual vehicle safety. Missing data is not zero.'};
-}
-
-// ---- MCP Server factory ----
-
-function createMcpServer() {
-  const server = new McpServer({ name: 'vin-mcp', version: '1.6.0' });
-
-  const researchTool=(name,description,schema,fn)=>server.tool(name,description,schema,async args=>{
-    try {const result=await fn(args);return {content:[{type:'text',text:JSON.stringify(result)}],...(result?.available===false?{isError:true}:{})};}
-    catch(err){return {content:[{type:'text',text:err instanceof InputError?err.message:'Research request failed'}],isError:true};}
-  });
-  const vehicleQuery={year:z.number().int(),make:z.string().min(1).max(100),model:z.string().min(1).max(100)};
-  researchTool('explore_capabilities','Discover supported features and explicit coverage gaps.',{},()=>capabilities);
-  researchTool('vin_recall_status','VIN-specific manufacturer-reported open and completed recall status. Tesla and Ford open/completed states; GM completed/closed states with explicit repair dates where supplied; Honda active safety recalls; Nissan positive open safety recalls; Mopar positive open records matched to the full VIN. Service programs are separate. Toyota, Hyundai and Kia require interactive official verification. Unknowns are never zero. Not a complete service history.',{vin:z.string()},({vin})=>vinRecallStatus(vin));
-  researchTool('vehicle_catalog','Browse EPA year, make, model and configuration menus. Not sale listings.',{level:z.enum(['year','make','model','options']),year:z.number().int().optional(),make:z.string().optional(),model:z.string().optional()},({level,...query})=>catalog(level,query));
-  researchTool('epa_vehicle','Get an explicitly selected EPA test configuration; not an exact VIN match.',{id:z.string()},({id})=>epaRecord(id));
-  researchTool('vehicle_emissions','Get EPA emissions for an explicit EPA vehicle ID.',{id:z.string()},({id})=>emissions(id));
-  researchTool('fuel_price_assumptions','EPA fuel-price assumptions, not local station prices.',{},fuelPrices);
-  researchTool('owner_reported_mpg','Voluntary owner-reported MPG for an EPA configuration, including sample size and limitations.',{id:z.string()},({id})=>ownerMpg(id));
-  researchTool('defect_investigations','Search NHTSA model-year defect investigations with retained source variants and snapshot dates.',{...vehicleQuery,offset:z.number().int().min(0).optional(),limit:z.number().int().min(1).max(50).optional()},investigations);
-  researchTool('auto_loan_benchmarks','Dated Federal Reserve new-car loan benchmark snapshot, not personalized or live loan rates.',{},rateBenchmarks);
-  researchTool('vehicle_dimensions','Canadian model-variant dimensions in cm and kg. Not VIN-specific.',vehicleQuery,dimensions);
-  researchTool('manufacturer_communications','Search indexed NHTSA communications, with source coverage. Bulletins are not recalls.',{...vehicleQuery,offset:z.number().int().min(0).optional(),limit:z.number().int().min(1).max(50).optional()},communications);
-  researchTool('compare_vehicles','Compare 2–4 distinct VINs without treating missing data as zero or counts as safety rankings.',{vins:z.array(z.string()).min(2).max(4)},({vins})=>compareVehicles(vins));
-  researchTool('ownership_scenario','Calculate fixed-rate payments and optional ownership costs from explicit assumptions; not lender or tax quotes.',{price:z.number(),apr:z.number(),months:z.number().int(),down_payment:z.number().optional(),tax_amount:z.number().optional(),fees:z.number().optional(),ownership:z.object({years:z.number().int(),annual_miles:z.number(),resale_value:z.number(),annual_insurance:z.number(),annual_maintenance:z.number(),annual_repairs:z.number(),energy_type:z.enum(['gas','electric']),energy_price:z.number(),efficiency:z.number()}).optional()},scenario);
-
-  server.tool('decode_vin',
-    'Decode a VIN and return a vehicle report: specs, recalls, a complaint summary with the most recent complaints, safety ratings, fuel economy, and photo URLs.',
-    { vin: z.string().describe('17-character Vehicle Identification Number') },
-    async ({ vin }) => {
-      const report = mcpReport(await fullReport(vin));
-      return { content: [{ type: 'text', text: JSON.stringify(report, null, 2) }] };
-    }
-  );
-
-  server.tool('validate_vin',
-    'Quickly validate a VIN without calling any external APIs.',
-    { vin: z.string().describe('VIN to validate') },
-    async ({ vin }) => {
-      const result = validateVin(vin);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-  );
-
-  server.tool('lookup_recalls',
-    'Look up recalls for a vehicle. Provide either a VIN or make/model/year.',
-    {
-      vin: z.optional(z.string()).describe('VIN to look up recalls for'),
-      make: z.optional(z.string()).describe('Vehicle make (e.g. Honda)'),
-      model: z.optional(z.string()).describe('Vehicle model (e.g. Civic)'),
-      year: z.optional(z.number()).describe('Model year (e.g. 2020)'),
-    },
-    async ({ vin, make, model, year }) => {
-      if (vin) {
-        const decoded = await nhtsaDecode(normalizeVin(vin));
-        if (!decoded) return { content: [{ type: 'text', text: 'Failed to decode VIN' }] };
-        make = decoded.vehicle.make; model = decoded.vehicle.model; year = decoded.vehicle.year;
-      }
-      if (!make || !model || !year) return { content: [{ type: 'text', text: 'Provide a VIN or make + model + year' }] };
-      const recalls = await getRecalls(make, model, year);
-      return { content: [{ type: 'text', text: JSON.stringify(recalls, null, 2) }] };
-    }
-  );
-
-  server.tool('batch_decode',
-    'Decode multiple VINs at once (up to 50).',
-    { vins: z.array(z.string()).describe('Array of VINs to decode (max 50)') },
-    async ({ vins }) => {
-      if (vins.length > 50) return { content: [{ type: 'text', text: 'Maximum 50 VINs per batch' }], isError: true };
-      if (!vins.length || vins.some(v => !validateVin(v).valid)) return { content: [{ type: 'text', text: 'Provide 1–50 valid VINs (format and checksum)' }], isError: true };
-      const results = (await batchDecode(vins.map(normalizeVin))).map(r => {
-        if (!r) return r;
-        const { raw, ...rest } = r;
-        return rest;
-      });
-      return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
-    }
-  );
-
-  server.tool('list_saved_vins',
-    'List VINs saved by a user. Requires a user_token from /api/auth/login.',
-    { user_token: z.string().describe('JWT token from website login') },
-    async ({ user_token }) => {
-      const user = verifyJwt(user_token, JWT_SECRET);
-      if (!user) return { content: [{ type: 'text', text: 'Invalid or expired token' }], isError: true };
-      const vins = db.prepare('SELECT id, vin, label, year, make, model, created_at FROM saved_vins WHERE user_id = ? ORDER BY created_at DESC').all(user.id);
-      return { content: [{ type: 'text', text: JSON.stringify(vins, null, 2) }] };
-    }
-  );
-
-  server.tool('save_vin',
-    'Save a VIN to a user\'s collection with an optional label.',
-    {
-      user_token: z.string().describe('JWT token from website login'),
-      vin: z.string().describe('17-character VIN to save'),
-      label: z.optional(z.string()).describe('Custom label (e.g. "Dad\'s truck")'),
-    },
-    async ({ user_token, vin, label }) => {
-      const user = verifyJwt(user_token, JWT_SECRET);
-      if (!user) return { content: [{ type: 'text', text: 'Invalid or expired token' }], isError: true };
-      vin = normalizeVin(vin);
-      if (label && label.length > 200) label = label.slice(0, 200);
-      const decoded = await nhtsaDecode(vin);
-      try {
-        db.prepare('INSERT INTO saved_vins (user_id, vin, label, year, make, model) VALUES (?, ?, ?, ?, ?, ?)').run(
-          user.id, vin, label || null, decoded?.vehicle?.year || null, decoded?.vehicle?.make || null, decoded?.vehicle?.model || null
-        );
-        return { content: [{ type: 'text', text: `Saved VIN ${vin}${label ? ` as "${label}"` : ''}` }] };
-      } catch (e) {
-        if (e.message.includes('UNIQUE')) return { content: [{ type: 'text', text: 'VIN already saved' }], isError: true };
-        throw e;
-      }
-    }
-  );
-
-  server.tool('remove_saved_vin',
-    'Remove a VIN from the user\'s saved collection.',
-    {
-      user_token: z.string().describe('JWT token from website login'),
-      vin: z.string().describe('VIN to remove'),
-    },
-    async ({ user_token, vin }) => {
-      const user = verifyJwt(user_token, JWT_SECRET);
-      if (!user) return { content: [{ type: 'text', text: 'Invalid or expired token' }], isError: true };
-      const result = db.prepare('DELETE FROM saved_vins WHERE user_id = ? AND vin = ?').run(user.id, normalizeVin(vin));
-      return { content: [{ type: 'text', text: result.changes ? 'Removed' : 'VIN not found in saved list' }] };
-    }
-  );
-
-  server.tool('get_output_preferences',
-    'Get the user\'s VIN report output preferences.',
-    { user_token: z.string().describe('JWT token') },
-    async ({ user_token }) => {
-      const user = verifyJwt(user_token, JWT_SECRET);
-      if (!user) return { content: [{ type: 'text', text: 'Invalid or expired token' }], isError: true };
-      db.prepare('INSERT OR IGNORE INTO output_preferences (user_id) VALUES (?)').run(user.id);
-      const prefs = db.prepare('SELECT * FROM output_preferences WHERE user_id = ?').get(user.id);
-      return { content: [{ type: 'text', text: JSON.stringify(prefs, null, 2) }] };
-    }
-  );
-
-  const PREF_COLS = ['show_overview', 'show_engine', 'show_safety_ratings', 'show_fuel_economy', 'show_recalls', 'show_complaints', 'show_safety_equipment', 'show_photos', 'show_raw_nhtsa'];
-
-  server.tool('update_output_preferences',
-    'Update which sections appear in VIN reports.',
-    {
-      user_token: z.string().describe('JWT token'),
-      show_overview: z.optional(z.boolean()), show_engine: z.optional(z.boolean()),
-      show_safety_ratings: z.optional(z.boolean()), show_fuel_economy: z.optional(z.boolean()),
-      show_recalls: z.optional(z.boolean()), show_complaints: z.optional(z.boolean()),
-      show_safety_equipment: z.optional(z.boolean()), show_photos: z.optional(z.boolean()),
-      show_raw_nhtsa: z.optional(z.boolean()),
-    },
-    async ({ user_token, ...prefs }) => {
-      const user = verifyJwt(user_token, JWT_SECRET);
-      if (!user) return { content: [{ type: 'text', text: 'Invalid or expired token' }], isError: true };
-      db.prepare('INSERT OR IGNORE INTO output_preferences (user_id) VALUES (?)').run(user.id);
-      const sets = Object.entries(prefs).filter(([k, v]) => PREF_COLS.includes(k) && v !== undefined);
-      if (sets.length === 0) return { content: [{ type: 'text', text: 'No changes provided' }] };
-      const sql = `UPDATE output_preferences SET ${sets.map(([k]) => `${k} = ?`).join(', ')}, updated_at = datetime('now') WHERE user_id = ?`;
-      db.prepare(sql).run(...sets.map(([, v]) => v ? 1 : 0), user.id);
-      return { content: [{ type: 'text', text: 'Preferences updated' }] };
-    }
-  );
-
-  return server;
 }
 
 // ---- Transport ----
@@ -712,6 +434,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     try {const result=await fn(req);res.status(result?.available===false?(result.reason==='dataset_not_indexed'?503:502):200).json(result);}
     catch(err){res.status(err instanceof InputError?400:500).json({error:err instanceof InputError?err.message:'Research request failed'});}
   };
+  app.get('/api/tools', (req,res)=>res.json({version:VERSION,groups:toolCatalog}));
   app.get('/api/research/capabilities', (req,res)=>res.json(capabilities));
   app.get('/api/research/catalog/:level',rateGuard(30),researchHandler(req=>catalog(req.params.level,req.query)));
   app.get('/api/research/epa/:id',rateGuard(30),researchHandler(req=>epaRecord(req.params.id)));
@@ -734,6 +457,11 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   });
 
   app.get('/api/vin/:vin/recall-status',rateGuard(30),researchHandler(req=>vinRecallStatus(req.params.vin)));
+
+  app.use('/api/vin/:vin', (req, res, next) => {
+    if (!validateVin(req.params.vin).valid) return res.status(400).json({error:'Provide a valid VIN (format and checksum)'});
+    next();
+  });
 
   app.get('/api/vin/:vin/recalls', rateGuard(30), async (req, res) => {
     try {
@@ -851,7 +579,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   app.post('/api/user/vins', userAuth, rateGuard(30), async (req, res) => {
     const { vin } = req.body;
     let { label } = req.body;
-    if (!vin) return res.status(400).json({ error: 'VIN required' });
+    if (typeof vin !== 'string' || !validateVin(vin).valid) return res.status(400).json({ error: 'Provide a valid VIN (format and checksum)' });
     if (label) label = String(label).slice(0, 200);
     const normalized = normalizeVin(vin);
     const decoded = await nhtsaDecode(normalized);
@@ -901,7 +629,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   // ---- Public status ----
 
   app.get('/api/status', (req, res) => {
-    res.json({ status: 'ok', server: 'vin-mcp', version: '1.6.0', tools: MCP_TOOL_NAMES });
+    res.json({ status: 'ok', server: 'vin-mcp', version: VERSION, tools: MCP_TOOL_NAMES, tool_groups: toolCatalog });
   });
 
   app.get('/health', (req, res) => {
@@ -1062,7 +790,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   });
 
   app.listen(port, () => {
-    console.error(`VIN MCP Server (HTTP) v1.6.0 listening on port ${port}`);
+    console.error(`VIN MCP Server (HTTP) v${VERSION} listening on port ${port}`);
     console.error(`  Frontend: http://localhost:${port}`);
     console.error(`  API: http://localhost:${port}/api/vin/{vin}`);
     console.error(`  MCP: http://localhost:${port}/mcp`);

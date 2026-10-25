@@ -90,9 +90,9 @@ test('VIN validation handles normalization, checksum and invalid input',()=>{
 // Exercise actual frontend render functions with a minimal DOM, rather than
 // testing source spellings or reproducing implementation logic.
 function frontend(){
-  const els=new Map();const element=()=>({style:{},dataset:{},classList:{add(){},remove(){},toggle(){}},addEventListener(){},innerHTML:'',textContent:'',hidden:false});
+  const els=new Map();const element=()=>({style:{},dataset:{},handlers:{},value:'',classList:{add(){},remove(){},toggle(){}},addEventListener(k,fn){this.handlers[k]=fn;},dispatchEvent(e){return this.handlers[e.type]?.(e);},setAttribute(){},focus(){},setSelectionRange(){},querySelector(){return element();},querySelectorAll(){return [];},replaceChildren(){this.innerHTML='';},innerHTML:'',textContent:'',hidden:false});
   const document={createElement:()=>({set textContent(v){this.innerHTML=String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');}}),querySelector:s=>{if(!els.has(s))els.set(s,element());return els.get(s);},querySelectorAll:()=>[],addEventListener(){}};
-  const ctx={document,window:{location:{pathname:'/'}},navigator:{},localStorage:{getItem(){return null;}},console,fetch:async()=>new Response('{}'),setTimeout(){}};
+  const ctx={document,window:{location:{pathname:'/'}},navigator:{},localStorage:{getItem(){return null;}},console,fetch:async()=>new Response('{}'),setTimeout(){},addEventListener(){}};
   vm.createContext(ctx);vm.runInContext(readFileSync(new URL('../public/app.js',import.meta.url),'utf8'),ctx);
   return {ctx,els,run:script=>vm.runInContext(script,ctx)};
 }
@@ -100,6 +100,28 @@ test('frontend displays unavailable recalls and complaints without zero/safe bad
   const {els,run}=frontend();run('renderRecalls({recalls:{available:false,count:null}});renderComplaints({complaints:{available:false,count:null}})');
   assert.match(els.get('#recalls-body').innerHTML,/temporarily unavailable/);assert.equal(els.get('#recall-count').textContent,'?');
   assert.match(els.get('#complaints-body').innerHTML,/temporarily unavailable/);assert.equal(els.get('#complaint-count').textContent,'?');
+});
+
+test('editing VIN input invalidates a pending decode and prevents stale results',async()=>{
+  const {ctx,els,run}=frontend();let resolve;
+  ctx.fetch=()=>new Promise(r=>resolve=r);
+  els.get('#vin-input').value='1N4AL3APXFN868842';
+  const request=els.get('#vin-form').handlers.submit({preventDefault(){}});
+  els.get('#vin-input').value='4T1BF1FK0CU123456';
+  els.get('#vin-input').handlers.input();
+  resolve(json({valid:true,vin:'1N4AL3APXFN868842',vehicle:{year:2015,make:'NISSAN',model:'Altima'}}));
+  await request;
+  assert.equal(run('currentReport'),null);assert.equal(els.get('#results').hidden,true);
+});
+
+test('a VIN URL loads context without overriding a selected research view',()=>{
+  const {ctx,els,run}=frontend();let submitted;
+  ctx.CustomEvent=class {constructor(type,options){this.type=type;this.detail=options.detail;}};
+  ctx.window.location.pathname='/1N4AL3APXFN868842';
+  els.get('#vin-form').dispatchEvent=e=>submitted=e;
+  run('checkUrlVin()');
+  assert.equal(els.get('#vin-input').value,'1N4AL3APXFN868842');
+  assert.equal(submitted.type,'submit');assert.equal(submitted.detail.preserveView,true);
 });
 test('frontend fuel shows matched EPA variant and correct charging property',()=>{
   const {els,run}=frontend();run('renderFuel({fuel_economy:{available:true,ev_charge_time_240v:8,matched_variant:"Auto 5-spd, 6 cyl, 3.0 L"}})');

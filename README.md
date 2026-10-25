@@ -18,7 +18,7 @@ Enter a 17-character VIN and get a comprehensive vehicle report by aggregating s
 | Source | Data Provided |
 |--------|--------------|
 | **NHTSA vPIC** | Make, model, year, trim, body class, engine specs, transmission, drive type, weight, plant info, 140+ decoded fields |
-| **NHTSA Recalls** | Open recalls with campaign number, component, summary, consequence, and remedy |
+| **NHTSA Recalls** | Model-year recall campaigns with component, summary, consequence, and remedy; not VIN repair status |
 | **NHTSA Complaints** | Consumer complaints with crash, fire, injury, and death statistics |
 | **NHTSA Safety Ratings** | NCAP star ratings for overall, frontal, side, and rollover crash tests |
 | **EPA Fuel Economy** | City/highway/combined MPG, annual fuel cost, CO2 emissions, EV range and charge time |
@@ -88,6 +88,16 @@ Add to your Claude Desktop config:
 
 ## MCP Tools
 
+The 22 tools are organized into three groups. The live directory at [`/api/tools`](https://mcp.vin/api/tools) and MCP `tools/list` come from the same registry. See [service organization](docs/architecture.md) for extension and testing guidance.
+
+| Group | Tools |
+| --- | --- |
+| Vehicle reports | `decode_vin`, `validate_vin`, `lookup_recalls`, `batch_decode` |
+| Research and analysis | `explore_capabilities`, `vin_recall_status`, `vehicle_catalog`, `epa_vehicle`, `vehicle_emissions`, `fuel_price_assumptions`, `owner_reported_mpg`, `defect_investigations`, `auto_loan_benchmarks`, `vehicle_dimensions`, `manufacturer_communications`, `compare_vehicles`, `ownership_scenario` |
+| Saved vehicles and preferences | `list_saved_vins`, `save_vin`, `remove_saved_vin`, `get_output_preferences`, `update_output_preferences` |
+
+Account tools require the user's website login token. Public lookup tools require no API key. Source coverage and unknown values are part of the returned data.
+
 | Tool | Description | Input |
 |------|-------------|-------|
 | `decode_vin` | Full VIN decode with specs, recalls, complaints, safety ratings, fuel economy, and photos | `{ vin: string }` |
@@ -103,6 +113,7 @@ All endpoints are available at `https://mcp.vin` or on your self-hosted instance
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `GET` | `/api/tools` | Grouped MCP tool directory |
 | `GET` | `/api/vin/:vin` | Full decode -- all 6 sources aggregated |
 | `GET` | `/api/vin/:vin/validate` | Quick checksum and format validation |
 | `GET` | `/api/vin/:vin/recalls` | Recall data only |
@@ -191,12 +202,13 @@ MIT
 Built for [mcp.vin](https://mcp.vin)
 
 
-## Public-data research workspace (v1.6.0)
+## Unified vehicle workspace (v1.7.0)
 
-The additive `/research/` workspace includes EPA configurations/emissions, Canadian dimensions,
+The main workspace combines VIN reports and saved vehicles with EPA configurations/emissions, Canadian dimensions,
 manufacturer communications, defect investigations, owner-reported MPG, dated Federal Reserve
-rate benchmarks, 2-4 VIN comparisons, ownership scenarios and developer tools. Existing decoder,
-accounts, saved vehicles, preferences and OAuth remain available. Public data coverage varies.
+rate benchmarks, 2-4 VIN comparisons, ownership scenarios and developer tools. Existing `/research/`
+links continue into the matching section, including their search parameters. Accounts,
+preferences, educational pages and OAuth remain available. Public data coverage varies.
 
 Research is available through REST, 22 MCP tools, the JavaScript client at `public/client.mjs`
 and the source CLI `cli.mjs`. The hosted service is https://mcp.vin; set `VIN_BASE_URL` for CLI use.

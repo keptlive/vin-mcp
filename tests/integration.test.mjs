@@ -58,6 +58,37 @@ test('all preference fields remain available',async()=>{
  const prefs=await(await req('/api/user/preferences',undefined,token)).json();assert.equal(prefs.show_overview,1);
  const res=await req('/api/user/preferences',{show_engine:false,show_photos:false},token,'PUT');assert.equal(res.status,200);assert.equal((await res.json()).show_engine,0);
 });
+test('invalid saved VINs are rejected without changing the collection',async()=>{
+ const before=await(await req('/api/user/vins',undefined,token)).json();
+ for(const bad of ['short','1HGCM82633A004353',{vin}]) {
+  const res=await req('/api/user/vins',{vin:bad,label:'Invalid fixture'},token);
+  assert.equal(res.status,400);assert.match((await res.json()).error,/valid VIN/);
+ }
+ const client=new Client({name:'saved-validation-check',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+ try {
+  await client.connect(transport);
+  const result=await client.callTool({name:'save_vin',arguments:{user_token:token,vin:'short'}});
+  assert.equal(result.isError,true);assert.match(result.content[0].text,/valid VIN/);
+ }finally{await transport.terminateSession();await client.close();}
+ assert.deepEqual(await(await req('/api/user/vins',undefined,token)).json(),before);
+});
+test('specialized VIN endpoints reject invalid VINs consistently',async()=>{
+ for(const part of ['recalls','complaints','safety','fuel','photo']) {
+  const res=await req('/api/vin/short/'+part);assert.equal(res.status,400);assert.match((await res.json()).error,/valid VIN/);
+ }
+});
+test('grouped tool directory matches registered MCP tools and mutation hints',async()=>{
+ const directory=await(await req('/api/tools')).json();assert.equal(directory.groups.length,3);
+ const client=new Client({name:'registry-check',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+ try {
+  await client.connect(transport);const {tools}=await client.listTools();
+  assert.deepEqual(directory.groups.flatMap(g=>g.tools.map(t=>t.name)).sort(),tools.map(t=>t.name).sort());
+  assert.equal(tools.find(t=>t.name==='decode_vin').annotations.readOnlyHint,true);
+  assert.equal(tools.find(t=>t.name==='save_vin').annotations.readOnlyHint,false);
+  assert.equal(tools.find(t=>t.name==='remove_saved_vin').annotations.destructiveHint,true);
+  const invalid=await client.callTool({name:'lookup_recalls',arguments:{vin:'short'}});assert.equal(invalid.isError,true);
+ }finally{await transport.terminateSession();await client.close();}
+});
 test('REST endpoints, direct VIN page and educational pages remain available',async()=>{
  for(const endpoint of ['/health','/api/status','/'+vin,'/free-vin-check/','/vin-decoder-api/','/vehicle-safety-recalls/','/vehicle-history-reports/','/app.js','/style.css'])assert.equal((await req(endpoint)).status,200,endpoint);
  for(const part of ['validate','recalls','complaints','safety','fuel'])assert.equal((await req(`/api/vin/${vin}/${part}`)).status,200,part);
@@ -120,7 +151,11 @@ test('batch limits still reject excessive requests within their own route',async
 });
 
 test('research routes preserve explicit scope and validate malformed requests',async()=>{
- const page=await req('/research/');assert.equal(page.status,200);assert.equal(page.headers.get('cache-control'),'no-cache');const digest=async file=>crypto.createHash('sha256').update(await readFile(path.join(root,'public',file))).digest('hex').slice(0,12);assert.ok((await page.text()).includes('/research/research.js?v='+await digest('research/research.js')));assert.ok((await(await req('/')).text()).includes('app.js?v='+await digest('app.js')));assert.equal((await req('/api/status')).headers.get('cache-control'),'no-store');assert.equal((await req('/client.mjs')).status,200);
+ const page=await req('/research/');assert.equal(page.status,200);assert.equal(page.headers.get('cache-control'),'no-cache');assert.match(await page.text(),/location\.replace/);
+ const digest=async file=>crypto.createHash('sha256').update(await readFile(path.join(root,'public',file))).digest('hex').slice(0,12);
+ const shell=await(await req('/')).text();
+ for(const file of ['app.js','workspace.js','research/research.js'])assert.ok(shell.includes(file+'?v='+await digest(file)),file);
+ assert.equal((await req('/api/status')).headers.get('cache-control'),'no-store');assert.equal((await req('/client.mjs')).status,200);
  const caps=await(await req('/api/research/capabilities')).json();assert.equal(caps.find(x=>x.feature==='Plate-to-VIN').status,'gap');
  const r=await req('/api/research/scenario',{price:20000,apr:0,months:40});assert.equal(r.status,200);assert.equal((await r.json()).financing.monthly_payment,500);
  assert.equal((await req('/api/research/scenario',{price:'20000',apr:0,months:40})).status,400);

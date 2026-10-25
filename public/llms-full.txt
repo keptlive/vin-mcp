@@ -5,7 +5,13 @@
 
 ## About
 
-mcp.vin is a free Vehicle Identification Number (VIN) decoder that aggregates six government and public data sources into a single response. No API keys, no accounts, no limits. Available as a website, REST API, and MCP server for AI assistants.
+mcp.vin combines free public vehicle data from NHTSA, EPA and manufacturer sources, with representative stock photos. Public lookups require no API key or account; rate limits apply. Saved vehicles and preferences require a website account. Available as a unified website, REST API, and MCP server for AI assistants.
+
+The current hosted and GitHub source release is 1.7.0. All 22 tools, grouped by task, are listed at https://mcp.vin/api/tools and through MCP tools/list. Research endpoint details are at https://mcp.vin/research/api.json; exact coverage is at https://mcp.vin/api/research/capabilities. The npm package may lag the hosted and source release.
+
+The website combines VIN reports, comparison, configuration research, safety evidence, ownership costs, saved vehicles, coverage and developer tools. Old /research/ links retain their query parameters and section destinations.
+
+VIN recall status is separate from model-year campaigns. Tesla and Ford provide open/completed states; GM includes completed or administratively closed states with repair dates only when supplied; Honda provides active recalls; Nissan provides positive open safety records; Mopar mixes open recall/campaign records. Toyota, Hyundai and Kia require interactive official verification. Unknown values are never zero. These sources are not a complete service history.
 
 - URL: https://mcp.vin
 - Source: https://github.com/keptlive/vin-mcp
@@ -18,7 +24,7 @@ mcp.vin is a free Vehicle Identification Number (VIN) decoder that aggregates si
 | Source | Data Provided |
 |--------|--------------|
 | NHTSA vPIC | Make, model, year, trim, body class, engine specs, transmission, drive type, weight, plant info, 140+ decoded fields |
-| NHTSA Recalls | Open recalls with campaign number, component, summary, consequence, and remedy |
+| NHTSA Recalls | Model-year campaigns with component, summary, consequence, and remedy; not VIN repair status |
 | NHTSA Complaints | Consumer complaints with crash, fire, injury, and death statistics |
 | NHTSA Safety Ratings | NCAP star ratings for overall, frontal, side, and rollover crash tests |
 | EPA Fuel Economy | City/highway/combined MPG, annual fuel cost, CO2 emissions, EV range and charge time |
