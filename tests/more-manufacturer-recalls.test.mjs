@@ -40,6 +40,21 @@ test('Volkswagen: status codes map as on its page, service campaigns stay separa
   assert.throws(() => parseVw(vw({numberOfRecalls: 2, recalls: [rec('69L7', 11)]}), VW));
   assert.throws(() => parseVw(vw({numberOfRecalls: 1}), VW));
 });
+test('Volkswagen and Audi: real open records are read, including their "Oct 30, 2024" dates', () => {
+  // Trimmed from live replies for a 2012 Passat and a 2013 A4 (2026-11-16).
+  const passat = {vin: '1VWCP7A35CC101500', status: true, year: 2012, make: 'VW', model: 'PASSAT SEL PREMIUM 2.5L Auto PZEV', manufacturerId: 1, isRecallsAvailable: true, numberOfRecalls: 2, refreshDate: 'Nov 13, 2026', recalls: [
+    {vwgoaActionTitle: 'Driver Frontal Airbag', mfrRecallNumber: '69EG', nhtsaRecallNumber: '24V834', recallDate: 'Oct 30, 2024', recallDescription: 'd', safetyRiskDescription: 's', remedyDescription: 'r', mfrRecallStatus: 11, mfrNotes: ' ', refreshDate: 'Nov 13, 2026', vwgoaActionType: 'SAFETY'},
+    {vwgoaActionTitle: 'Headlamp Caps', mfrRecallNumber: '94L9', nhtsaRecallNumber: '19V389', recallDate: 'Jun 11, 2019', recallDescription: 'd', safetyRiskDescription: 's', remedyDescription: 'r', mfrRecallStatus: 11, mfrNotes: ' ', refreshDate: 'Nov 13, 2026', vwgoaActionType: 'SAFETY'}]};
+  let r = parseVw(passat, '1VWCP7A35CC101500');
+  assert.equal(r.open_count, 2); assert.equal(r.completed_count, null);
+  assert.deepEqual(r.recalls.map(x => [x.campaign_number, x.nhtsa_campaign_number, x.recall_date, x.title]), [['69EG', '24V834', '2024-10-30', 'Driver Frontal Airbag'], ['94L9', '19V389', '2019-06-11', 'Headlamp Caps']]);
+  const a4 = rec => ({data: {vehicleRecalls: {brand: 'AUDI', model: 'A4 2.0T QUATTRO TIPTRONIC', modelYear: 2013, refreshDate: 'Nov 13, 2026', recalls: [{manufacturerNotes: ' ', manufacturerRecallNumber: '19O2', manufacturerRecallStatus: 'INCOMPLETE', recallNumber: '18V229', recallDate: 'Dec 13, 2018', recallDescription: 'd', refreshDate: 'Nov 13, 2026', remedyDescription: 'r', safetyRiskDescription: 's', actionTitle: 'After Run Coolant Pump', actionType: 'SAFETY', repairCompletionStatus: null, ...rec}]}}});
+  r = parseAudi(a4({}));
+  assert.equal(r.open_count, 1); assert.equal(r.recalls[0].recall_date, '2018-12-13'); assert.equal(r.recalls[0].nhtsa_campaign_number, '18V229'); assert.equal(r.recalls[0].repair_status, 'open');
+  assert.equal(parseAudi(a4({manufacturerRecallStatus: 'COMPLETE'})).completed_count, 1);
+  assert.equal(parseAudi(a4({repairCompletionStatus: 'COMPLETE'})).open_count, null);
+  assert.equal(parseAudi(a4({manufacturerRecallStatus: null})).open_count, null);
+});
 test('Volkswagen: other-market and unrecognized VINs stay unknown; errors and mismatches fail', () => {
   for (const errorCode of [62, 64, 72, 74, 91]) assert.equal(parseVw({vin: VW, status: false, errorCode}, VW), null);
   assert.throws(() => parseVw({vin: VW, status: false, errorCode: 92}, VW));
@@ -75,6 +90,15 @@ test('Land Rover: "no recalls found" for a recognized vehicle is zero open; code
   assert.equal(r.open_count, 2); assert.equal(r.completed_count, 1); assert.equal(r.recalls[1].remedy_available, false);
   assert.equal(parseLandRover({year: '2016', vehicleName: 'x', vehicleIdentificationNumber: LR, recalls: [rec('N098', 13)]}, LR).open_count, null);
   assert.throws(() => parseLandRover({year: '2016', vehicleName: 'x', vehicleIdentificationNumber: SUBARU, recalls: []}, LR));
+});
+
+test('Jaguar uses the same lookup shape under its own name and address', async () => {
+  const JAG = 'SADCM2BV7HA889072', body = {model: '2017', vin: JAG, error: 204, vehicle: 'F-PACE 3.0L V6 S/C Petrol AWD  5 Door Au'};
+  assert.match(parseLandRover(body, JAG, 'Jaguar').note, /^Official Jaguar U\.S\./);
+  let seen;
+  const lookup = createRecallStatusLookup(async url => { seen = url; return {ok: true, json: async () => body}; });
+  const r = await lookup(JAG);
+  assert.equal(r.available, true); assert.equal(r.open_count, 0); assert.match(seen, /^https:\/\/www\.jaguar\.com\/content\/misc\/jdx\//); assert.match(r.source.provider, /Jaguar/);
 });
 
 test('Acura is answered by the Honda lookup under its own division', () => {
