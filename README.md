@@ -215,10 +215,15 @@ See [data sources and scope](docs/data-sources.md) and the machine-readable guid
 Use Node.js 22 or later, run `npm ci`, then `npm start`. Run `npm test` and
 `node --test test/transport.test.mjs` for the application and actual MCP transport checks.
 The Python importer tests use only the standard library:
-`python3 tests/investigations_test.py` and `python3 tests/communications_storage_test.py`.
+`python3 tests/investigations_test.py`, `python3 tests/communications_storage_test.py` and
+`python3 tests/recall_labels_test.py`.
 
-Install public indexes with `python3 scripts/import-communications.py` and
-`python3 scripts/import-investigations.py`. Use `--refresh` for a new official snapshot.
+Install public indexes with `python3 scripts/import-communications.py`,
+`python3 scripts/import-investigations.py` and `python3 scripts/import-recall-labels.py`.
+Use `--refresh` for a new official snapshot. The recall label index (`data/recall-labels.db`,
+about 10 MB, built in seconds from NHTSA's two recall flat files) lets reports find campaigns
+NHTSA files under another model name; without it, reports say the related-name list is partial.
+NHTSA updates the flat files daily; refresh the index when convenient (weekly is plenty).
 The standard bulletin index needs about 3.4 GB plus archives. To reduce storage without
 changing the API, run `python3 scripts/compact-communications.py data/communications.db data/communications-compact.db`.
 The compact target is a separate file, verified row for row; deploy it under the name

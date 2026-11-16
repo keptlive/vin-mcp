@@ -20,7 +20,7 @@
   "scripts": {
     "start": "node server.mjs --http --port 3200",
     "dev": "node --watch server.mjs --http --port 3200",
-    "test": "node scripts/render-tool-directory.mjs --check && node --test tests/*.test.mjs && python3 tests/investigations_test.py && python3 tests/communications_storage_test.py"
+    "test": "node scripts/render-tool-directory.mjs --check && node --test tests/*.test.mjs && python3 tests/investigations_test.py && python3 tests/communications_storage_test.py && python3 tests/recall_labels_test.py"
   },
   "keywords": [
     "vin",
