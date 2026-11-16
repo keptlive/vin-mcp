@@ -46,6 +46,12 @@ test('an account can be deleted with its password, and its data goes with it',as
  assert.equal((await req('/api/auth/me',undefined,t)).status,404);
  assert.equal((await req('/api/auth/login',creds)).status,401);
 });
+test('a VIN URL is served with that vehicle in the page head, and bad VINs are not indexable',async()=>{
+ let res=await fetch(base+'/'+vin);assert.equal(res.status,200);let html=await res.text();
+ assert.match(html,new RegExp('<link rel="canonical" href="https://mcp.vin/'+vin+'">'));assert.match(html,/id="ssr-summary"/);assert.match(html,new RegExp('<title>[^<]*VIN '+vin));
+ res=await fetch(base+'/'+vin.toLowerCase(),{redirect:'manual'});assert.equal(res.status,301);assert.equal(res.headers.get('location'),'/'+vin);
+ res=await fetch(base+'/1HGCM82633A00435X');assert.equal(res.status,200);html=await res.text();assert.match(html,/<meta name="robots" content="noindex">/);assert.equal(html.includes('ssr-summary"'),false);
+});
 test('REST full reports retry an invalid EPA response and cache the recovered report',async()=>{
  let candidate='1HGCM82633A004354';candidate=candidate.slice(0,8)+validateVin(candidate).checksum.expected+candidate.slice(9);
  const first=await(await req('/api/vin/'+candidate)).json();assert.equal(first.fuel_economy.reason,'invalid_response');

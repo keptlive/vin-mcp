@@ -31,7 +31,8 @@ mcp.vin combines free public vehicle data from NHTSA, EPA and manufacturer sourc
 ## Limits
 - Rate limits per IP address: 30 requests/minute for reports, 60/minute for validation, 5/minute for batch
 - No API key, account or payment for public lookups
-- The full report includes every complaint for the model year and can be large; use the single-purpose endpoints when one part is enough
+- The full report carries the 25 most recent complaints for the model year plus totals; add ?complaints=all for every complaint
+- Vehicle pages: https://mcp.vin/{VIN} is a web report with that vehicle in its title, description and structured data
 
 ## MCP Server
 - Remote (recommended, nothing to install, no API key): https://mcp.vin/mcp (Streamable HTTP). Client config: {"mcpServers":{"vin-mcp":{"url":"https://mcp.vin/mcp"}}}

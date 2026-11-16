@@ -11,6 +11,8 @@ const input = $('#vin-input');
 const btn = $('#decode-btn');
 const inputError = $('#input-error');
 const results = $('#results');
+// The server sends a plain summary on /{VIN} pages for crawlers; the app draws the full report instead.
+$('#ssr-summary')?.remove?.();
 
 // ── State ──
 let currentReport = null;
@@ -72,7 +74,7 @@ form.addEventListener('submit', async (e) => {
   $('#decode-status').textContent = 'Retrieving vehicle and safety records…';
 
   try {
-    const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}`);
+    const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}?complaints=all`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Server error' }));
       throw new Error(err.error || `HTTP ${res.status}`);

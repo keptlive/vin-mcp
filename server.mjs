@@ -21,7 +21,9 @@ import { scenario } from './lib/scenario.mjs';
 import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
 import { vinRecallStatus } from './lib/recall-status.mjs';
-import { fullReport, compareVehicles } from './lib/reports.mjs';
+import { fullReport, baseReport, restReport, compareVehicles } from './lib/reports.mjs';
+import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
+import { readFile } from 'node:fs/promises';
 import { createToolRegistry } from './lib/mcp/index.mjs';
 import { VERSION } from './lib/version.mjs';
 
@@ -449,7 +451,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   app.post('/api/research/compare',rateGuard(5),researchHandler(req=>compareVehicles(req.body?.vins)));
 
   app.get('/api/vin/:vin', rateGuard(30), async (req, res) => {
-    try { res.json(await fullReport(req.params.vin)); } catch (err) { safeError(res, err); }
+    try { res.json(restReport(await fullReport(req.params.vin), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
   });
 
   app.get('/api/vin/:vin/validate', rateGuard(60), (req, res) => {
@@ -804,11 +806,25 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   app.use(express.static(path.join(__dirname, 'public'), {setHeaders(res,file){if(file.endsWith('.html'))res.setHeader('Cache-Control','no-cache');}}));
 
-  app.get('/:vin', (req, res, next) => {
-    if (/^[A-HJ-NPR-Z0-9]{17}$/i.test(req.params.vin)) {
-      return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  // /{VIN}: the workspace page with that vehicle's own title, description,
+  // canonical URL and summary, so crawlers and link previews see the vehicle.
+  // Falls back to the plain page if the lookup is slow or fails.
+  app.get('/:vin', rateGuard(30), async (req, res, next) => {
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/i.test(req.params.vin)) return next();
+    const vin = normalizeVin(req.params.vin);
+    if (req.params.vin !== vin) return res.redirect(301, '/' + vin);
+    try {
+      const template = await readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
+      res.setHeader('Cache-Control', 'no-cache');
+      if (!validateVin(vin).valid) return res.type('html').send(renderUnknownVinPage(template));
+      const report = await Promise.race([baseReport(vin), new Promise(resolve => setTimeout(resolve, 8000, 'slow'))]);
+      // A slow lookup is not a verdict on the VIN: send the plain page and let the next visit use the cache.
+      if (report === 'slow') return res.type('html').send(template);
+      res.type('html').send(report?.vehicle?.make ? renderVinPage(template, report) : renderUnknownVinPage(template));
+    } catch (err) {
+      console.error('VIN page error:', err);
+      res.sendFile(path.join(__dirname, 'public', 'index.html'));
     }
-    next();
   });
 
   app.listen(port, () => {
