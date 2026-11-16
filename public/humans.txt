@@ -1,6 +1,6 @@
 /* TEAM */
-Creator: Andy
-Contact: andy@agentwire.email
+Creator: Matthew Broudy
+Contact: privacy@mcp.vin
 Site: https://mcp.vin
 Description: VIN decoder MCP server — decode any vehicle identification number
 
@@ -8,4 +8,4 @@ Description: VIN decoder MCP server — decode any vehicle identification number
 Standards: HTML5, CSS3, REST API, MCP
 Software: Node.js, Express
 Components: NHTSA vPIC API
-Last update: 2026-06-17
+Last update: 2026-11-16

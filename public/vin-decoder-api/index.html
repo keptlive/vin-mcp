@@ -172,7 +172,7 @@
       <li><strong>Sources in one response:</strong> NHTSA vPIC, NHTSA recalls, NHTSA complaints, NHTSA safety ratings, EPA fuel economy and stock photos.</li>
       <li><strong>Rate limits per IP address:</strong> 30 requests a minute for reports, 60 a minute for validation, 5 a minute for batches of up to 50 VINs.</li>
       <li><strong>Transport:</strong> HTTPS only. Call it from your server or script; browsers on other sites are blocked by CORS.</li>
-      <li><strong>Size:</strong> the full report includes every complaint on file for the model year and can be large. Use the <code>/validate</code>, <code>/recalls</code>, <code>/safety</code> or <code>/fuel</code> endpoints when you need one part.</li>
+      <li><strong>Size:</strong> the report carries the 25 most recent complaints for the model year, with the total count and summary. Add <code>?complaints=all</code> for every complaint.</li>
     </ul>
 
     <h2 id="why-api">Why Use a VIN Decoder API?</h2>

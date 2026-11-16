@@ -321,7 +321,6 @@ The server uses in-memory LRU caching with TTL:
 
 ## Related Sites
 
-- https://helloandy.net — Free developer tools and guides (14 tools, 50+ articles)
 - https://launch.pics — AI image pipeline builder (50 API tools, 247+ browser tools)
 - https://everyone.food — Recipe and cooking resource (10 kitchen tools, calorie API, 100+ recipes)
 - https://contextwire.dev — Search API, MCP server, and SDK for AI applications

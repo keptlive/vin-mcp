@@ -1,6 +1,7 @@
 /* The shared shell joins VIN reports, public research and personal vehicle lists. */
 (() => {
   const q = selector => document.querySelector(selector);
+  const serverTitle = String(document.title || '');
   const titles = {report:'VIN report',compare:'Compare vehicles',catalog:'Specifications',communications:'Safety records',costs:'Ownership costs',saved:'Saved & recent vehicles',coverage:'Data coverage',developers:'Developer tools'};
   const aliases = {'mcp-info':'developers','history':'saved','saved-vins':'saved'};
   let report = null, toolDirectoryLoaded = false, toolDirectoryPending = false;
@@ -16,7 +17,10 @@
     q('#my-vins-btn').setAttribute('aria-pressed',String(id === 'saved'));
     q('#user-menu').open = false;
     q('#print-view').hidden = id === 'saved';
-    document.title = (id === 'report' ? 'Free VIN Decoder & Vehicle Research' : titles[id]) + ' | mcp.vin';
+    // A /{VIN} page arrives from the server with that vehicle's own title; keep it while that VIN is shown.
+    const pathVin = (String(location.pathname || '').match(/^\/([A-HJ-NPR-Z0-9]{17})$/i) || [])[1];
+    document.title = id === 'report' && pathVin && serverTitle.includes('VIN ' + pathVin.toUpperCase()) ? serverTitle
+      : (id === 'report' ? 'Free VIN Decoder & Vehicle Research' : titles[id]) + ' | mcp.vin';
     if (id === 'developers') loadToolDirectory();
   }
   function navigate(id) {
