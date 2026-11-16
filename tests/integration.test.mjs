@@ -34,6 +34,18 @@ test('registration, login and identity still work',async()=>{
  res=await req('/api/auth/login',{email:'isolated@example.invalid',password:'fixture-password'});assert.equal(res.status,200);
  assert.equal((await(await req('/api/auth/me',undefined,token)).json()).display_name,'Test');
 });
+test('an account can be deleted with its password, and its data goes with it',async()=>{
+ const del=(body,t)=>fetch(base+'/api/auth/account',{method:'DELETE',headers:{'content-type':'application/json',...(t?{authorization:'Bearer '+t}:{})},body:JSON.stringify(body)});
+ const creds={email:'delete-me@example.invalid',password:'fixture-password'};
+ let res=await req('/api/auth/register',creds);assert.equal(res.status,201);const t=(await res.json()).token;
+ assert.equal((await del({password:'fixture-password'})).status,401);
+ assert.equal((await del({},t)).status,400);
+ assert.equal((await del({password:'not-the-password'},t)).status,401);
+ assert.equal((await(await req('/api/auth/me',undefined,t)).json()).email,creds.email);
+ res=await del({password:'fixture-password'},t);assert.equal(res.status,200);assert.deepEqual(await res.json(),{deleted:true});
+ assert.equal((await req('/api/auth/me',undefined,t)).status,404);
+ assert.equal((await req('/api/auth/login',creds)).status,401);
+});
 test('REST full reports retry an invalid EPA response and cache the recovered report',async()=>{
  let candidate='1HGCM82633A004354';candidate=candidate.slice(0,8)+validateVin(candidate).checksum.expected+candidate.slice(9);
  const first=await(await req('/api/vin/'+candidate)).json();assert.equal(first.fuel_economy.reason,'invalid_response');

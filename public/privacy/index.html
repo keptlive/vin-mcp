@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy | mcp.vin</title>
+  <meta name="description" content="What mcp.vin collects, how long it is kept, who it is shared with, and how to delete your account. No ads, no tracking cookies, no sale of data.">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#6366f1">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="canonical" href="https://mcp.vin/privacy/">
+  <meta property="og:title" content="Privacy Policy | mcp.vin">
+  <meta property="og:description" content="What mcp.vin collects, how long it is kept, who it is shared with, and how to delete your account.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://mcp.vin/privacy/">
+  <meta property="og:site_name" content="mcp.vin">
+
+  <link rel="stylesheet" href="/style.css?v=2">
+  <link rel="stylesheet" href="/article.css?v=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="article-nav">
+    <a href="/" class="nav-brand">mcp<span class="dot">.</span>vin</a>
+    <a href="/" class="nav-back">&larr; Back to decoder</a>
+  </nav>
+
+  <div class="article-wrap">
+    <div class="breadcrumb">
+      <a href="/">Home</a><span>&rsaquo;</span>Privacy Policy
+    </div>
+
+    <div class="article-meta">
+      <span class="meta-date">Effective November 16, 2026</span>
+    </div>
+
+    <h1>Privacy Policy</h1>
+
+    <p class="article-lead">mcp.vin decodes vehicle identification numbers using public data. You can use the website, the REST API and the MCP server without an account. We do not show ads, we do not use tracking cookies, and we do not sell or rent data to anyone.</p>
+
+    <p>mcp.vin is operated by Matthew Broudy. This policy covers the website at mcp.vin, the REST API under <code>mcp.vin/api</code>, the hosted MCP server at <code>mcp.vin/mcp</code>, and the mcp.vin app. Questions and requests go to <a href="mailto:privacy@mcp.vin">privacy@mcp.vin</a>.</p>
+
+    <h2>What we collect</h2>
+
+    <h3>When you look up a vehicle</h3>
+    <p>We receive the VIN or the make, model and year you send. A VIN identifies a vehicle, not a person, and we do not try to link it to an owner. To answer a lookup we keep the result in server memory for up to one hour, so repeated lookups are fast.</p>
+
+    <h3>Request logs</h3>
+    <p>For every request we record the IP address, the time, the method and path (the path of a lookup contains the VIN), the response status and size, how long it took, the browser or client name, and your account number if you are signed in. We use these logs to keep the service running, to apply rate limits and to stop abuse.</p>
+
+    <h3>When you create an account</h3>
+    <p>An account is optional. If you create one we store your email address, a display name if you give one, and your password in a salted, hashed form that cannot be read back. We also store the vehicles you save, the labels you give them and your report settings. We do not send marketing email.</p>
+
+    <h3>In your browser</h3>
+    <p>The website keeps two things in your browser&rsquo;s local storage: a sign-in token, which expires after 24 hours, and the list of your recent reports. The recent list never leaves your browser. We set no cookies.</p>
+
+    <h3>When you connect an AI client</h3>
+    <p>If you connect an MCP client such as Claude, we receive the tool calls it makes, which contain the same VINs and vehicle details as a web lookup. The client&rsquo;s name and its sign-in tokens are held in server memory only. We do not receive your conversation.</p>
+
+    <h2>How long we keep it</h2>
+    <table>
+      <thead><tr><th>Data</th><th>Kept for</th></tr></thead>
+      <tbody>
+        <tr><td>Request logs (IP address, path, client name)</td><td>30 days</td></tr>
+        <tr><td>Security events (failed sign-ins, rate-limit hits)</td><td>90 days</td></tr>
+        <tr><td>Web server access logs</td><td>About one day</td></tr>
+        <tr><td>Lookup results in server memory</td><td>Up to one hour</td></tr>
+        <tr><td>Account, saved vehicles and settings</td><td>Until you delete them or your account</td></tr>
+      </tbody>
+    </table>
+    <p>Backups of the account database may hold a deleted account for a limited time until they are replaced.</p>
+
+    <h2>Who receives data</h2>
+    <p>We do not sell, rent or trade personal data, and we do not share it for advertising. To build a report, our server sends the VIN, or the make, model and year, to the public sources below. They receive the request from our server, not from you, so they do not see your IP address or your account.</p>
+    <ul>
+      <li><strong>NHTSA</strong> (U.S. National Highway Traffic Safety Administration): vehicle specifications, recalls, complaints and safety ratings.</li>
+      <li><strong>EPA</strong> (fueleconomy.gov): fuel economy and emissions.</li>
+      <li><strong>Vehicle manufacturers&rsquo; recall lookups</strong>: for supported makes, the VIN is sent to the manufacturer&rsquo;s own recall service to check that vehicle&rsquo;s recall status.</li>
+    </ul>
+    <p>Three services are contacted by your browser directly, so they see your IP address:</p>
+    <ul>
+      <li><strong>IMAGIN.studio</strong> serves the stock vehicle photos. The image address contains the make, model and year, not the VIN.</li>
+      <li><strong>Google Fonts</strong> serves the typefaces used on the site.</li>
+      <li><strong>GoatCounter</strong> counts page views for us without cookies and without building a profile of you.</li>
+    </ul>
+    <p>The service runs on a rented server in the United States. We would disclose data if the law required it.</p>
+
+    <h2>Your choices</h2>
+    <ul>
+      <li><strong>Use it without an account.</strong> Lookups, the API and the public MCP tools need no sign-up.</li>
+      <li><strong>Remove saved vehicles</strong> one at a time from the Saved vehicles panel.</li>
+      <li><strong>Delete your account</strong> from the account menu on the website: choose Delete account and confirm with your password. Your account, saved vehicles and settings are removed at once, and your account number is removed from the request logs.</li>
+      <li><strong>Clear recent reports</strong> from the Saved vehicles panel, or by clearing site data in your browser.</li>
+      <li><strong>Ask us.</strong> Email <a href="mailto:privacy@mcp.vin">privacy@mcp.vin</a> to get a copy of your data, to correct it, or to have it deleted if you cannot sign in. We answer within 30 days.</li>
+    </ul>
+
+    <h2>Security</h2>
+    <p>All traffic uses HTTPS. Passwords are stored only as salted scrypt hashes. Sign-in attempts and API use are rate limited. No system is perfectly secure; if a breach affected your account we would tell you by email.</p>
+
+    <h2>Children</h2>
+    <p>mcp.vin is not directed to children under 13, and we do not knowingly collect personal data from them. If you believe a child has created an account, email us and we will delete it.</p>
+
+    <h2>Changes to this policy</h2>
+    <p>If we change what we collect or share, we will update this page and its effective date before the change takes effect. The page history is public in the <a href="https://github.com/keptlive/vin-mcp/commits/main/public/privacy/index.html">project repository</a>.</p>
+
+    <h2>Contact</h2>
+    <p>Matthew Broudy &middot; <a href="mailto:privacy@mcp.vin">privacy@mcp.vin</a></p>
+  </div>
+
+  <footer class="footer">
+    <p>Data from NHTSA, EPA and IMAGIN.studio. <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
+  </footer>
+
+  <script data-goatcounter="https://helloandy.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
