@@ -11,7 +11,7 @@ The current hosted and GitHub source release is 1.7.0. All 22 tools, grouped by 
 
 The website combines VIN reports, comparison, configuration research, safety evidence, ownership costs, saved vehicles, coverage and developer tools. Old /research/ links retain their query parameters and section destinations.
 
-VIN recall status is separate from model-year campaigns. Tesla and Ford provide open/completed states; GM includes completed or administratively closed states with repair dates only when supplied; Honda provides active recalls; Nissan provides positive open safety records; Mopar mixes open recall/campaign records. Toyota, Hyundai and Kia require interactive official verification. Unknown values are never zero. These sources are not a complete service history.
+VIN recall status is separate from model-year campaigns. Tesla and Ford provide open/completed states; GM includes completed or administratively closed states with repair dates only when supplied; Honda and Acura provide active recalls; Subaru provides completed and incomplete safety recalls; Volkswagen, Audi and Land Rover report open recalls, and completed ones only where returned; Nissan provides positive open safety records; Mopar mixes open recall/campaign records. Toyota, Hyundai and Kia require interactive official verification. Unknown values are never zero. These sources are not a complete service history.
 
 - URL: https://mcp.vin
 - Source: https://github.com/keptlive/vin-mcp
