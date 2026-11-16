@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.keptlive/vin-mcp",
+  "title": "VIN MCP",
+  "description": "Free VIN decoder: NHTSA specs, recalls, complaints, safety ratings, EPA fuel economy. No API key.",
+  "version": "1.7.0",
+  "websiteUrl": "https://mcp.vin",
+  "repository": {
+    "url": "https://github.com/keptlive/vin-mcp",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.vin/mcp"
+    }
+  ]
+}
