@@ -26,12 +26,13 @@
   {
     "@context": "https://schema.org",
     "@type": "Article",
+    "image": "https://mcp.vin/og-image.png",
     "headline": "VIN Decoder API — Free Vehicle Data API for Developers",
     "description": "Free VIN decoder API with no signup or API key. Returns JSON with make, model, year, engine specs.",
     "author": {"@type": "Organization", "name": "mcp.vin", "url": "https://mcp.vin"},
     "publisher": {"@type": "Organization", "name": "mcp.vin"},
     "datePublished": "2026-03-15",
-    "dateModified": "2026-10-30",
+    "dateModified": "2026-11-16",
     "url": "https://mcp.vin/vin-decoder-api/"
   }
   </script>
@@ -44,6 +45,63 @@
       {"@type": "ListItem", "position": 2, "name": "VIN Decoder API", "item": "https://mcp.vin/vin-decoder-api/"}
     ]
   }
+  </script>
+
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is there a free VIN decoder API that needs no API key?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Send a GET request to https://mcp.vin/api/vin/ followed by a 17-character VIN. No API key, account or payment is needed. Rate limits apply."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What are the rate limits?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Per IP address: 30 requests a minute for full reports, recalls, complaints, safety ratings and fuel economy; 60 a minute for validation; 5 a minute for batch requests of up to 50 VINs."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Where does the data come from?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "From public U.S. government sources: NHTSA vPIC for specifications, NHTSA for recalls, complaints and crash-test ratings, and the EPA for fuel economy. Photos are representative stock images from IMAGIN.studio."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it tell me whether a recall was repaired on a specific car?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The recalls endpoint lists campaigns for the make, model and year. It does not establish whether a specific vehicle is affected or repaired. For supported manufacturers, the recall-status endpoint checks the manufacturer's own VIN lookup."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can AI assistants use it?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The same data is available as a remote MCP server at https://mcp.vin/mcp, with no API key for public tools. It also runs locally over stdio from the open-source repository."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it include accident or title history?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Accident reports, title brands and odometer records come from paid databases and are not part of mcp.vin."
+      }
+    }
+  ]
+}
   </script>
 
   <link rel="stylesheet" href="/style.css?v=2">
@@ -67,7 +125,7 @@
       <span class="meta-tag">API</span>
       <span class="meta-tag">Developers</span>
       <span class="meta-tag">Free</span>
-      <span class="meta-date">Published March 2026 · Updated October 2026</span>
+      <span class="meta-date">Published March 2026 · Updated November 2026</span>
     </div>
 
     <h1>VIN Decoder API for Developers &mdash; Free Vehicle Data API</h1>
@@ -77,6 +135,7 @@
     <div class="toc">
       <div class="toc-title">In this article</div>
       <ol>
+        <li><a href="#no-key">Free VIN decoder API, no key required</a></li>
         <li><a href="#why-api">Why use a VIN decoder API?</a></li>
         <li><a href="#endpoints">API endpoints</a></li>
         <li><a href="#response">Response format</a></li>
@@ -84,8 +143,37 @@
         <li><a href="#mcp-server">Using as an MCP server</a></li>
         <li><a href="#use-cases">Real-world use cases</a></li>
         <li><a href="#alternatives">Comparison with other VIN APIs</a></li>
+        <li><a href="#faq">Common questions</a></li>
       </ol>
     </div>
+
+    <h2 id="no-key">Free VIN decoder API, no key required</h2>
+
+    <p>One GET request returns a full vehicle report as JSON. There is no API key, no account and no charge. Rate limits apply.</p>
+
+<pre><code>curl https://mcp.vin/api/vin/1HGCM82633A004352</code></pre>
+
+    <p>A shortened response for that VIN, a 2003 Honda Accord:</p>
+
+<pre><code>{
+  "valid": true,
+  "vin": "1HGCM82633A004352",
+  "vehicle": { "year": 2003, "make": "HONDA", "model": "Accord", "trim": "EX-V6", "body_class": "Coupe", "doors": 2 },
+  "engine": { "type": "J30A4", "cylinders": 6, "displacement_l": 2.99, "hp": 240, "fuel_type": "Gasoline" },
+  "transmission": { "type": "Automatic", "speeds": 5 },
+  "plant": { "city": "MARYSVILLE", "state": "OHIO", "country": "UNITED STATES (USA)" },
+  "recalls": { "count": 24, "scope": "make_model_year", "vin_specific": false },
+  "complaints": { "count": 2013, "summary": { "crashes": 158, "fires": 19, "injuries": 157, "deaths": 1 } },
+  "safety_ratings": { "frontal_driver": 5, "frontal_passenger": 5 },
+  "fuel_economy": { "city_mpg": 19, "highway_mpg": 27, "combined_mpg": 22 }
+}</code></pre>
+
+    <ul>
+      <li><strong>Sources in one response:</strong> NHTSA vPIC, NHTSA recalls, NHTSA complaints, NHTSA safety ratings, EPA fuel economy and stock photos.</li>
+      <li><strong>Rate limits per IP address:</strong> 30 requests a minute for reports, 60 a minute for validation, 5 a minute for batches of up to 50 VINs.</li>
+      <li><strong>Transport:</strong> HTTPS only. Call it from your server or script; browsers on other sites are blocked by CORS.</li>
+      <li><strong>Size:</strong> the full report includes every complaint on file for the model year and can be large. Use the <code>/validate</code>, <code>/recalls</code>, <code>/safety</code> or <code>/fuel</code> endpoints when you need one part.</li>
+    </ul>
 
     <h2 id="why-api">Why Use a VIN Decoder API?</h2>
 
@@ -169,6 +257,17 @@ print(report.get("vehicle"))</code></pre>
 
     <p>mcp.vin implements the Model Context Protocol (MCP), which means AI assistants like Claude can connect to it and call VIN decode tools natively. The agent sends a VIN, receives structured JSON, and can reason about the vehicle data without any custom integration code.</p>
 
+    <h3>Remote server (HTTP): nothing to install</h3>
+    <p>Point any MCP client that supports remote servers at <code>https://mcp.vin/mcp</code>. Public tools need no API key:</p>
+
+<pre><code>{
+  "mcpServers": {
+    "vin-mcp": {
+      "url": "https://mcp.vin/mcp"
+    }
+  }
+}</code></pre>
+
     <h3>Claude Code (stdio)</h3>
     <p>Clone the current source first, then add its local path to your project's <code>.mcp.json</code>. The current hosted build is newer than the npm package:</p>
 
@@ -177,16 +276,6 @@ print(report.get("vehicle"))</code></pre>
     "vin-mcp": {
       "command": "node",
       "args": ["/path/to/vin-mcp/server.mjs"]
-    }
-  }
-}</code></pre>
-
-    <h3>Claude Desktop / Remote (HTTP)</h3>
-
-<pre><code>{
-  "mcpServers": {
-    "vin-mcp": {
-      "url": "https://mcp.vin/mcp"
     }
   }
 }</code></pre>
@@ -285,6 +374,26 @@ print(report.get("vehicle"))</code></pre>
     </table>
 
     <p>The main thing you won't get from mcp.vin is vehicle history data (accident reports, title changes, odometer records). That requires paid databases like Carfax or AutoCheck. For factory specs, recalls, safety ratings, and fuel economy, the free API covers everything you need.</p>
+
+    <h2 id="faq">Common questions</h2>
+
+    <h3>Is there a free VIN decoder API that needs no API key?</h3>
+    <p>Yes. Send a GET request to https://mcp.vin/api/vin/ followed by a 17-character VIN. No API key, account or payment is needed. Rate limits apply.</p>
+
+    <h3>What are the rate limits?</h3>
+    <p>Per IP address: 30 requests a minute for full reports, recalls, complaints, safety ratings and fuel economy; 60 a minute for validation; 5 a minute for batch requests of up to 50 VINs.</p>
+
+    <h3>Where does the data come from?</h3>
+    <p>From public U.S. government sources: NHTSA vPIC for specifications, NHTSA for recalls, complaints and crash-test ratings, and the EPA for fuel economy. Photos are representative stock images from IMAGIN.studio.</p>
+
+    <h3>Does it tell me whether a recall was repaired on a specific car?</h3>
+    <p>The recalls endpoint lists campaigns for the make, model and year. It does not establish whether a specific vehicle is affected or repaired. For supported manufacturers, the recall-status endpoint checks the manufacturer's own VIN lookup.</p>
+
+    <h3>Can AI assistants use it?</h3>
+    <p>Yes. The same data is available as a remote MCP server at https://mcp.vin/mcp, with no API key for public tools. It also runs locally over stdio from the open-source repository.</p>
+
+    <h3>Does it include accident or title history?</h3>
+    <p>No. Accident reports, title brands and odometer records come from paid databases and are not part of mcp.vin.</p>
 
     <div class="cta-box">
       <p>Try the API now &mdash; no signup needed.</p>
