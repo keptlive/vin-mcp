@@ -371,7 +371,9 @@ function renderCampaigns(r) {
         ${recall.consequence ? `<div><span class="recall-detail-label">Consequence:</span> ${esc(recall.consequence)}</div>` : ''}
         ${recall.remedy ? `<div><span class="recall-detail-label">Remedy:</span> ${esc(recall.remedy)}</div>` : ''}
         ${recall.campaign_number ? `<div><span class="recall-detail-label">Campaign:</span> ${esc(recall.campaign_number)}</div>` : ''}
-        ${recall.report_date ? `<div><span class="recall-detail-label">Date:</span> ${esc(recall.report_date)}</div>` : ''}
+        ${recall.report_received_date || recall.report_date ? `<div><span class="recall-detail-label">Reported to NHTSA:</span> ${esc(recall.report_received_date || recall.report_date)}</div>` : ''}
+        ${recall.park_it ? `<div><span class="recall-detail-label">NHTSA advisory:</span> Park it: do not drive until repaired</div>` : ''}
+        ${recall.park_outside ? `<div><span class="recall-detail-label">NHTSA advisory:</span> Park outside and away from structures</div>` : ''}
       </div>
     </div>
   `).join('');

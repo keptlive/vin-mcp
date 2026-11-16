@@ -32,6 +32,12 @@ Source availability, timestamps, limits and exports accompany research results. 
 register and printable sheets describe the current implementation without implying equivalent
 coverage or service performance to another provider.
 
+## NHTSA model-year campaigns
+
+`recallsByVehicle` answers a make/model/year with no campaigns with HTTP 400 and the body `{"Count":0,"Message":"Results returned successfully","results":[]}`. Only that exact body counts as zero campaigns; any other non-200 response stays unavailable. `ReportReceivedDate` is day-first (`15/10/2024`); `report_received_date` gives the same date as ISO `YYYY-MM-DD`, and `report_date` keeps NHTSA's original text. NHTSA's `parkIt`, `parkOutSide` and `overTheAirUpdate` campaign advisories become `park_it`, `park_outside` and `over_the_air_update`, or null when missing.
+
+vPIC and NHTSA recall data can use different model names. A 2024 CR-V hybrid decodes as `CR-V`, while three of its campaigns are filed only under `CR-V HYBRID`. Reports therefore add `recalls.related_models`: campaigns filed under longer NHTSA model names for the same make and year (from `/products/vehicle/models?issueType=r`), excluding campaigns already listed. They may or may not apply to the vehicle and never count as VIN status.
+
 ## VIN-specific recall repair status
 
 Tesla Service's [official VIN recall search](https://service.tesla.com/en-US/vin-recall-search) exposes manufacturer-reported statuses including “Recall Completed” and “Recall Incomplete.” The adapter uses the same public Tesla endpoint, requires no account or paid feed, and provides checked timestamps, original status text, campaign details and manufacturer bulletin links. Successful responses are cached for up to 15 minutes; failures are not cached. This endpoint is not a documented third-party API and may change.
@@ -52,7 +58,7 @@ GM `complete` can mean **Dealer Repaired** or **Manual Complete - OTHER**. The o
 
 The [official Honda MyGarage checker](https://mygarage.honda.com/s/recall-search?brand=honda) exposes a free guest action, `OwnAPIController.getRecallsByProductIdentifier`, used by the public vehicle lookup. The adapter discovers the current public framework version from the guest page and submits the VIN with automobile division `A`, without credentials, browser session tokens, login or CAPTCHA. It accepts only a successful action, explicit non-error response and a full matching VIN. `Recall INCOMPLETE` is an open record; unrecognized status strings remain unknown.
 
-Coverage is U.S. Honda automobile safety recalls announced in the past 15 calendar years. `completed_count` remains null because this is an active-recall feed, not completed repair history. A confirmed empty array can establish zero returned active recalls within that scope; an error, missing array or VIN mismatch cannot. Campaign dates never become repair dates. Acura and Honda powersports coverage is not claimed by this adapter.
+A recognized Honda VIN with no active recalls comes back as `campaignType: {}` with no `campaign` array, together with `division_cd` and `model_group_name` (verified November 16, 2026). A VIN Honda does not recognize also returns `campaignType: {}`, but without `division_cd` or `model_group_name`. The adapter therefore reports zero active recalls only when the VIN, division `A` and a model group all confirm the vehicle; otherwise the result stays unconfirmed. Coverage is U.S. Honda automobile safety recalls announced in the past 15 calendar years. `completed_count` remains null because this is an active-recall feed, not completed repair history. A confirmed empty array can establish zero returned active recalls within that scope; an error, missing array or VIN mismatch cannot. Campaign dates never become repair dates. Acura and Honda powersports coverage is not claimed by this adapter.
 
 NHTSA’s [interactive VIN lookup](https://www.nhtsa.gov/recalls) identifies unrepaired recalls, but explicitly excludes completed repairs and has age, manufacturer and timing limitations. Its [API use policy](https://api.nhtsa.gov/) does not support using its consumer VIN API for bulk third-party lookups. [Toyota](https://www.toyota.com/recall/) and [Mopar](https://www.mopar.com/en-us/my-vehicle/recalls/search.html) also offer free official VIN checks.
 

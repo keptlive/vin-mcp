@@ -81,6 +81,20 @@ test('Honda distinguishes confirmed empty VIN results, mismatches, API errors an
  const c=hondaFixture();c.actions[0].state='ERROR';assert.throws(()=>parseHonda(c,hondaVin));
  const u=hondaFixture();u.actions[0].returnValue.returnValue.response.recalls_response.response.recall.campaignType.campaign[0].mfrRecallStatus.value='Pending Review';assert.equal(parseHonda(u,hondaVin).open_count,null);
 });
+test('Honda live empty shape campaignType:{} is zero only for a recognized Honda vehicle',()=>{
+ const empty=(vin=hondaVin,extra={division_cd:'A',model_group_name:'CR-V'})=>({actions:[{id:'1;a',state:'SUCCESS',error:[],returnValue:{returnValue:{response:{recalls_response:{response:{error:'false',recall:{campaignType:{},...extra,VIN:vin}}}}}}}]});
+ const r=parseHonda(empty(),hondaVin);assert.equal(r.open_count,0);assert.equal(r.completed_count,null);assert.equal(r.recalls.length,0);assert.equal(r.coverage.completed_history,false);
+ // Unrecognized VIN (observed for a non-Honda VIN): no division or model group, so unknown, never zero.
+ assert.equal(parseHonda(empty(gmVin,{}),gmVin),null);
+ assert.equal(parseHonda(empty(hondaVin,{division_cd:'A'}),hondaVin),null);
+ assert.equal(parseHonda(empty(hondaVin,{division_cd:'A',model_group_name:'  '}),hondaVin),null);
+ // Any other non-array campaign shape still fails closed.
+ for(const campaignType of [{campaign:{campaignID:'X'}},{other:[]},null,[]]){const b=empty();b.actions[0].returnValue.returnValue.response.recalls_response.response.recall.campaignType=campaignType;assert.throws(()=>parseHonda(b,hondaVin));}
+});
+test('Honda empty-object response reaches the API as an available zero, not invalid_response',async()=>{
+ const lookup=createRecallStatusLookup(async url=>url===HONDA_LOOKUP?html(hondaPage()):json({actions:[{id:'1;a',state:'SUCCESS',error:[],returnValue:{returnValue:{response:{recalls_response:{response:{error:'false',recall:{campaignType:{},division_cd:'A',model_group_name:'CR-V',VIN:hondaVin}}}}}}}]}));
+ const r=await lookup(hondaVin);assert.equal(r.available,true);assert.equal(r.open_count,0);assert.equal(r.completed_count,null);assert.equal(r.source.provider,'Honda MyGarage VIN Recall Search');
+});
 test('new manufacturer adapters cache successes, deduplicate concurrent calls and retry failures',async()=>{
  for(const [vin,reply] of [[fordVin,()=>html(fordPage())],[gmVin,()=>json(gmFixture())]]){
   let calls=0,fail=true;const lookup=createRecallStatusLookup(async()=>{calls++;return fail?new Response('blocked',{status:403}):reply();});

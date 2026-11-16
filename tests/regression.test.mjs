@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getFuelEconomy } from '../lib/epa.mjs';
-import { getRecalls, getComplaints, decodeVin, batchDecode } from '../lib/nhtsa.mjs';
+import { getRecalls, getComplaints, decodeVin, batchDecode, nhtsaDayFirstDate, relatedModelLabels, getRelatedModelRecalls } from '../lib/nhtsa.mjs';
 import { validateVin } from '../lib/validate.mjs';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -73,6 +73,43 @@ for(const [name,fn] of [['recalls',getRecalls],['complaints',getComplaints]]){
 test('recall results state model-year scope, without claiming VIN repair status',async()=>{
   globalThis.fetch=async()=>json({results:[]});const r=await getRecalls('Honda','Accord',2003);
   assert.equal(r.vin_specific,false);assert.equal(r.scope,'make_model_year');assert.match(r.note,/not determined/);
+});
+test('related NHTSA model labels: longer labels only, separate from exact campaigns, failures unknown',async()=>{
+  assert.deepEqual(relatedModelLabels('CR-V',['CR-V','CR-V','CR-V HYBRID','CR-V HYBRID','CR-V FUEL CELL EV','CIVIC SEDAN','CR-VX']),['CR-V FUEL CELL EV','CR-V HYBRID']);
+  assert.deepEqual(relatedModelLabels('',['CR-V HYBRID']),[]);assert.deepEqual(relatedModelLabels('CR-V',null),[]);
+  const calls=[];
+  globalThis.fetch=async url=>{const u=new URL(url);calls.push(u.pathname+'|'+(u.searchParams.get('model')||''));
+    if(u.pathname.endsWith('/products/vehicle/models'))return json({count:3,results:[{model:'CR-V'},{model:'CR-V HYBRID'},{model:'CIVIC SEDAN'}]});
+    return json({results:[{NHTSACampaignNumber:'24V744000'},{NHTSACampaignNumber:'26V366000',ReportReceivedDate:'05/06/2026'}]});};
+  const r=await getRelatedModelRecalls('HONDA','CR-V',2024,[{campaign_number:'24V744000'}]);
+  assert.equal(r.available,true);assert.equal(r.vin_specific,false);assert.equal(r.count,1);assert.equal(r.models[0].nhtsa_model,'CR-V HYBRID');
+  assert.deepEqual(r.models[0].recalls.map(c=>c.campaign_number),['26V366000']);assert.match(r.note,/may or may not apply/);
+  assert.deepEqual(calls,['/products/vehicle/models|','/recalls/recallsByVehicle|CR-V HYBRID']);
+  globalThis.fetch=async url=>new URL(url).pathname.endsWith('/models')?json({results:[{model:'CR-V HYBRID'}]}):new Response('',{status:500});
+  const f=await getRelatedModelRecalls('HONDA','CR-V',2024,[]);assert.equal(f.available,false);assert.equal(f.count,null);
+  globalThis.fetch=async()=>json({unexpected:true});assert.equal((await getRelatedModelRecalls('HONDA','CR-V',2024,[])).available,false);
+});
+test('NHTSA HTTP 400 empty-success body is zero campaigns; other 400s stay unavailable',async()=>{
+  const body=b=>async()=>new Response(JSON.stringify(b),{status:400,headers:{'content-type':'application/json'}});
+  globalThis.fetch=body({Count:0,Message:'Results returned successfully',results:[]});
+  let r=await getRecalls('Honda','Accord Sedan',2024);assert.equal(r.available,true);assert.equal(r.count,0);assert.equal(r.vin_specific,false);
+  for(const b of [{Count:0,Message:'Invalid parameters',results:[]},{Count:1,Message:'Results returned successfully',results:[]},{Count:0,Message:'Results returned successfully',results:[{}]},{Count:0,Message:'Results returned successfully'}]){
+    globalThis.fetch=body(b);r=await getRecalls('Honda','Accord',2024);assert.equal(r.available,false);assert.equal(r.count,null);
+  }
+  globalThis.fetch=async()=>new Response('<h1>Bad Request</h1>',{status:400});r=await getRecalls('Honda','Accord',2024);assert.equal(r.available,false);
+  globalThis.fetch=async()=>new Response(JSON.stringify({Count:0,Message:'Results returned successfully',results:[]}),{status:500});r=await getRecalls('Honda','Accord',2024);assert.equal(r.available,false);
+});
+test('NHTSA day-first report dates become ISO and campaign advisories stay unknown when absent',async()=>{
+  globalThis.fetch=async()=>json({results:[
+    {NHTSACampaignNumber:'24V763000',ReportReceivedDate:'15/10/2024',parkIt:true,parkOutSide:false,overTheAirUpdate:false},
+    {NHTSACampaignNumber:'18V204000',ReportReceivedDate:'04/10/2024'},
+    {NHTSACampaignNumber:'X',ReportReceivedDate:'2024-10-15',parkIt:'Yes'}]});
+  const r=await getRecalls('Honda','CR-V Hybrid',2024);
+  assert.equal(r.recalls[0].report_received_date,'2024-10-15');assert.equal(r.recalls[0].report_date,'15/10/2024');
+  assert.equal(r.recalls[0].park_it,true);assert.equal(r.recalls[0].park_outside,false);assert.equal(r.recalls[0].over_the_air_update,false);
+  assert.equal(r.recalls[1].report_received_date,'2024-10-04');assert.equal(r.recalls[1].park_it,null);assert.equal(r.recalls[1].park_outside,null);
+  assert.equal(r.recalls[2].report_received_date,null);assert.equal(r.recalls[2].park_it,null);
+  for(const v of ['31/02/2024','32/01/2024','01/13/2024','1/2/2024',null,'01/01/1900'])assert.equal(nhtsaDayFirstDate(v),null);
 });
 test('vPIC current field names populate backup camera and braking',async()=>{
   globalThis.fetch=async()=>json({Results:[{Make:'Honda',Model:'Accord',ModelYear:'2020',RearVisibilitySystem:'Standard',CIB:'Standard'}]});
