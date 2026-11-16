@@ -131,6 +131,7 @@ $$('[data-vin]').forEach(el => {
 // ── Render Results ──
 function renderResults(report) {
   renderHero(report);
+  window.CarSheet?.render(report);
   renderOverview(report);
   renderEngine(report);
   renderSafetyRatings(report);
