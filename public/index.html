@@ -27,20 +27,72 @@
 
   <!-- Structured Data -->
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "mcp.vin",
-    "description": "Free VIN decoder",
-    "url": "https://mcp.vin/",
-    "applicationCategory": "UtilitiesApplication",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://mcp.vin/#website",
+      "url": "https://mcp.vin/",
+      "name": "mcp.vin",
+      "description": "Free VIN decoder and vehicle research from public NHTSA and EPA data",
+      "inLanguage": "en",
+      "publisher": {
+        "@id": "https://mcp.vin/#org"
+      }
     },
-    "operatingSystem": "Any"
-  }
+    {
+      "@type": "Organization",
+      "@id": "https://mcp.vin/#org",
+      "name": "mcp.vin",
+      "url": "https://mcp.vin/",
+      "logo": "https://mcp.vin/icon-512.png",
+      "email": "privacy@mcp.vin",
+      "sameAs": [
+        "https://github.com/keptlive/vin-mcp",
+        "https://www.npmjs.com/package/vin-mcp"
+      ]
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "https://mcp.vin/#app",
+      "name": "mcp.vin",
+      "url": "https://mcp.vin/",
+      "description": "Free VIN decoder and vehicle research: specifications, recalls, complaints, safety ratings and fuel economy from NHTSA and EPA data. Also a free REST API and MCP server with no API key.",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Any",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "VIN decoding and check-digit validation",
+        "NHTSA recall campaigns and complaints",
+        "NHTSA crash-test safety ratings",
+        "EPA fuel economy",
+        "Side-by-side comparison of two to four VINs",
+        "REST API without an API key",
+        "Remote MCP server at https://mcp.vin/mcp"
+      ],
+      "publisher": {
+        "@id": "https://mcp.vin/#org"
+      }
+    },
+    {
+      "@type": "WebAPI",
+      "@id": "https://mcp.vin/#api",
+      "name": "mcp.vin VIN decoder API",
+      "description": "Free REST API that decodes a VIN into specifications, recalls, complaints, safety ratings and fuel economy. No API key or account.",
+      "url": "https://mcp.vin/api/vin/1HGCM82633A004352",
+      "documentation": "https://mcp.vin/vin-decoder-api/",
+      "provider": {
+        "@id": "https://mcp.vin/#org"
+      }
+    }
+  ]
+}
   </script>
 
   <link rel="stylesheet" href="/style.css?v=23311fc884f8">
