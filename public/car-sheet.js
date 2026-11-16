@@ -30,7 +30,7 @@ const CarSheet = (() => {
   const num = v => (present(v) && Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
   const fmt = (v, digits = 0) => Number(v).toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: digits });
   const titleCase = v => String(v || '').toLowerCase().replace(/(^|[\s\-/(.,])([a-z])/g, (m, a, b) => a + b.toUpperCase())
-    .replace(/\b(Llc|Usa|Ag|Gmna|Bmw|Gm)\b/g, w => w.toUpperCase());
+    .replace(/\b(Llc|Usa|Ag|Gmna|Bmw|Gm)\b/g, w => w.toUpperCase()).replace(/(?!^)\b(Of|And|The)\b/g, w => w.toLowerCase());
   const sentence = v => { const s = String(v || '').toLowerCase().replace(/\(([a-z]{2,5})\)/g, (m, a) => `(${a.toUpperCase()})`); return s.charAt(0).toUpperCase() + s.slice(1); };
   const makeName = m => (/^[A-Z]{2,3}$/.test(m || '') ? m : titleCase(m));
   const host = url => String(url).replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -53,7 +53,8 @@ const CarSheet = (() => {
     return entry ? { ...entry, title: entry.title || `${makeName(make)} owner’s manuals` } : null;
   }
 
-  const row = (label, value) => (present(value) ? `<div class="sheet-row"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>` : '');
+  // Long slash lists from vPIC ("Hatchback/Liftback/Notchback") may wrap after each slash.
+  const row = (label, value) => (present(value) ? `<div class="sheet-row"><dt>${esc(label)}</dt><dd>${esc(value).replace(/\//g, '/<wbr>')}</dd></div>` : '');
   const rowHtml = (label, html) => `<div class="sheet-row"><dt>${esc(label)}</dt><dd>${html}</dd></div>`;
   const section = (id, title, inner, extra = '') => `<section class="sheet-section sheet-${id}" aria-labelledby="sheet-h-${id}"><h3 id="sheet-h-${id}">${esc(title)}</h3>${inner}${extra}</section>`;
   const list = rows => { const html = rows.join(''); return html ? `<dl class="sheet-list">${html}</dl>` : ''; };
@@ -170,11 +171,13 @@ const CarSheet = (() => {
   }
 
   function vinSection(r) {
-    const vin = String(r.vin || ''), val = r.validation || {}, v = r.vehicle || {}, p = r.plant || {}, w = val.wmi || {};
+    const vin = String(r.vin || ''), val = r.validation || {}, v = r.vehicle || {}, p = r.plant || {}, w = val.wmi || {}, raw = r.raw_nhtsa || {};
     if (vin.length !== 17) return '';
     const check = val.checksum ? (val.checksum.valid ? 'Valid' : `Invalid (expected ${val.checksum.expected})`) : null;
+    // The local WMI table does not know every maker code; vPIC's manufacturer for this VIN is the fallback.
+    const maker = present(w.manufacturer) && w.manufacturer !== 'Unknown' ? w.manufacturer : present(raw.Manufacturer) ? titleCase(raw.Manufacturer) : null;
     const rows = [
-      ['1–3', vin.slice(0, 3), [w.manufacturer, w.country].filter(present).join(', ') || 'Manufacturer code'],
+      ['1–3', vin.slice(0, 3), [maker, w.country].filter(present).join(', ') || 'Manufacturer code'],
       ['4–8', vin.slice(3, 8), 'Model, body and engine codes (set by the maker)'],
       ['9', vin[8], check ? `Check digit: ${check.toLowerCase()}` : 'Check digit'],
       ['10', vin[9], present(v.year) ? `Model year ${v.year}` : 'Model year'],
@@ -257,7 +260,9 @@ const CarSheet = (() => {
     current = r;
     const body = document.querySelector('#sheet-body'), foot = document.querySelector('#sheet-foot');
     if (!body || !r || !r.vehicle) return;
-    const out = html(r);
+    const out = html(r), v = r.vehicle, title = document.querySelector('#vehicle-title');
+    // Same name as the server-rendered page title: "2017 Chevrolet Bolt EV LT", not the vPIC capitals.
+    if (title) title.textContent = [v.year, makeName(v.make), v.model, v.trim].filter(present).join(' ');
     body.innerHTML = out.body;
     if (foot) foot.innerHTML = out.foot;
     const assembled = fmtDate(r.provenance && r.provenance.assembled_at), prepared = document.querySelector('#sheet-prepared');
