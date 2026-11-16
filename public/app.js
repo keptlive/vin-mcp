@@ -352,10 +352,14 @@ function renderCampaigns(r) {
     $('#recalls-body').innerHTML = '<div class="empty-state">Recall lookup is temporarily unavailable. Please try again.</div>';
     return;
   }
+  const related = relatedCampaignsHTML(rec);
   if (count === 0) {
     badge.textContent = '0';
-    badge.className = 'count-badge count-green';
-    $('#recalls-body').innerHTML = '<div class="empty-state">No campaigns found for this make, model and year. Check your VIN at NHTSA for unrepaired recalls.</div>';
+    // Green only when related model names were checked and carry nothing more.
+    badge.className = rec?.related_campaigns_found === true || rec?.related_campaigns_found === null ? 'count-badge' : 'count-badge count-green';
+    $('#recalls-body').innerHTML = (rec?.related_campaigns_found === true
+      ? '<div class="empty-state">No campaigns are filed under this exact make, model and year. NHTSA lists campaigns under related model names below. Check your VIN at NHTSA for unrepaired recalls.</div>'
+      : '<div class="empty-state">No campaigns found for this make, model and year. Check your VIN at NHTSA for unrepaired recalls.</div>') + related;
     return;
   }
 
@@ -387,7 +391,29 @@ function renderCampaigns(r) {
          </div>`).join('')}</div>`
     : '';
 
-  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected. <a href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener">Check VIN-specific repair status at NHTSA</a>.</p>' + items + showMore;
+  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected. <a href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener">Check VIN-specific repair status at NHTSA</a>.</p>' + items + showMore + related;
+}
+
+// Campaigns NHTSA files under other model names (CR-V HYBRID for a CR-V, F150 for F-150).
+// Shown apart from the exact list and never added to its count.
+const RELATED_MATCH_TEXT = { longer_name: 'longer model name', spelling: 'different spelling', parenthetical: 'name without the bracketed part', family_name: 'model within the family', make_name: 'name with or without the make', shorter_name: 'shorter model name', trailing_name: 'last part of the model name' };
+function relatedCampaignsHTML(rec) {
+  const rel = rec?.related_models;
+  if (rec?.related_campaigns_found === null) return '<p class="empty-state">Related NHTSA model names could not be checked, so campaigns filed under another model name may be missing.</p>';
+  if (!rel?.available || !rel.count) return '';
+  const groups = rel.models.map(m => `
+    <div class="recall-item">
+      <div class="recall-component">NHTSA model name: ${esc(m.nhtsa_model)}${RELATED_MATCH_TEXT[m.match] ? ` (${esc(RELATED_MATCH_TEXT[m.match])})` : ''}</div>
+      ${m.recalls.map(recall => `<div class="recall-details">
+        <div><span class="recall-detail-label">${esc(recall.component || 'Unknown Component')}</span></div>
+        <div class="recall-summary">${esc(recall.summary || '')}</div>
+        ${recall.campaign_number ? `<div><span class="recall-detail-label">Campaign:</span> ${esc(recall.campaign_number)}</div>` : ''}
+        ${recall.report_received_date || recall.report_date ? `<div><span class="recall-detail-label">Reported to NHTSA:</span> ${esc(recall.report_received_date || recall.report_date)}</div>` : ''}
+      </div>`).join('')}
+    </div>`).join('');
+  const unchecked = rel.unchecked_labels?.length ? `<p class="empty-state">${esc(rel.unchecked_labels.length)} more related model name${rel.unchecked_labels.length === 1 ? ' was' : 's were'} not checked.</p>` : '';
+  return `<h3>Related model names · ${esc(rel.count)} campaign${rel.count === 1 ? '' : 's'}</h3>
+    <p class="empty-state">These may or may not apply to this vehicle. NHTSA files them for the same make and year under another model name, such as a hybrid or body-style name. They are not counted above. Check your VIN with the manufacturer or NHTSA.</p>${groups}${unchecked}`;
 }
 
 window.toggleRecalls = function(btn) {
