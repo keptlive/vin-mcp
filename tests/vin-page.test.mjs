@@ -37,6 +37,16 @@ test('missing source values are left out rather than shown as zero', () => {
   assert.equal('NHTSA overall safety rating' in facts, false);
 });
 
+test('an exact-name zero is not stated bare when related NHTSA names carry campaigns or the name is unused', () => {
+  for (const recalls of [{available: true, count: 0, recalls: [], related_campaigns_found: true}, {available: true, count: 0, recalls: [], related_campaigns_found: false, related_models: {decoded_name_in_recall_data: false}}]) {
+    const html = renderVinPage(template, {...report, recalls});
+    assert.doesNotMatch(html, /0 recall campaigns/);assert.match(html, /60 NHTSA complaints for this model year\./);
+    assert.match(Object.fromEntries(vinFacts({...report, recalls}).facts)['Recall campaigns for this model year'], recalls.related_campaigns_found ? /^0 under this exact model name; NHTSA lists campaigns under related/ : /^0 under this exact model name; NHTSA has never filed/);
+  }
+  const plain = renderVinPage(template, {...report, recalls: {available: true, count: 0, recalls: [], related_campaigns_found: false}});
+  assert.match(plain, /0 recall campaigns and 60 NHTSA complaints for this model year\./);
+});
+
 test('values from upstream are escaped', () => {
   const html = renderVinPage(template, {...report, vehicle: {...report.vehicle, trim: '<script>alert(1)</script>"'}});
   assert.equal(html.includes('<script>alert(1)'), false);
