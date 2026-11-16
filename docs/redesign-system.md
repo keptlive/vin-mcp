@@ -67,3 +67,28 @@ Desktop and mobile visual checks are captured by the parent implementation sessi
 under `outputs/vin-research/redesign-20261025`. The agent reviewed the saved-vehicle
 desktop/mobile and mobile comparison screenshots during implementation. Final
 browser, keyboard, print and deployment results belong in the verification receipt.
+
+## Car information sheet
+
+16 November 2026. A VIN report now opens with a one-page car information sheet
+(`public/car-sheet.js`, markup in `#car-sheet`, styles at the end of `style.css`).
+The former vehicle hero (title, VIN segments, badges, actions, photos) is the sheet's
+header; every report card follows unchanged under "Full report".
+
+- Sections: vehicle, engine and drive, recalls and safety, size and weight, tires and
+  wheels, owner's manual and service, the VIN position by position, then sources, the
+  data date, the live report URL and a QR code drawn locally by `public/qr.js`.
+- Only report facts are printed. Missing values are left out; unavailable lookups say
+  "Unknown". Model-year campaigns carry "Not this car's repair status"; the VIN status
+  line names the manufacturer source and its check time.
+- Tire pressures, tire sizes, fuse layout, oil and other owner's-manual facts have no
+  public per-vehicle source. The sheet links to the maker's official manual library
+  (only pages checked on 16 November 2026) and gives labelled write-in fields. Typed
+  values are not stored; they print with the page.
+- Size and weight add Transport Canada model-variant dimensions from
+  `/api/research/dimensions` (same-origin). One matched record gives one value;
+  several give ranges, and the matched record names or the variant count are printed.
+- Screen: three columns from 1100px, two to 700px, one below. Print: "Print this sheet"
+  prints one US Letter page (black on white, three columns, no navigation or buttons).
+  The toolbar's "Print view" and the browser's own print put the sheet on page 1 and
+  the full report after it.

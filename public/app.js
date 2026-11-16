@@ -170,7 +170,7 @@ function renderHero(r) {
 
   const recallCount = r.recalls?.count || 0;
   if (recallCount > 0) {
-    badges.push(`<span class="badge badge-red">${recallCount} Recall Campaign${recallCount > 1 ? 's' : ''}</span>`);
+    badges.push(`<span class="badge badge-red">${recallCount} model-year recall campaign${recallCount > 1 ? 's' : ''}</span>`);
   } else if (r.recalls?.available === false) {
     badges.push(`<span class="badge badge-neutral">Recall lookup unavailable</span>`);
   } else {

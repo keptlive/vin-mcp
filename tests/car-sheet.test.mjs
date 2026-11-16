@@ -94,7 +94,7 @@ test('VIN recall status names its maker source; model-year campaigns are not rep
   const mopar = text(sheet.html({...base(), recall_status: {available: true, open_count: null, open_record_count: 1, completed_count: null, source: {provider: 'Mopar fleet lookup'}}}).body);
   assert.match(mopar, /1 open recall or campaign records · unknown completed or closed/);
   const toyota = text(sheet.html({...base(), recall_status: {available: false, reason: 'interactive_verification_required', verification_url: 'https://www.toyota.com/recall/'}}).body);
-  assert.match(toyota, /Unknown\. The maker’s check needs a person to verify\. Check this VIN with the official source www\.toyota\.com\/recall/);
+  assert.match(toyota, /Unknown\. The maker’s check needs a person to verify\. Check this VIN with the official source www\.toyota\.com /);
   const related = text(sheet.html({...base(), recalls: {available: true, count: 3, recalls: [], related_models: {available: true, count: 2}}}).body);
   assert.match(related, /3 for the 2017 Chevrolet Bolt EV \(plus 2 filed under related model names; they may not apply\)/);
 });

@@ -93,3 +93,21 @@ No automated adapter is claimed for those protected flows. Toyota-family VINs re
 Further review on October 24 traced [Toyota Hawaii](https://www.toyotahawaii.com/), whose recall link returns to Toyota's protected U.S. checker, and [Toyota Puerto Rico](https://www.toyotapr.com/); no independent free U.S. VIN repair-status feed was established. Toyota's [Spanish Owners page](https://www.toyota.com/espanol/owners/recalls/) directs users to the same consumer recall service. These additional channels did not resolve the automation gap.
 
 The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.org/faqs/) describes a free CARFAX bulk-check account request for qualified organizations. That is a potential access application, not an established unauthenticated integration or permission to reuse its data in this product. No paid source, private account, CAPTCHA bypass or unsupported zero-count fallback was added.
+
+## Owner facts on the car information sheet (checked 16 November 2026)
+
+- **Tire pressures, tire sizes, load index.** FMVSS No. 110 (49 CFR 571.110 S4.3) puts the
+  recommended cold pressures and original tire sizes on the Tire and Loading Information
+  placard on the driver's side B-pillar. No federal dataset publishes them per vehicle:
+  vPIC's 145 variables include only wheel diameter, number of wheels and TPMS type; EPA
+  and Canadian specification records have no tire fields. The sheet shows the wheel
+  diameter and TPMS type when vPIC has them and leaves write-in fields for the placard.
+- **Fuse layout, oil, fluids, tank size, towing.** These are in the copyrighted owner's
+  manual. The sheet links to the maker's official manual library and copies nothing.
+  Verified with a plain request: Chevrolet, GMC, Buick and Cadillac `manuals-guides`,
+  Toyota, Honda and Acura MyGarage, Nissan. Ford and Tesla refuse scripted requests;
+  their pages are confirmed in search results only. No Subaru or Lexus library is listed.
+- **Dimensions.** Transport Canada's model-variant specifications (via vPIC) are shown
+  on the sheet, labelled as not VIN-specific. Some model names differ from vPIC's
+  ("Bolt EV" is "BOLT 4DR HATCHBACK"), so an empty lookup is retried once with the first
+  word of the model and the matched record names are printed.

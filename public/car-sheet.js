@@ -29,11 +29,13 @@ const CarSheet = (() => {
   const present = v => v !== null && v !== undefined && v !== '' && v !== 'Not Applicable';
   const num = v => (present(v) && Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
   const fmt = (v, digits = 0) => Number(v).toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  const fmtAuto = v => fmt(v, Number.isInteger(Number(v)) ? 0 : 1); // 51 kWh, 1.5 kWh, 7.2 kW
   const titleCase = v => String(v || '').toLowerCase().replace(/(^|[\s\-/(.,])([a-z])/g, (m, a, b) => a + b.toUpperCase())
     .replace(/\b(Llc|Usa|Ag|Gmna|Bmw|Gm)\b/g, w => w.toUpperCase()).replace(/(?!^)\b(Of|And|The)\b/g, w => w.toLowerCase());
   const sentence = v => { const s = String(v || '').toLowerCase().replace(/\(([a-z]{2,5})\)/g, (m, a) => `(${a.toUpperCase()})`); return s.charAt(0).toUpperCase() + s.slice(1); };
   const makeName = m => (/^[A-Z]{2,3}$/.test(m || '') ? m : titleCase(m));
   const host = url => String(url).replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const site = url => host(url).split(/[/?#]/)[0];
 
   /** "16 Nov 2026, 22:41 UTC" from an ISO time, or null. */
   function fmtDate(iso) {
@@ -90,8 +92,8 @@ const CarSheet = (() => {
     const grade = f.available && present(f.fuel_type) && !f.is_ev ? ` (EPA: ${String(f.fuel_type).toLowerCase()})` : '';
     const trans = [num(t.speeds) && `${t.speeds}-speed`, present(t.type) && String(t.type).toLowerCase()].filter(Boolean).join(' ');
     const kwh = num(raw.BatteryKWh), kwhTo = num(raw.BatteryKWh_to);
-    const battery = kwh ? `${fmt(kwh)}${kwhTo && kwhTo !== kwh ? '–' + fmt(kwhTo) : ''} kWh` : null;
-    const charger = [present(raw.ChargerLevel) && String(raw.ChargerLevel).split(' (')[0], num(raw.ChargerPowerKW) && `${fmt(raw.ChargerPowerKW)} kW`].filter(Boolean).join(', ');
+    const battery = kwh ? `${fmtAuto(kwh)}${kwhTo && kwhTo !== kwh ? '–' + fmtAuto(kwhTo) : ''} kWh` : null;
+    const charger = [present(raw.ChargerLevel) && String(raw.ChargerLevel).split(' (')[0], num(raw.ChargerPowerKW) && `${fmtAuto(raw.ChargerPowerKW)} kW`].filter(Boolean).join(', ');
     const unit = f.is_ev ? 'MPGe' : 'mpg';
     const mpg = f.available && num(f.combined_mpg) ? `${f.combined_mpg} ${unit} combined${num(f.city_mpg) && num(f.highway_mpg) ? ` (${f.city_mpg} city, ${f.highway_mpg} hwy)` : ''}` : null;
     const isEv = /BEV/i.test(e.ev_type || '') || /^electric$/i.test(e.fuel_type || '');
@@ -117,7 +119,7 @@ const CarSheet = (() => {
   function tireSection(r) {
     const raw = r.raw_nhtsa || {}, tpms = (r.safety_equipment || {}).tpms;
     const front = num(raw.WheelSizeFront), rear = num(raw.WheelSizeRear);
-    const wheels = front && rear && front !== rear ? `${fmt(front)} in front, ${fmt(rear)} in rear` : (front || rear) ? `${fmt(front || rear)} in` : null;
+    const wheels = front && rear && front !== rear ? `${fmtAuto(front)} in front, ${fmtAuto(rear)} in rear` : (front || rear) ? `${fmtAuto(front || rear)} in` : null;
     const tpmsText = !present(tpms) ? null : /^direct$/i.test(tpms) ? 'Direct (a pressure sensor in each wheel)' : /^indirect$/i.test(tpms) ? 'Indirect (reads wheel speed, no pressure sensors)' : tpms;
     const rows = [row('Wheel diameter', wheels), row('Pressure monitor (TPMS)', tpmsText)];
     const fields = [writeIn('Tire size, front'), writeIn('Tire size, rear'), writeIn('Cold pressure, front', 'psi'), writeIn('Cold pressure, rear', 'psi'), writeIn('Spare', 'psi')].join('');
@@ -155,7 +157,7 @@ const CarSheet = (() => {
       status = `Unknown. ${esc(why)}`;
     }
     const verify = (s && s.verification_url) || 'https://www.nhtsa.gov/recalls';
-    status += ` <a href="${esc(verify)}" target="_blank" rel="noopener">Check this VIN with the official source</a><span class="sheet-url">${esc(host(verify))}</span>`;
+    status += ` <a href="${esc(verify)}" target="_blank" rel="noopener">Check this VIN with the official source</a><span class="sheet-url">${esc(site(verify))}</span>`;
     const campaigns = !rec || rec.available === false || typeof rec.count !== 'number' ? 'Unknown (lookup unavailable)'
       : `${fmt(rec.count)} for the ${name}`;
     const related = rec && rec.related_models && rec.related_models.available && rec.related_models.count > 0 ? ` (plus ${fmt(rec.related_models.count)} filed under related model names; they may not apply)` : '';
@@ -192,7 +194,7 @@ const CarSheet = (() => {
     const maker = r.recall_status && r.recall_status.available && r.recall_status.source && r.recall_status.source.provider;
     const sources = ['NHTSA vPIC (maker-submitted VIN data)', 'NHTSA recalls, complaints and crash ratings', r.fuel_economy && r.fuel_economy.available && 'EPA FuelEconomy.gov', 'Transport Canada via NHTSA vPIC (dimensions)', maker].filter(Boolean);
     const qr = typeof VinQr !== 'undefined' ? VinQr.svg(url, `QR code linking to ${url}`) : '';
-    return `<div class="sheet-foot-text"><p><strong>Sources:</strong> ${esc(sources.join('; '))}.${assembled ? ` Data gathered ${esc(assembled)}.` : ''}</p><p>Decoded from the VIN and public records. Options, repairs and changes since the car was built are not shown. Check the placard, the manual and the official recall links above.</p><p class="sheet-live">Live report: <a href="${url}">${url}</a></p></div>${qr ? `<div class="sheet-qr">${qr}</div>` : ''}`;
+    return `<div class="sheet-foot-text"><p><strong>Sources:</strong> ${esc(sources.join('; '))}.${assembled ? ` Data gathered ${esc(assembled)}.` : ''}</p><p>Decoded from the VIN and public records; options, repairs and later changes are not shown. Check the placard, the manual and the official recall links.</p><p class="sheet-live">Live report: <a href="${url}">${url}</a></p></div>${qr ? `<div class="sheet-qr">${qr}</div>` : ''}`;
   }
 
   /** Sheet HTML for a report: {body, foot}. Pure; used by render() and the tests. */
