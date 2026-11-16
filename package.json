@@ -2,7 +2,7 @@
   "name": "vin-mcp",
   "version": "1.7.0",
   "type": "module",
-  "description": "Free VIN decoder MCP server \u2014 NHTSA, EPA, safety ratings, recalls, fuel economy, vehicle photos",
+  "description": "Free VIN decoder MCP server — NHTSA, EPA, safety ratings, recalls, fuel economy, vehicle photos",
   "main": "server.mjs",
   "bin": {
     "vin-mcp": "server.mjs",
@@ -14,12 +14,13 @@
     "public/",
     "LICENSE",
     "README.md",
-    "cli.mjs"
+    "cli.mjs",
+    "server.json"
   ],
   "scripts": {
     "start": "node server.mjs --http --port 3200",
     "dev": "node --watch server.mjs --http --port 3200",
-    "test": "node --test tests/*.test.mjs && python3 tests/investigations_test.py && python3 tests/communications_storage_test.py"
+    "test": "node scripts/render-tool-directory.mjs --check && node --test tests/*.test.mjs && python3 tests/investigations_test.py && python3 tests/communications_storage_test.py"
   },
   "keywords": [
     "vin",
@@ -31,7 +32,13 @@
     "car",
     "recall",
     "safety-ratings",
-    "model-context-protocol"
+    "model-context-protocol",
+    "recalls",
+    "epa",
+    "fuel-economy",
+    "vin-api",
+    "free-vin-api",
+    "vin-lookup"
   ],
   "author": "keptlive",
   "license": "MIT",
@@ -50,5 +57,6 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "zod": "^3.25.0 || ^4.0.0"
-  }
+  },
+  "mcpName": "io.github.keptlive/vin-mcp"
 }

@@ -30,6 +30,28 @@ Additionally, VIN validation (checksum, WMI country/manufacturer decode, model y
 
 ## Quick Start -- Connect via MCP
 
+### Remote HTTP (nothing to install, no API key)
+
+Use the hosted MCP endpoint:
+
+```
+https://mcp.vin/mcp
+```
+
+Add to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "vin-mcp": {
+      "url": "https://mcp.vin/mcp"
+    }
+  }
+}
+```
+
+---
+
 ### Smithery (one command)
 
 ```bash
@@ -43,7 +65,7 @@ Add to your `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "vin": {
+    "vin-mcp": {
       "command": "npx",
       "args": ["-y", "vin-mcp"]
     }
@@ -56,7 +78,7 @@ Or if you have the repo cloned locally:
 ```json
 {
   "mcpServers": {
-    "vin": {
+    "vin-mcp": {
       "command": "node",
       "args": ["/path/to/vin-mcp/server.mjs"]
     }
@@ -64,27 +86,6 @@ Or if you have the repo cloned locally:
 }
 ```
 
-### Claude Desktop / claude.ai (HTTP)
-
-Use the hosted MCP endpoint:
-
-```
-https://mcp.vin/mcp
-```
-
-Add to your Claude Desktop config:
-
-```json
-{
-  "mcpServers": {
-    "vin": {
-      "url": "https://mcp.vin/mcp"
-    }
-  }
-}
-```
-
----
 
 ## MCP Tools
 

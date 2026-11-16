@@ -31,6 +31,7 @@
     "author": {"@type": "Organization", "name": "mcp.vin", "url": "https://mcp.vin"},
     "publisher": {"@type": "Organization", "name": "mcp.vin"},
     "datePublished": "2026-03-15",
+    "dateModified": "2026-10-30",
     "url": "https://mcp.vin/vehicle-safety-recalls/"
   }
   </script>
@@ -66,7 +67,7 @@
       <span class="meta-tag">Safety</span>
       <span class="meta-tag">Recalls</span>
       <span class="meta-tag">Free Tool</span>
-      <span class="meta-date">March 2026</span>
+      <span class="meta-date">Published March 2026 · Updated October 2026</span>
     </div>
 
     <h1>How to Check Vehicle Safety Recalls by VIN</h1>
@@ -89,11 +90,11 @@
 
     <p>A safety recall happens when a manufacturer or the NHTSA determines that a vehicle has a defect that poses an unreasonable risk of injury or death. The manufacturer is legally required to notify every affected vehicle owner and fix the problem for free.</p>
 
-    <p>This isn't optional. It's federal law, established by the National Traffic and Motor Vehicle Safety Act. The manufacturer pays for everything &mdash; parts, labor, shipping, rental cars if needed. You pay nothing.</p>
+    <p>This isn't optional. It's federal law, established by the National Traffic and Motor Vehicle Safety Act. Recall remedies are generally provided without charge, subject to applicable rules. Ask the manufacturer about eligibility, parts and transportation.</p>
 
     <p>Recalls can start two ways. Sometimes the manufacturer discovers the issue through internal testing or warranty claims and voluntarily initiates the recall. Other times, the NHTSA opens an investigation after consumer complaints or crash reports and orders the manufacturer to act. Either way, the fix is free.</p>
 
-    <p>As of early 2026, there are roughly 80 million unrepaired recalled vehicles on US roads. That's about 1 in 4 registered vehicles. Yours might be one of them.</p>
+    <p>Check your VIN regularly: recall information and remedies can change.</p>
 
     <h2 id="how-to-check">How to Check for Recalls by VIN</h2>
 
@@ -101,11 +102,11 @@
 
     <h3>Method 1: NHTSA.gov (official source)</h3>
 
-    <p>Go to <a href="https://www.nhtsa.gov/recalls" rel="noopener noreferrer">NHTSA.gov/recalls</a> and enter the VIN. This is the definitive source &mdash; the NHTSA maintains the national recall database. You'll see any open recalls with the campaign number, defect description, safety risk, and remedy.</p>
+    <p>Go to <a href="https://www.nhtsa.gov/recalls" rel="noopener noreferrer">NHTSA.gov/recalls</a> and enter the VIN. This is the definitive source &mdash; the NHTSA maintains the national recall database. It shows certain unrepaired recalls, subject to the coverage and age limitations listed on that page. It does not show completed recalls.</p>
 
     <h3>Method 2: mcp.vin (decode + recalls in one step)</h3>
 
-    <p><a href="/">mcp.vin</a> decodes the full VIN and includes recall data alongside the vehicle specs. You get manufacturer, model year, engine type, assembly plant, safety equipment, and any open recalls &mdash; all from a single lookup. No signup, no email required.</p>
+    <p><a href="/">mcp.vin</a> decodes the full VIN and includes recall data alongside the vehicle specs. You can see available specifications and model-year recall campaigns. For supported manufacturers, VIN-specific status may also be available. A campaign is not confirmation that this VIN is affected or that a repair is open or completed; unavailable status is unknown. No signup is required for public research.</p>
 
     <p>Developers can also pull recall data programmatically via the <a href="/vin-decoder-api/">free API</a>: <code>GET https://mcp.vin/api/vin/{VIN}/recalls</code></p>
 
@@ -114,7 +115,7 @@
     <p>Most major automakers run their own recall lookup tools: Toyota, Honda, Ford, GM, Hyundai, and others. These sometimes show more detail than the NHTSA database &mdash; like parts availability and estimated repair times.</p>
 
     <div class="cta-box">
-      <p>Check any VIN for recalls and full vehicle specs &mdash; free, no signup.</p>
+      <p>Research available vehicle specifications and recall campaigns &mdash; free, no signup. Verify VIN-specific status with NHTSA and the manufacturer.</p>
       <a href="/" class="cta-btn">Check Recalls at mcp.vin</a>
     </div>
 
@@ -137,7 +138,7 @@
 
     <div class="info-card">
       <div class="info-card-title">Airbag defects</div>
-      <div class="info-card-desc">Non-deployment, unwanted deployment, and sensor malfunctions. Airbag recalls account for roughly 20% of all safety recalls.</div>
+      <div class="info-card-desc">Non-deployment, unwanted deployment, and sensor malfunctions. Check the specific recall notice for the defect and remedy.</div>
     </div>
 
     <div class="info-card">
@@ -183,7 +184,7 @@
 
     <div class="insight-box">
       <div class="insight-label">Good to know</div>
-      Federal law requires recall repairs at no charge &mdash; parts, labor, everything. If a dealer tries to charge you, they're violating federal law. Report them to the NHTSA. Also: for high-severity recalls where parts aren't available yet, the manufacturer may offer a loaner vehicle or rental car reimbursement.
+      Recall remedies are generally free, subject to applicable eligibility rules. Contact the manufacturer or NHTSA if you have questions about a charge. Also: for high-severity recalls where parts aren't available yet, the manufacturer may offer a loaner vehicle or rental car reimbursement.
     </div>
 
     <h2 id="buying-used">Recalls and Buying a Used Car</h2>
@@ -192,11 +193,11 @@
 
     <p><strong>One open recall isn't a dealbreaker.</strong> If it's a minor software update, schedule the repair after purchase &mdash; it's free.</p>
 
-    <p><strong>Multiple unresolved recalls tell a story.</strong> If a car has 3 or 4 open recalls dating back several years, the previous owner wasn't maintaining it. What else did they skip?</p>
+    <p><strong>Multiple unresolved recalls tell a story.</strong> Review the severity, remedy and parts availability with the manufacturer; an open recall alone does not establish how the vehicle was maintained.</p>
 
     <p><strong>Some recalls are serious enough to affect your decision.</strong> An open recall for a fuel system leak or airbag defect should give you real pause. Either insist the seller get it fixed before closing, or factor in the hassle.</p>
 
-    <p><strong>Completed recalls are a good sign.</strong> A history showing recalls that were promptly repaired means the previous owner paid attention.</p>
+    <p><strong>Completed recalls are a good sign.</strong> Keep repair records and ask the manufacturer to confirm the repair when needed.</p>
 
     <p>Run the VIN at <a href="https://www.nhtsa.gov/recalls" rel="noopener noreferrer">NHTSA.gov/recalls</a> for the official recall status, and decode it at <a href="/">mcp.vin</a> for the full vehicle specs. Together, these two free lookups give you a solid picture of what you're buying. For more on the full used-car research process, see our <a href="/free-vin-check/">free VIN check guide</a>.</p>
 
@@ -211,15 +212,8 @@
   </div>
 
   <footer class="footer">
-    <p>Data from <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener noreferrer">NHTSA</a>, <a href="https://fueleconomy.gov" target="_blank" rel="noopener noreferrer">EPA</a>, <a href="https://www.imagin.studio" target="_blank" rel="noopener noreferrer">IMAGIN.studio</a></p>
+    <p>Data from NHTSA, EPA and IMAGIN.studio. <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
   </footer>
-
-  <div style="text-align:center;padding:1.5rem 1rem;margin-top:2rem;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;color:#888;font-family:-apple-system,sans-serif;">
-    Built by <a href="https://helloandy.net" style="color:#7c3aed;text-decoration:none;">Andy</a> &middot;
-    <a href="https://qrcode.host" style="color:#06b6d4;text-decoration:none;">Build a microsite</a> &middot;
-    <a href="https://qrmcp.dev" style="color:#06b6d4;text-decoration:none;">Generate QR codes</a> &middot;
-    <a href="https://webmcplist.com" style="color:#06b6d4;text-decoration:none;">WebMCP Directory</a>
-  </div>
 
   <script data-goatcounter="https://helloandy.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>

@@ -16,7 +16,7 @@
     q('#my-vins-btn').setAttribute('aria-pressed',String(id === 'saved'));
     q('#user-menu').open = false;
     q('#print-view').hidden = id === 'saved';
-    document.title = titles[id] + ' | mcp.vin';
+    document.title = (id === 'report' ? 'Free VIN Decoder & Vehicle Research' : titles[id]) + ' | mcp.vin';
     if (id === 'developers') loadToolDirectory();
   }
   function navigate(id) {
@@ -95,7 +95,9 @@
   async function loadToolDirectory() {
     if (toolDirectoryLoaded || toolDirectoryPending) return;
     toolDirectoryPending = true;
-    const target = q('#tool-directory'); target.textContent = 'Loading the server’s tool directory…';
+    const target = q('#tool-directory');
+    if (target.querySelector?.('.tool-group')) { toolDirectoryLoaded = true; toolDirectoryPending = false; return; }
+    target.textContent = 'Loading the server’s tool directory…';
     try {
       const response = await fetch('/api/tools',{cache:'no-store'});
       if (!response.ok) throw new Error('HTTP '+response.status);
