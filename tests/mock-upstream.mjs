@@ -50,6 +50,7 @@ globalThis.fetch=async (input,opts)=>{
   return json({Results:[{VIN:vin,ModelYear:'2003',Make:vin.startsWith('1D3')?'DODGE':vin.startsWith('4T1')?'TOYOTA':vin.startsWith('5YJ')?'TESLA':'HONDA',Model:model,EngineCylinders:four?'4':'6',DisplacementL:four?'2.4':'2.998832712',TransmissionStyle:'Automatic',TransmissionSpeeds:'5',RearVisibilitySystem:'Standard',CIB:'Standard'}]});
  }
  if(u.includes('api.nhtsa.gov/recalls'))return json({results:[]});
+ if(u.includes('api.nhtsa.gov/products/vehicle/models'))return json({results:[]});
  if(u.includes('api.nhtsa.gov/complaints'))return json({results:[]});
  if(u.includes('api.nhtsa.gov/SafetyRatings'))return json({Results:[]});
  if(u.includes('fueleconomy.gov')){
