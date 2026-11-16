@@ -570,6 +570,28 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     res.json(user);
   });
 
+  // Delete the signed-in account and everything stored for it. The password is
+  // asked for again so a borrowed session cannot remove an account.
+  app.delete('/api/auth/account', userAuth, rateGuard(5), async (req, res) => {
+    const password = req.body?.password;
+    if (typeof password !== 'string' || !password) return res.status(400).json({ error: 'Password required' });
+    const user = db.prepare('SELECT id, email, password_hash, salt FROM users WHERE id = ?').get(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!await verifyPassword(password, user.password_hash, user.salt)) {
+      logSecurityEvent.run('account_delete_fail', req.ip, `user ${user.id}`, 'warn');
+      return res.status(401).json({ error: 'Wrong password' });
+    }
+    const like = '%' + user.email.slice(0, 50).replace(/[\\%_]/g, c => '\\' + c) + '%';
+    db.transaction(() => {
+      // saved_vins and output_preferences go with the user row (ON DELETE CASCADE)
+      db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+      db.prepare('UPDATE request_log SET user_id = NULL WHERE user_id = ?').run(user.id);
+      db.prepare("DELETE FROM security_events WHERE detail LIKE ? ESCAPE '\\'").run(like);
+    })();
+    req.user = null; // keep this request's log row free of the deleted id
+    res.json({ deleted: true });
+  });
+
   // ---- Saved VINs ----
 
   app.get('/api/user/vins', userAuth, (req, res) => {

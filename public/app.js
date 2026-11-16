@@ -831,6 +831,24 @@ $('#logout-btn').addEventListener('click', () => {
   updateAuthUI(); applyPreferences(); toast('Signed out');
   $('#login-btn').focus();
 });
+$('#delete-account-btn').addEventListener('click', () => {
+  $('#delete-password').value = ''; $('#delete-error').hidden = true;
+  openDialog('#delete-modal', '#delete-password');
+});
+$('#delete-close').addEventListener('click', () => closeDialog('#delete-modal'));
+$('#delete-form').addEventListener('submit', async e => {
+  e.preventDefault(); if (!currentUser) return;
+  const button = $('#delete-submit'); button.disabled = true; $('#delete-error').hidden = true;
+  try {
+    await accountRequest('/api/auth/account', {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#delete-password').value})});
+    authRevision++; authToken = null; currentUser = null; userPrefs = null; savedVinsList = [];
+    localStorage.removeItem('vin-auth-token');
+    $('#delete-password').value = ''; $('#saved-status').textContent = '';
+    closeDialog('#delete-modal'); updateAuthUI(); applyPreferences(); toast('Account deleted');
+    $('#login-btn').focus();
+  } catch (err) { $('#delete-error').textContent = err.message; $('#delete-error').hidden = false; }
+  finally { button.disabled = false; }
+});
 async function loadSavedVins() {
   if (!authToken) return;
   const token = authToken;
