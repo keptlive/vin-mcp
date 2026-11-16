@@ -45,7 +45,7 @@ mcp.vin combines free public vehicle data from NHTSA, EPA and manufacturer sourc
 - Model-year recall campaigns and complaints do not establish VIN repair status or individual safety rankings. Missing data is not zero.
 
 ## Example reports
-- https://mcp.vin/examples/ — Nine example VINs with live reports, five with VIN-specific recall status (Ford, Tesla, GM, Nissan, Mopar)
+- https://mcp.vin/examples/ — Twelve example VINs with live reports, ten with VIN-specific recall status (Ford, Tesla, GM, Nissan, Mopar, Volkswagen, Audi, Subaru, Honda)
 
 ## Articles
 - https://mcp.vin/free-vin-check/ — Free VIN Check Before Buying a Used Car
