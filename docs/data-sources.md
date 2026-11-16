@@ -36,7 +36,27 @@ coverage or service performance to another provider.
 
 `recallsByVehicle` answers a make/model/year with no campaigns with HTTP 400 and the body `{"Count":0,"Message":"Results returned successfully","results":[]}`. Only that exact body counts as zero campaigns; any other non-200 response stays unavailable. `ReportReceivedDate` is day-first (`15/10/2024`); `report_received_date` gives the same date as ISO `YYYY-MM-DD`, and `report_date` keeps NHTSA's original text. NHTSA's `parkIt`, `parkOutSide` and `overTheAirUpdate` campaign advisories become `park_it`, `park_outside` and `over_the_air_update`, or null when missing.
 
-vPIC and NHTSA recall data can use different model names. A 2024 CR-V hybrid decodes as `CR-V`, while three of its campaigns are filed only under `CR-V HYBRID`. Reports therefore add `recalls.related_models`: campaigns filed under longer NHTSA model names for the same make and year (from `/products/vehicle/models?issueType=r`), excluding campaigns already listed. They may or may not apply to the vehicle and never count as VIN status.
+vPIC and NHTSA recall data often use different model names, and `recallsByVehicle` matches the model name exactly (case is ignored, punctuation and spacing are not: `F150` returns nothing for 2018 while `F-150` returns 19 campaigns). A 2024 CR-V hybrid decodes as `CR-V`, while three of its campaigns are filed only under `CR-V HYBRID`. A November 16, 2026 comparison of vPIC model names (30 makes, model years 2012-2025) with NHTSA's recall flat files found campaigns filed under another name for about one vPIC model name in six, in these patterns:
+
+| Pattern (`match`) | vPIC name | NHTSA name |
+| --- | --- | --- |
+| `longer_name` | CR-V, Silverado, ES | CR-V HYBRID, SILVERADO 1500, ES350 |
+| `spelling` | Mustang Mach-E, F 800 GS | MUSTANG MACH E, F800 GS |
+| `parenthetical` | Prius Prime (PHEV) | PRIUS PRIME |
+| `family_name` | C-Class, EQS-Class Sedan | C 300, AMG C63, EQS 450 |
+| `make_name` | Nissan Z | Z |
+| `shorter_name` | Expedition MAX, Wrangler JK | EXPEDITION, WRANGLER |
+| `trailing_name` | Golf GTI | GTI |
+
+`shorter_name` and `trailing_name` are used only when NHTSA has never filed a campaign under the decoded name itself; otherwise the shorter name is usually another vehicle (Transit Connect and TRANSIT). Names that share only a first word (Silverado LD and SILVERADO 1500) are not matched.
+
+Reports therefore add `recalls.related_models`: campaigns filed under related NHTSA model names for the same make and year, excluding campaigns already listed, each model tagged with its `match`. They may or may not apply to the vehicle and never count as VIN status or toward `recalls.count`. Up to eight related names are looked up per make, model and year, one at a time; any others are listed in `unchecked_labels`. `/api/vin/{vin}/recalls`, MCP `lookup_recalls` and full reports all carry the same block.
+
+The related names come from two places. NHTSA's `/products/vehicle/models?issueType=r` list returns only part of a make's model names (5-20 rows per make and year, alphabetical and cut short; the same reply on repeat), so on its own it misses most related names; `label_sources.products_api` says `partial_list`. `scripts/import-recall-labels.py` builds `data/recall-labels.db` from NHTSA's recall flat files (`FLAT_RCL_PRE_2010.zip` and `FLAT_RCL_POST_2010.zip`): every model name per make and model year, with its campaign numbers. When it is installed, `label_sources.flat_file_index` gives the newest report date in the snapshot. Campaign details still come from the live API.
+
+The live API sometimes files a campaign under other text than the flat file (`GLE350` for the flat file's `GLE 350`; `RAM` `1500` for the flat file's `DODGE` `RAM 1500` in 2012; nothing for `C 300` in 2017, where the flat file lists 15 campaigns). Campaigns the index lists under the exact or a checked related name that no live answer returned appear by number in `related_models.flat_file_only`, never in the counts.
+
+`recalls.count` stays the exact-name count. `recalls.related_campaigns_found` is `true` when related names carry campaigns (live or flat-file only), `false` when none were found, and `null` when related names could not be checked. `recalls.count_note` explains a count that may understate: related campaigns found, related names not checked, or (`related_models.decoded_name_in_recall_data: false`) a decoded model name under which NHTSA has never filed a campaign for that make. The web report shows related campaigns under their own heading and does not show a green zero in those cases.
 
 ## VIN-specific recall repair status
 

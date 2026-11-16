@@ -97,7 +97,7 @@ test('related NHTSA model labels: longer labels only, separate from exact campai
 test('model label matching: measured NHTSA naming patterns, and the look-alikes that stay out',()=>{
   const m=(model,label,o={})=>modelLabelMatch(model,label,{make:'X',...o});
   for(const [model,label,kind] of [['CR-V','CR-V HYBRID','longer_name'],['ES','ES350','longer_name'],['C 650','C650 GT MAXI-SCOOTER','longer_name'],['F-150','F150','spelling'],['Mustang Mach-E','MUSTANG MACH E','spelling'],['Prius Prime (PHEV)','PRIUS PRIME','parenthetical'],['C-Class','C 300','family_name'],['C-Class','AMG C63','family_name'],['E-Class','E63 AMG','family_name'],['EQS-Class Sedan','EQS 450','family_name'],['Accord','accord','exact']])assert.equal(m(model,label),kind,model+' / '+label);
-  for(const [model,label] of [['C-Class','CLA 250'],['S-Class','SL 450'],['F-150','F-1500'],['CR-V','CR-VX'],['ProMaster 1500','1500'],['Expedition MAX','EXPEDITION'],['Golf GTI','GTI'],['Transit Connect','TRANSIT']])assert.equal(m(model,label),null,model+' / '+label);
+  for(const [model,label] of [['C-Class','CLA 250'],['S-Class','SL 450'],['EQE-Class Sedan','AMG EQE SUV 53 4MATIC'],['F-150','F-1500'],['CR-V','CR-VX'],['ProMaster 1500','1500'],['Expedition MAX','EXPEDITION'],['Golf GTI','GTI'],['Transit Connect','TRANSIT']])assert.equal(m(model,label),null,model+' / '+label);
   assert.equal(modelLabelMatch('Nissan Z','Z',{make:'NISSAN'}),'make_name');
   // Shorter or trailing labels only when NHTSA never files under the decoded name itself.
   assert.equal(m('Expedition MAX','EXPEDITION',{decodedNameUsed:false}),'shorter_name');assert.equal(m('Golf GTI','GTI',{decodedNameUsed:false}),'trailing_name');
@@ -125,6 +125,27 @@ test('related labels use the local NHTSA label index when installed; partial lis
   r=await getRelatedModelRecalls('TOYOTA','Prius Prime (PHEV)',2019,[],{labelIndex:index});assert.equal(r.available,true);assert.equal(r.label_sources.products_api,'unavailable');
   r=await getRelatedModelRecalls('TOYOTA','Prius Prime (PHEV)',2019,[],{labelIndex:()=>({available:false})});assert.equal(r.available,false);assert.equal(r.count,null);
 });
+test('campaigns the flat-file index lists but the live API does not return are listed by number, not dropped',async()=>{
+  // Live 2026-11-16: "C 300" 2017 returned no campaigns while NHTSA's flat file lists 15 under it.
+  globalThis.fetch=async url=>{const u=new URL(url);if(u.pathname.endsWith('/models'))return json({results:[]});
+    if(u.searchParams.get('model')==='C 300')return new Response(JSON.stringify({Count:0,Message:'Results returned successfully',results:[]}),{status:400});
+    return json({results:u.searchParams.get('model')==='AMG C43'?[{NHTSACampaignNumber:'17V243000'}]:[]});};
+  const index=()=>({available:true,source:{latest_report_date:'2026-11-12'},used_names:new Set(),labels:[
+    {make:'MERCEDES-BENZ',model:'C 300',campaign_numbers:['17V114000','17V243000']},{make:'MERCEDES-BENZ',model:'AMG C43',campaign_numbers:['17V243000']},
+    {make:'MERCEDES-BENZ',model:'C-CLASS',campaign_numbers:['17V900000']},{make:'MERCEDES-BENZ',model:'CLA250',campaign_numbers:['17V555000']}]});
+  const r=await getRelatedModelRecalls('MERCEDES-BENZ','C-Class',2017,[],{labelIndex:index});
+  assert.equal(r.count,1);assert.equal(r.models[0].nhtsa_model,'AMG C43');
+  assert.deepEqual(r.flat_file_only.campaigns,[{campaign_number:'17V900000',nhtsa_model:'C-CLASS',match:'exact'},{campaign_number:'17V114000',nhtsa_model:'C 300',match:'family_name'}]);
+  assert.equal(r.flat_file_only.count,2);assert.match(r.flat_file_only.note,/may or may not apply/);assert.equal(r.decoded_name_in_recall_data,false);
+  const out=withRelatedRecalls({available:true,count:0,recalls:[]},r);
+  assert.equal(out.count,0);assert.equal(out.related_campaigns_found,true);assert.match(out.count_note,/1 more campaign .* lists 2 more/);
+  // Only flat-file campaigns: still flagged, never counted as exact.
+  const only=withRelatedRecalls({available:true,count:0,recalls:[]},{available:true,count:0,models:[],flat_file_only:{count:1,campaigns:[]}});
+  assert.equal(only.related_campaigns_found,true);assert.equal(only.count,0);assert.doesNotMatch(only.count_note,/related model names \(related_models\)/);
+  // A decoded name NHTSA never files under, with nothing related found: say so instead of a clean zero.
+  const unused=withRelatedRecalls({available:true,count:0,recalls:[]},{available:true,count:0,models:[],flat_file_only:{count:0,campaigns:[]},decoded_name_in_recall_data:false});
+  assert.equal(unused.related_campaigns_found,false);assert.match(unused.count_note,/no campaign filed under this exact model name/);
+});
 test('related labels past the cap are listed as unchecked, not dropped',async()=>{
   const labels=Array.from({length:MAX_RELATED_LABELS+3},(_,i)=>({make:'MERCEDES-BENZ',model:`E ${300+i*10}`}));let lookups=0;
   globalThis.fetch=async url=>{const u=new URL(url);if(u.pathname.endsWith('/models'))return json({results:[]});lookups++;return json({results:[{NHTSACampaignNumber:'20V'+u.searchParams.get('model').slice(2)+'000'}]});};
@@ -144,11 +165,11 @@ test('label index reader: labels for a make and year, names used in any year, mi
   const dir=mkdtempSync(join(tmpdir(),'labels-')),file=join(dir,'recall-labels.db');
   try{
     assert.deepEqual(lookupRecallLabels({makes:['HONDA'],year:2024},file),{available:false,reason:'dataset_not_indexed'});
-    const db=new Database(file);db.exec('CREATE TABLE labels(make TEXT,model TEXT,year INTEGER,campaigns INTEGER,compact TEXT);CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT);');
-    for(const r of [['HONDA','CR-V',2024,2],['HONDA','CR-V HYBRID',2024,4],['HONDA','CR-V HYBRID',2020,1],['HONDA','ACCORD',2023,1],['TOYOTA','PRIUS',2024,1]])db.prepare('INSERT INTO labels VALUES(?,?,?,?,?)').run(...r,compactName(r[1]));
+    const db=new Database(file);db.exec('CREATE TABLE labels(make TEXT,model TEXT,year INTEGER,campaigns INTEGER,compact TEXT,campaign_numbers TEXT);CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT);');
+    for(const r of [['HONDA','CR-V',2024,2,'24V508000 24V744000'],['HONDA','CR-V HYBRID',2024,4,'24V744000 24V763000 26V366000 26V663000'],['HONDA','CR-V HYBRID',2020,1,'20V001000'],['HONDA','ACCORD',2023,1,'23V001000'],['TOYOTA','PRIUS',2024,1,'24V001000']])db.prepare('INSERT INTO labels VALUES(?,?,?,?,?,?)').run(...r.slice(0,4),compactName(r[1]),r[4]);
     db.prepare('INSERT INTO metadata VALUES(?,?)').run('source',JSON.stringify({latest_report_date:'2026-11-12',indexed_at:'2026-11-16T23:00:00Z'}));db.close();
     const r=lookupRecallLabels({makes:['honda'],year:2024,names:['CRVHYBRID','ACCORD','PILOT']},file);
-    assert.deepEqual(r.labels.map(l=>l.model),['CR-V','CR-V HYBRID']);assert.deepEqual([...r.used_names].sort(),['ACCORD','CRVHYBRID']);assert.equal(r.source.latest_report_date,'2026-11-12');
+    assert.deepEqual(r.labels.map(l=>l.model),['CR-V','CR-V HYBRID']);assert.deepEqual(r.labels[1].campaign_numbers,['24V744000','24V763000','26V366000','26V663000']);assert.deepEqual([...r.used_names].sort(),['ACCORD','CRVHYBRID']);assert.equal(r.source.latest_report_date,'2026-11-12');
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 test('NHTSA HTTP 400 empty-success body is zero campaigns; other 400s stay unavailable',async()=>{
@@ -217,6 +238,12 @@ test('frontend shows related-label campaigns apart, as may or may not apply, wit
   assert.match(els.get('#recalls-body').innerHTML,/could not be checked/);assert.doesNotMatch(els.get('#recall-count').className,/green/);
   run(`renderRecalls({recalls:{available:true,count:0,recalls:[],related_campaigns_found:false,related_models:{available:true,count:0,models:[]}}})`);
   assert.match(els.get('#recall-count').className,/green/);assert.doesNotMatch(els.get('#recalls-body').innerHTML,/Related model names/);
+  // Campaigns only in NHTSA's flat file are shown by number under the related heading.
+  run(`renderRecalls({recalls:{available:true,count:0,recalls:[],related_campaigns_found:true,related_models:{available:true,count:0,models:[],flat_file_only:{count:1,campaigns:[{campaign_number:'17V114000',nhtsa_model:'C 300',match:'family_name'}]}}}})`);
+  html=els.get('#recalls-body').innerHTML;assert.match(html,/Related model names · 1 campaign</);assert.match(html,/17V114000 \(filed as C 300\)/);assert.match(html,/not returned by NHTSA's live lookup/);
+  // A model name NHTSA never files under: no green zero.
+  run(`renderRecalls({recalls:{available:true,count:0,recalls:[],related_campaigns_found:false,related_models:{available:true,count:0,models:[],decoded_name_in_recall_data:false}}})`);
+  assert.doesNotMatch(els.get('#recall-count').className,/green/);assert.match(els.get('#recalls-body').innerHTML,/never filed a recall under this model name/);
 });
 
 test('editing VIN input invalidates a pending decode and prevents stale results',async()=>{

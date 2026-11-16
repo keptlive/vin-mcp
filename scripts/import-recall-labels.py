@@ -4,8 +4,10 @@
 Reports look up campaigns live (recallsByVehicle) by the exact vPIC model name. NHTSA often files
 campaigns under other names for the same vehicle (CR-V HYBRID, F150, PRIUS PRIME, C 300 for C-Class).
 /products/vehicle/models?issueType=r lists only part of a make's names (checked 2026-11-16), so this
-index supplies the full list of names per make and model year. It holds names and campaign counts
-only; campaign details still come from the live API."""
+index supplies the full list of names per make and model year, with the campaign numbers filed under
+each name. Campaign details still come from the live API; the numbers let reports point out campaigns
+the live API does not return under the same name (it files some under other text, e.g. GLE350 for
+the flat file's GLE 350)."""
 from pathlib import Path
 from urllib.request import urlopen
 import datetime, hashlib, io, json, os, re, sqlite3, sys, zipfile
@@ -28,7 +30,7 @@ def build(archives, target, urls=URLS):
     db = sqlite3.connect(temp)
     try:
         db.executescript('''CREATE TABLE labels(make TEXT NOT NULL,model TEXT NOT NULL,year INTEGER NOT NULL,
-            campaigns INTEGER NOT NULL,compact TEXT NOT NULL,PRIMARY KEY(make,model,year));
+            campaigns INTEGER NOT NULL,compact TEXT NOT NULL,campaign_numbers TEXT NOT NULL,PRIMARY KEY(make,model,year));
             CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT);''')
         seen = {}
         sources, rows, skipped_fragments, unknown_year, latest = [], 0, 0, 0, ''
@@ -65,8 +67,8 @@ def build(archives, target, urls=URLS):
                             'downloaded_at': datetime.datetime.fromtimestamp(Path(path).stat().st_mtime, datetime.timezone.utc).isoformat()})
         if not seen:
             raise ValueError('Empty recall archive')
-        db.executemany('INSERT INTO labels VALUES(?,?,?,?,?)',
-                       [(mk, md, y, len(c), compact(md)) for (mk, md, y), c in sorted(seen.items())])
+        db.executemany('INSERT INTO labels VALUES(?,?,?,?,?,?)',
+                       [(mk, md, y, len(c), compact(md), ' '.join(sorted(c))) for (mk, md, y), c in sorted(seen.items())])
         db.executescript('CREATE INDEX make_year ON labels(make,year); CREATE INDEX make_compact ON labels(make,compact);')
         metadata = {'sources': sources, 'source_rows': rows, 'labels': len(seen), 'skipped_fragment_lines': skipped_fragments,
                     'rows_without_model_year': unknown_year,

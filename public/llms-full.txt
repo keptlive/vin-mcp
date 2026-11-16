@@ -24,7 +24,7 @@ VIN recall status is separate from model-year campaigns. Tesla and Ford provide 
 | Source | Data Provided |
 |--------|--------------|
 | NHTSA vPIC | Make, model, year, trim, body class, engine specs, transmission, drive type, weight, plant info, 140+ decoded fields |
-| NHTSA Recalls | Model-year campaigns with component, summary, consequence, and remedy; not VIN repair status |
+| NHTSA Recalls | Model-year campaigns with component, summary, consequence, and remedy for the exact model name; campaigns NHTSA files under related model names (hybrid, spelling, family names) listed separately in related_models as may or may not apply; not VIN repair status |
 | NHTSA Complaints | Consumer complaints with crash, fire, injury, and death statistics |
 | NHTSA Safety Ratings | NCAP star ratings for overall, frontal, side, and rollover crash tests |
 | EPA Fuel Economy | City/highway/combined MPG, annual fuel cost, CO2 emissions, EV range and charge time |

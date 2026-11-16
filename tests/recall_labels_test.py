@@ -25,7 +25,7 @@ class RecallLabelImportTest(unittest.TestCase):
             self.assertEqual(receipt['labels'], 3); self.assertEqual(receipt['rows_without_model_year'], 1)
             self.assertEqual(receipt['skipped_fragment_lines'], 1); self.assertEqual(receipt['latest_report_date'], '2024-10-15')
             with sqlite3.connect(target) as db:
-                self.assertEqual(db.execute("SELECT campaigns, compact FROM labels WHERE make='HONDA' AND model='CR-V HYBRID' AND year=2024").fetchone(), (2, 'CRVHYBRID'))
+                self.assertEqual(db.execute("SELECT campaigns, compact, campaign_numbers FROM labels WHERE make='HONDA' AND model='CR-V HYBRID' AND year=2024").fetchone(), (2, 'CRVHYBRID', '24V744000 24V763000'))
                 self.assertEqual(db.execute('SELECT count(*) FROM labels WHERE year=9999').fetchone()[0], 0)
                 self.assertEqual(json.loads(db.execute("SELECT value FROM metadata WHERE key='source'").fetchone()[0])['source_rows'], 6)
             before = target.read_bytes()
