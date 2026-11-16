@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Example VIN Reports with Recall Data | mcp.vin</title>
+  <meta name="description" content="Nine example VIN reports you can open now: recall campaigns, VIN-specific recall status from Ford, Tesla, GM, Nissan and Mopar, complaints, safety ratings and fuel economy.">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#6366f1">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="canonical" href="https://mcp.vin/examples/">
+  <meta property="og:title" content="Example VIN Reports with Recall Data | mcp.vin">
+  <meta property="og:description" content="Nine example VIN reports you can open now, including VIN-specific recall status from Ford, Tesla, GM, Nissan and Mopar.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://mcp.vin/examples/">
+  <meta property="og:image" content="https://mcp.vin/og-image.png">
+  <meta property="og:site_name" content="mcp.vin">
+  <meta name="twitter:card" content="summary">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://mcp.vin/"},
+      {"@type": "ListItem", "position": 2, "name": "Example VIN reports", "item": "https://mcp.vin/examples/"}
+    ]
+  }
+  </script>
+
+  <link rel="stylesheet" href="/style.css?v=2">
+  <link rel="stylesheet" href="/article.css?v=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="article-nav">
+    <a href="/" class="nav-brand">mcp<span class="dot">.</span>vin</a>
+    <a href="/" class="nav-back">&larr; Back to decoder</a>
+  </nav>
+
+  <div class="article-wrap">
+    <div class="breadcrumb">
+      <a href="/">Home</a><span>&rsaquo;</span>Example VIN reports
+    </div>
+
+    <div class="article-meta">
+      <span class="meta-tag">Examples</span>
+      <span class="meta-tag">Recalls</span>
+      <span class="meta-date">Updated November 2026</span>
+    </div>
+
+    <h1>Example VIN Reports with Recall Data</h1>
+
+    <p class="article-lead">Each link below opens a full, live mcp.vin report: specifications, recall campaigns, complaints, safety ratings and fuel economy from NHTSA and EPA data. Add any of these VINs to <code>https://mcp.vin/api/vin/</code> to get the same report as JSON.</p>
+
+    <h2>Reports with VIN-specific recall status</h2>
+
+    <p>For these makes, mcp.vin also asks the manufacturer&rsquo;s own recall lookup about the individual vehicle. That answer is separate from the list of campaigns for the model year, and it can change as repairs are made.</p>
+
+    <table>
+      <thead><tr><th>Vehicle</th><th>VIN</th><th>Manufacturer answer</th></tr></thead>
+      <tbody>
+        <tr><td>2015 Ford F-150</td><td><a href="/1FTEX1EP4FFD06976"><code>1FTEX1EP4FFD06976</code></a></td><td>Ford: open and completed recalls for this truck</td></tr>
+        <tr><td>2013 Tesla Model S</td><td><a href="/5YJSA1DG9DFP14705"><code>5YJSA1DG9DFP14705</code></a></td><td>Tesla: open and completed recalls for this car</td></tr>
+        <tr><td>2017 Chevrolet Bolt EV</td><td><a href="/1G1FW6S06H4188545"><code>1G1FW6S06H4188545</code></a></td><td>GM: completed and closed recalls, with repair dates where GM supplies them</td></tr>
+        <tr><td>2015 Nissan Altima</td><td><a href="/1N4AL3APXFN868842"><code>1N4AL3APXFN868842</code></a></td><td>Nissan: open safety recalls for this car</td></tr>
+        <tr><td>2005 Dodge Dakota</td><td><a href="/1D3HW48K55S152258"><code>1D3HW48K55S152258</code></a></td><td>Mopar: recall records from the Mopar fleet lookup</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Reports with model-year recall campaigns</h2>
+
+    <p>Every report lists the NHTSA recall campaigns for the make, model and year. A campaign on this list does not mean the individual vehicle is affected or unrepaired; check with the manufacturer or <a href="https://www.nhtsa.gov/recalls" rel="noopener noreferrer">NHTSA.gov/recalls</a>.</p>
+
+    <table>
+      <thead><tr><th>Vehicle</th><th>VIN</th><th>What the report shows</th></tr></thead>
+      <tbody>
+        <tr><td>2003 Honda Accord EX-V6</td><td><a href="/1HGCM82633A004352"><code>1HGCM82633A004352</code></a></td><td>A long recall and complaint history: useful for seeing how a large record is summarised</td></tr>
+        <tr><td>2024 Honda CR-V Sport-L</td><td><a href="/5J6RS6H82RL008945"><code>5J6RS6H82RL008945</code></a></td><td>A recent model with crash-test ratings and a short recall list</td></tr>
+        <tr><td>2015 Kia Optima</td><td><a href="/5XXGR4A60FG353263"><code>5XXGR4A60FG353263</code></a></td><td>Recall campaigns plus a five-star overall safety rating</td></tr>
+        <tr><td>2021 Hyundai Kona</td><td><a href="/KM8K53AG0MU098173"><code>KM8K53AG0MU098173</code></a></td><td>An electric model: recall campaign and safety ratings</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Try one from the command line</h2>
+
+<pre><code>curl https://mcp.vin/api/vin/1FTEX1EP4FFD06976</code></pre>
+
+    <p>No API key or account is needed. See the <a href="/vin-decoder-api/">API guide</a> for every endpoint, or the <a href="/vehicle-safety-recalls/">recall guide</a> for what recall records mean.</p>
+
+    <div class="cta-box">
+      <p>Have a VIN of your own?</p>
+      <a href="/" class="cta-btn">Decode a VIN</a>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>Data from NHTSA, EPA and IMAGIN.studio. <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
+  </footer>
+
+  <script data-goatcounter="https://helloandy.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>

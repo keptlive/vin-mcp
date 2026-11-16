@@ -44,6 +44,9 @@ mcp.vin combines free public vehicle data from NHTSA, EPA and manufacturer sourc
 - Hosted and GitHub source versions may be newer than the npm package; use HTTP or current source for the full tool set.
 - Model-year recall campaigns and complaints do not establish VIN repair status or individual safety rankings. Missing data is not zero.
 
+## Example reports
+- https://mcp.vin/examples/ — Nine example VINs with live reports, five with VIN-specific recall status (Ford, Tesla, GM, Nissan, Mopar)
+
 ## Articles
 - https://mcp.vin/free-vin-check/ — Free VIN Check Before Buying a Used Car
 - https://mcp.vin/vin-decoder-api/ — VIN Decoder API for Developers
