@@ -4,25 +4,25 @@
   <meta charset="UTF-8">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vehicle research &amp; VIN reports | mcp.vin</title>
-  <meta name="description" content="Free VIN decoder — decode any vehicle by VIN number. Safety ratings, recalls, complaints, fuel economy, photos. Also available as an MCP server for Claude.">
+  <title>Free VIN Decoder &amp; Vehicle Research | mcp.vin</title>
+  <meta name="description" content="Decode a VIN and explore vehicle specifications, safety records and fuel economy. Compare vehicles or connect to the free REST API and MCP server.">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <meta name="theme-color" content="#163c38">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="canonical" href="https://mcp.vin">
+  <link rel="canonical" href="https://mcp.vin/">
 
   <!-- Open Graph -->
   <meta property="og:title" content="mcp.vin — Free VIN Decoder &amp; MCP Server">
-  <meta property="og:description" content="Free VIN decoder — decode any vehicle by VIN number. Safety ratings, recalls, complaints, fuel economy, photos. Also available as an MCP server for Claude.">
+  <meta property="og:description" content="Decode a VIN and explore vehicle specifications, safety records and fuel economy. Compare vehicles or connect to the free REST API and MCP server.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://mcp.vin">
+  <meta property="og:url" content="https://mcp.vin/">
   <meta property="og:image" content="https://mcp.vin/og-image.png">
   <meta property="og:site_name" content="mcp.vin">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="mcp.vin — Free VIN Decoder &amp; MCP Server">
-  <meta name="twitter:description" content="Free VIN decoder — decode any vehicle by VIN number. Safety ratings, recalls, complaints, fuel economy, photos. Also available as an MCP server for Claude.">
+  <meta name="twitter:description" content="Decode a VIN and explore vehicle specifications, safety records and fuel economy. Compare vehicles or connect to the free REST API and MCP server.">
   <meta name="twitter:image" content="https://mcp.vin/og-image.png">
 
   <!-- Structured Data -->
@@ -32,7 +32,7 @@
     "@type": "WebApplication",
     "name": "mcp.vin",
     "description": "Free VIN decoder",
-    "url": "https://mcp.vin",
+    "url": "https://mcp.vin/",
     "applicationCategory": "UtilitiesApplication",
     "offers": {
       "@type": "Offer",
@@ -51,7 +51,7 @@
 <header class="app-header"><a class="brand" href="/#report" aria-label="mcp.vin home">mcp<span>.</span>vin</a><span class="brand-description">Vehicle research</span><div id="user-area" class="user-area"><button id="my-vins-btn" class="secondary" type="button">Saved vehicles</button><button id="login-btn" class="login-btn" type="button">Sign in</button><details id="user-menu" class="user-menu" hidden><summary id="user-email">Account</summary><div class="account-menu"><button id="settings-btn" class="user-menu-item" type="button">Report settings</button><button id="logout-btn" class="user-menu-item logout" type="button">Sign out</button></div></details></div></header>
 <div class="workspace-layout"><aside class="workspace-sidebar"><button id="menu-toggle" type="button" class="mobile-menu secondary" aria-controls="workspace-navigation" aria-expanded="false"><span id="menu-current">VIN report</span><span aria-hidden="true">☰</span></button><nav id="workspace-navigation" aria-label="Workspace"><a href="#report" aria-current="page"><span class="nav-mark" aria-hidden="true">01</span>VIN report</a><a href="#compare"><span class="nav-mark" aria-hidden="true">02</span>Compare vehicles</a><a href="#catalog"><span class="nav-mark" aria-hidden="true">03</span>Specifications</a><a href="#communications"><span class="nav-mark" aria-hidden="true">04</span>Safety records</a><a href="#costs"><span class="nav-mark" aria-hidden="true">05</span>Ownership costs</a><a href="#coverage"><span class="nav-mark" aria-hidden="true">06</span>Data coverage</a><a href="#developers"><span class="nav-mark" aria-hidden="true">07</span>Developer tools</a><div class="nav-divider"></div><a href="#saved">Saved vehicles</a><button id="history-toggle" type="button">Recent reports</button></nav><div class="sidebar-note"><span class="status-dot" aria-hidden="true"></span><strong>Public data. Clear sources.</strong><p>Free research tools with the limits of each source kept visible.</p><a href="#developers">Connect an agent →</a></div></aside>
 <main id="main" tabindex="-1"><div class="workspace-toolbar"><div id="vehicle-context" class="vehicle-context" hidden><span>Current vehicle</span><a href="#report" id="context-title"></a><code id="context-vin"></code></div><div class="toolbar-actions"><a href="/research/sheets/professional-brief.pdf?v=68eaa4357463" download>Information sheets</a><button id="print-view" class="secondary" type="button">Print view</button></div></div><div id="print-meta" class="print-only"></div>
-<section id="report" class="workspace-panel"><div id="hero"><div class="hero-inner"><p class="eyebrow">VEHICLE REPORT</p><h1>Start with a VIN.</h1><p class="tagline">Specifications, safety records and efficiency in one report. Then compare vehicles or build an ownership estimate.</p>      <form id="vin-form" autocomplete="off" toolname="decode_vin" tooldescription="Decode a Vehicle Identification Number to get make, model, year, safety ratings, recalls, complaints, fuel economy, and photos">
+<section id="report" class="workspace-panel"><div id="hero"><div class="hero-inner"><p class="eyebrow">VEHICLE REPORT</p><h1>Free VIN decoder and vehicle research</h1><p class="tagline">Specifications, safety records and efficiency in one report. Then compare vehicles or build an ownership estimate.</p>      <form id="vin-form" autocomplete="off" toolname="decode_vin" tooldescription="Decode a Vehicle Identification Number to get make, model, year, safety ratings, recalls, complaints, fuel economy, and photos">
         <div class="input-row">
           <input
             id="vin-input"
@@ -192,7 +192,7 @@
         <details class="faq-item"><summary>Is mcp.vin really free? What's the catch?</summary><p>Yes, it's genuinely free &mdash; no signup, no API key, no hidden charges. mcp.vin pulls data from public government databases (NHTSA and EPA) that are already funded by taxpayers. There are no paid tiers or premium features. The REST API and MCP server are also free to use. The project is open source on GitHub.</p></details>
         <details class="faq-item"><summary>What data does a VIN decode include?</summary><p>A full VIN decode at mcp.vin returns the make, model, model year, body class, engine displacement, number of cylinders, fuel type, drive type, transmission, plant city and country, vehicle type, GVWR class, and safety equipment. It also includes NHTSA safety ratings, model-year recall campaigns, consumer complaints, EPA fuel economy data, and vehicle photos when available.</p></details>
         <details class="faq-item"><summary>Does it work for vehicles outside the United States?</summary><p>The NHTSA database primarily covers vehicles sold in the US market. However, many international manufacturers register their VIN patterns with the NHTSA, so vehicles from Japan, Germany, South Korea, and other major auto-producing countries often decode correctly even if they weren't sold in the US. The WMI (World Manufacturer Identifier) portion of the VIN is standardized globally by the ISO.</p></details>
-        <details class="faq-item"><summary>What's the difference between a free VIN check and a paid vehicle history report?</summary><p>A free VIN check decodes the factory specs from the VIN itself (make, model, year, engine, etc.) and checks for open safety recalls. A paid vehicle history report from Carfax or AutoCheck adds accident records, title history, odometer readings over time, previous ownership count, and service records. Start with the free check to verify the basics, then consider a paid report ($25&ndash;$40) if you're seriously considering buying the car.</p></details>
+        <details class="faq-item"><summary>What's the difference between a free VIN check and a paid vehicle history report?</summary><p>A VIN decoder can identify vehicle specifications and related model-year recall campaigns. VIN-specific recall repair status is available for some manufacturers; an unknown result does not mean there are no open recalls. A vehicle history report may include reported accidents, title events, odometer readings, ownership and service records. Coverage varies; consider an independent inspection as well.</p></details>
       </div>
     </details>
     <div class="supp-articles">
@@ -298,7 +298,7 @@ node cli.mjs decode 1HGCM82633A004352
 node cli.mjs catalog options '{"year":2003,
   "make":"Honda","model":"Accord"}'</code></pre></div></div>
 <h3>API request console</h3><form id="api-form" class="form-row"><label>Endpoint<select id="api-path"><option value="/api/tools">Complete MCP tool directory</option><option value="/api/research/capabilities">Capability register</option><option value="/api/research/epa/18657">EPA example: 2003 Accord V6</option><option value="/api/research/epa/18657/owner-mpg">Owner-reported MPG: Accord V6</option><option value="/api/research/rate-benchmarks">Dated Federal Reserve benchmarks</option><option value="/api/research/investigations?year=2003&amp;make=Honda&amp;model=Accord">NHTSA investigations: Accord</option><option value="/api/research/fuel-prices">EPA fuel-price assumptions</option></select></label><button>Run request</button></form><p id="api-status" role="status"></p><pre id="api-result">The response will appear here.</pre><p><a href="/client.mjs?v=2a80830879a9" download>Download JavaScript client</a> · <a href="/research/api.json">Machine-readable endpoint guide</a></p></section>
-<section id="saved" class="workspace-panel" hidden><p class="eyebrow">YOUR WORKSPACE</p><h1>Saved &amp; recent vehicles</h1><p>Your saved vehicles stay with your account. Recent reports are stored only in this browser.</p><div class="saved-columns"><div id="saved-vins-panel" class="vehicle-list-panel"><div class="list-heading"><h2>Saved vehicles</h2><button id="saved-vins-close" class="text-button" type="button">Back to report</button></div><div id="saved-signin" class="empty-message"><h3>Keep your shortlist together</h3><p>Sign in to save vehicles, add labels and access them across devices. You can research vehicles without an account.</p><button id="saved-login-btn" type="button">Sign in or create an account</button></div><p id="saved-status" role="status"></p><ul id="saved-vins-list"></ul></div><div id="history-panel" class="vehicle-list-panel"><div class="list-heading"><h2>Recent reports</h2><button id="history-close" class="text-button" type="button">Back to report</button></div><p class="small">Available on this browser</p><ul id="history-list"></ul><button id="clear-history" class="secondary" type="button">Clear recent reports</button></div></div></section><footer class="workspace-footer"><p>Free public-source vehicle research. Coverage varies by vehicle and source.</p><p>Data from <a href="https://vpic.nhtsa.dot.gov/api/">NHTSA</a>, <a href="https://fueleconomy.gov">EPA</a> and participating manufacturers. Representative photos: <a href="https://www.imagin.studio">IMAGIN.studio</a>.</p><p><a href="/free-vin-check/">Free VIN checks</a><a href="/vin-decoder-api/">API guide</a><a href="/vehicle-safety-recalls/">Recall guide</a><a href="/vehicle-history-reports/">Vehicle history guide</a><a href="https://github.com/keptlive/vin-mcp">GitHub</a></p><details><summary>Project credits &amp; related tools</summary><p>Built by <a href="https://helloandy.net">Andy</a> · <a href="https://qrcode.host">Build a microsite</a> · <a href="https://qrmcp.dev">Generate QR codes</a> · <a href="https://webmcplist.com">WebMCP Directory</a> · <a href="https://contextwire.dev">ContextWire Search</a></p></details></footer></main></div>  <!-- Auth Modal -->
+<section id="saved" class="workspace-panel" hidden><p class="eyebrow">YOUR WORKSPACE</p><h1>Saved &amp; recent vehicles</h1><p>Your saved vehicles stay with your account. Recent reports are stored only in this browser.</p><div class="saved-columns"><div id="saved-vins-panel" class="vehicle-list-panel"><div class="list-heading"><h2>Saved vehicles</h2><button id="saved-vins-close" class="text-button" type="button">Back to report</button></div><div id="saved-signin" class="empty-message"><h3>Keep your shortlist together</h3><p>Sign in to save vehicles, add labels and access them across devices. You can research vehicles without an account.</p><button id="saved-login-btn" type="button">Sign in or create an account</button></div><p id="saved-status" role="status"></p><ul id="saved-vins-list"></ul></div><div id="history-panel" class="vehicle-list-panel"><div class="list-heading"><h2>Recent reports</h2><button id="history-close" class="text-button" type="button">Back to report</button></div><p class="small">Available on this browser</p><ul id="history-list"></ul><button id="clear-history" class="secondary" type="button">Clear recent reports</button></div></div></section><footer class="workspace-footer"><p>Free public-source vehicle research. Coverage varies by vehicle and source.</p><p>Data from NHTSA, EPA and participating manufacturers. Representative photos: IMAGIN.studio.</p><p><a href="/free-vin-check/">Free VIN checks</a><a href="/vin-decoder-api/">API guide</a><a href="/vehicle-safety-recalls/">Recall guide</a><a href="/vehicle-history-reports/">Vehicle history guide</a><a href="https://github.com/keptlive/vin-mcp">GitHub</a></p></footer></main></div>  <!-- Auth Modal -->
   <div id="auth-modal" class="modal-overlay" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
       <button class="modal-close" id="auth-close" aria-label="Close sign in">&times;</button>
@@ -343,62 +343,4 @@ node cli.mjs catalog options '{"year":2003,
     </div>
   </div>
 
-<div id="label-modal" class="modal-overlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="label-title"><button class="modal-close" id="label-close" type="button" aria-label="Close vehicle label">×</button><h2 id="label-title">Save vehicle</h2><p class="modal-desc" id="label-vin"></p><form id="label-form" class="modal-form"><label>Vehicle label (optional)<input id="vehicle-label" maxlength="200" placeholder="e.g. Family car"></label><p id="label-error" class="form-error" role="alert" hidden></p><button type="submit" id="label-submit">Save vehicle</button></form></div></div><div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>  <!-- FAQ Schema -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-      {
-        "@type": "Question",
-        "name": "What is a VIN and what does it stand for?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "A VIN (Vehicle Identification Number) is a unique 17-character code assigned to every vehicle manufactured since 1981. It's stamped on the dashboard, the driver-side door jamb, and the engine block. Each character encodes specific information: the manufacturer, the country of origin, the vehicle type, engine specs, model year, assembly plant, and a serial number. No two vehicles in operation share the same VIN."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Where do I find the VIN on my car?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "The easiest place to find it is on the driver-side dashboard — look through the windshield at the base where the dash meets the glass. You'll also find it on the driver-side door jamb sticker, on your vehicle registration card, and on your insurance card."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Is mcp.vin really free? What's the catch?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Yes, it's genuinely free — no signup, no API key, no hidden charges. mcp.vin pulls data from public government databases (NHTSA and EPA) that are already funded by taxpayers. There are no paid tiers or premium features. The REST API and MCP server are also free to use. The project is open source on GitHub."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "What data does a VIN decode include?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "A full VIN decode at mcp.vin returns the make, model, model year, body class, engine displacement, number of cylinders, fuel type, drive type, transmission, plant city and country, vehicle type, GVWR class, and safety equipment. It also includes NHTSA safety ratings, model-year recall campaigns, consumer complaints, EPA fuel economy data, and vehicle photos when available."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Does it work for vehicles outside the United States?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "The NHTSA database primarily covers vehicles sold in the US market. However, many international manufacturers register their VIN patterns with the NHTSA, so vehicles from Japan, Germany, South Korea, and other major auto-producing countries often decode correctly even if they weren't sold in the US."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "What's the difference between a free VIN check and a paid vehicle history report?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "A free VIN check decodes the factory specs from the VIN itself and checks for open safety recalls. A paid vehicle history report from Carfax or AutoCheck adds accident records, title history, odometer readings over time, previous ownership count, and service records. Start with the free check, then consider a paid report if you're seriously considering buying the car."
-        }
-      }
-    ]
-  }
-  </script>
-
-<script src="/app.js?v=da844b5990c1"></script><script type="module" src="/research/research.js?v=0a22b75d732b"></script><script src="/workspace.js?v=417f05c76cff"></script><script data-goatcounter="https://helloandy.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script></body></html>
+<div id="label-modal" class="modal-overlay" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="label-title"><button class="modal-close" id="label-close" type="button" aria-label="Close vehicle label">×</button><h2 id="label-title">Save vehicle</h2><p class="modal-desc" id="label-vin"></p><form id="label-form" class="modal-form"><label>Vehicle label (optional)<input id="vehicle-label" maxlength="200" placeholder="e.g. Family car"></label><p id="label-error" class="form-error" role="alert" hidden></p><button type="submit" id="label-submit">Save vehicle</button></form></div></div><div id="toast-container" class="toast-container" role="status" aria-live="polite"></div><script src="/app.js?v=da844b5990c1"></script><script type="module" src="/research/research.js?v=0a22b75d732b"></script><script src="/workspace.js?v=da522fcff6c8"></script><script data-goatcounter="https://helloandy.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script></body></html>

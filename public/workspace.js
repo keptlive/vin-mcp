@@ -16,7 +16,7 @@
     q('#my-vins-btn').setAttribute('aria-pressed',String(id === 'saved'));
     q('#user-menu').open = false;
     q('#print-view').hidden = id === 'saved';
-    document.title = titles[id] + ' | mcp.vin';
+    document.title = (id === 'report' ? 'Free VIN Decoder & Vehicle Research' : titles[id]) + ' | mcp.vin';
     if (id === 'developers') loadToolDirectory();
   }
   function navigate(id) {
