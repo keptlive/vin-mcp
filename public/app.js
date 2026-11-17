@@ -329,6 +329,7 @@ function renderFuel(r) {
     ['CO2 (tailpipe)', f.co2_tailpipe],
     ['Fuel Grade', f.fuel_grade],
     ['EV Range', f.ev_range ? `${f.ev_range} mi` : null],
+    ['Total range (gas + electric)', f.total_range ? `${f.total_range} mi` : null],
     ['Charge Time (240V)', f.ev_charge_time_240v ? `${f.ev_charge_time_240v} hr` : null],
     ['EPA Variant', f.matched_variant],
     ['kWh/100mi', f.kwh_per_100mi],

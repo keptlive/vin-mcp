@@ -105,7 +105,7 @@ const CarSheet = (() => {
       row('Rated power', epaHp && `${epaHp} (${MoreSources.epaHpCaveat(r) ? MoreSources.epaHpCaveat(r) + '; ' : ''}maker’s EPA test vehicles for this engine family)`),
       row('Transmission', trans || null), row('Drive', t.drive_type), row('Electrification', e.ev_type),
       row('Battery', battery), row('Charging', charger || null),
-      row('EPA fuel economy', mpg), row('EPA range', f.available && num(f.ev_range) ? `${f.ev_range} mi` : null),
+      row('EPA fuel economy', mpg), row(f.total_range ? 'EPA electric range' : 'EPA range', f.available && num(f.ev_range) ? `${f.ev_range} mi` : null),
     ];
     const note = range ? `<p class="sheet-note">EPA range: ${esc(f.summary || 'several EPA configurations fit this VIN')}.</p>`
       : mpg ? `<p class="sheet-note">${f.match === 'closest' ? 'Closest EPA configuration, not an exact match' : 'EPA figures are for the matched test configuration'}: ${esc(f.matched_variant || 'see full report')}.</p>` : '';

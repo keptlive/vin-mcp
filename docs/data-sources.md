@@ -79,7 +79,7 @@ FuelEconomy.gov rates configurations, not VINs, and its model names carry drive,
 3. Engine size, rounded to 0.1 L, must agree. Cylinders must agree unless the size already does (vPIC gives the 2015 Colorado 2.5 L six cylinders; EPA lists it with four, and the result says so).
 4. Drive, transmission kind and speeds, turbo, battery size, doors and the trims vPIC lists are checked when the decode gives them. A configuration that differs only in these is shown as `closest`, with each difference in `match_basis` and `summary`.
 
-Results keep the old fields and add `match`, `summary`, `match_basis`, `epa_model` and `unit` (MPGe for electric vehicles):
+Results keep the old fields and add `match`, `summary`, `match_basis`, `epa_model` and `unit` (MPGe for electric vehicles). For plug-in hybrids `ev_range` is now the all-electric range (EPA's `rangeA`, e.g. 37 mi for the 2022 Escape PHEV) and `total_range` the gasoline-plus-electric range (`range`, 520 mi); before, `ev_range` carried the total:
 
 - `match: 'exact'`: one configuration fits every attribute the VIN gives (`available: true`).
 - `match: 'closest'`: the nearest configuration; `summary` starts "closest EPA configuration" and says what differs (`available: true`).

@@ -359,4 +359,7 @@ test('car sheet: the EPA range when several configurations fit, the closest-matc
   const text = r => sheet.html(r).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(text({...base, fuel_economy: several}), /EPA fuel economy 47–50 mpg combined \(50–53 city, 43–46 hwy\).*EPA range: 47-50 mpg combined across 2 EPA configurations of this model; the VIN does not say which/);
   assert.match(text({...base, fuel_economy: {available: true, match: 'closest', combined_mpg: 21, city_mpg: 18, highway_mpg: 25, matched_variant: 'Acadia AWD · Automatic 9-spd, 6 cyl, 3.6 L'}}), /EPA fuel economy 21 mpg combined \(18 city, 25 hwy\).*Closest EPA configuration, not an exact match: Acadia AWD/);
+  const phev = text({...base, fuel_economy: {available: true, match: 'exact', combined_mpg: 40, city_mpg: 43, highway_mpg: 38, ev_range: 37, total_range: 520}});
+  assert.match(phev, /EPA electric range 37 mi/);
+  assert.doesNotMatch(phev, /520/);
 });

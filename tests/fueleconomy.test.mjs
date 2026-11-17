@@ -14,7 +14,7 @@ test.after(() => rmSync(temp, {recursive: true, force: true}));
 
 const V = (id, year, make, model, o = {}) => ({id, year, make, model, baseModel: o.base || model.split(' ')[0], drive: o.drive || 'Front-Wheel Drive', trany: o.trany || 'Automatic (S6)',
   displ: o.displ ?? '', cylinders: o.cyl ?? '', atvType: o.atv || '', fuelType: o.fuel || 'Regular', eng_dscr: o.dscr || '', tCharger: o.turbo ? 'T' : '', VClass: o.vclass || 'Midsize Cars',
-  city08: o.city ?? '', highway08: o.hwy ?? '', comb08: o.comb ?? '', range: o.range ?? '0'});
+  city08: o.city ?? '', highway08: o.hwy ?? '', comb08: o.comb ?? '', range: o.range ?? '0', rangeA: o.rangeA ?? ''});
 const ROWS = [
   V(35918, 2015, 'Ford', 'F150 Pickup 2WD', {base: 'F150', drive: 'Rear-Wheel Drive', displ: 2.7, cyl: 6, turbo: 1, city: 19, hwy: 26, comb: 22}),
   V(35922, 2015, 'Ford', 'F150 Pickup 4WD', {base: 'F150', drive: 'Part-time 4-Wheel Drive', displ: 2.7, cyl: 6, turbo: 1, city: 18, hwy: 23, comb: 20}),
@@ -35,11 +35,12 @@ const ROWS = [
   V(40102, 2019, 'Kia', 'Niro Touring', {trany: 'Automatic (AM6)', displ: 1.6, cyl: 4, atv: 'Hybrid', city: 46, hwy: 40, comb: 43}),
   V(24266, 2008, 'Scion', 'xD', {trany: 'Automatic 4-spd', displ: 1.8, cyl: 4, city: 27, hwy: 33, comb: 28}),
   V(24267, 2008, 'Scion', 'xD', {trany: 'Manual 5-spd', displ: 1.8, cyl: 4, city: 26, hwy: 33, comb: 29}),
+  V(44931, 2022, 'Ford', 'Escape FWD PHEV', {base: 'Escape', trany: 'Automatic (variable gear ratios)', displ: 2.5, cyl: 4, atv: 'Plug-in Hybrid', city: 43, hwy: 38, comb: 40, range: 520, rangeA: 37}),
   V(46946, 2024, 'Chevrolet', 'Silverado EV', {base: 'Silverado', drive: 'All-Wheel Drive', trany: 'Automatic (A1)', atv: 'EV', fuel: 'Electricity', city: 69, hwy: 57, comb: 63, range: 450}),
 ];
 const EMISSIONS = [['FFMXT02.73DH', 35922], ['STYXV01.8P3A', 49139], ['STYXV01.8P3A', 48490], ['STYXV01.8Q2B', 48490], ['MGMXT03.65A1', 42200]];
 
-const columns = ['id', 'year', 'make', 'model', 'baseModel', 'drive', 'trany', 'displ', 'cylinders', 'atvType', 'fuelType', 'eng_dscr', 'tCharger', 'VClass', 'city08', 'highway08', 'comb08', 'range'];
+const columns = ['id', 'year', 'make', 'model', 'baseModel', 'drive', 'trany', 'displ', 'cylinders', 'atvType', 'fuelType', 'eng_dscr', 'tCharger', 'VClass', 'city08', 'highway08', 'comb08', 'range', 'rangeA'];
 const csvText = (header, rows) => [header.join(','), ...rows.map(r => header.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(','))].join('\n') + '\n';
 writeFileSync(path.join(temp, 'vehicles.csv'), csvText(columns, ROWS));
 writeFileSync(path.join(temp, 'emissions.csv'), csvText(['efid', 'id', 'salesArea'], EMISSIONS.map(([efid, id]) => ({efid, id, salesArea: 7}))));
@@ -92,7 +93,10 @@ test('exact: the one FuelEconomy.gov configuration that fits every attribute the
   assert.equal(f.source_url, 'https://www.fueleconomy.gov/feg/Find.do?action=sbs&id=35922');
   // An electric VIN only ever matches the electric listing.
   const ev = await fuel(vin(2024, 'CHEVROLET', 'Equinox', {fuel: 'Electric', ev: 'BEV (Battery Electric Vehicle)', drive: 'FWD/Front-Wheel Drive'}));
-  assert.deepEqual([ev.match, ev.epa_model, ev.combined_mpg, ev.unit, ev.is_ev, ev.ev_range], ['exact', 'Equinox EV FWD', 108, 'MPGe', true, 319]);
+  assert.deepEqual([ev.match, ev.epa_model, ev.combined_mpg, ev.unit, ev.is_ev, ev.ev_range, ev.total_range], ['exact', 'Equinox EV FWD', 108, 'MPGe', true, 319, null]);
+  // A plug-in hybrid: EPA's `range` is gasoline plus electric; ev_range is the all-electric range.
+  const phev = await fuel(vin(2022, 'FORD', 'Escape', {displ: 2.5, cyl: 4, ev: 'PHEV (Plug-in Hybrid Electric Vehicle)', trim: 'SEL PHEV'}));
+  assert.deepEqual([phev.match, phev.epa_model, phev.combined_mpg, phev.ev_range, phev.total_range], ['exact', 'Escape FWD PHEV', 40, 37, 520]);
 });
 
 test('several configurations: nothing is picked; the range, every configuration and the shared test group are returned', async () => {
