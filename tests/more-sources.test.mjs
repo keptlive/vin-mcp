@@ -220,3 +220,83 @@ test('the production and theft card shows figures for the line, labels closest n
   sources.render({production_theft: {available: false, reason: 'model_year_not_published'}});
   assert.equal(nodes.has('card-production-theft'), false);
 });
+
+// ---- NHTSA Part 583 (AALA) parts content and origin ----
+import {lookupAala, carlineTier as aalaTier, decode} from '../lib/aala.mjs';
+
+function aalaDb(file) {
+  const db = new Database(file);
+  db.exec(`CREATE TABLE aala(model_year INTEGER NOT NULL,manufacturer TEXT,make TEXT NOT NULL,carline TEXT NOT NULL,vehicle_type TEXT,us_canada_pct INTEGER NOT NULL,foreign_sources TEXT NOT NULL,final_assembly TEXT,final_assembly_additional TEXT,engine TEXT,engine_additional TEXT,transmission TEXT,transmission_additional TEXT,notes TEXT,flags TEXT NOT NULL,page INTEGER,make_compact TEXT NOT NULL,carline_compact TEXT NOT NULL,source_file TEXT NOT NULL);
+    CREATE TABLE legends(model_year INTEGER NOT NULL,code TEXT NOT NULL,country TEXT NOT NULL,PRIMARY KEY(model_year,code));
+    CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT);`);
+  db.prepare('INSERT INTO metadata VALUES(?,?)').run('source', JSON.stringify({indexed_at: '2026-11-17T00:00:00Z', sources: [{model_year: 2024, file: 'MY2024.pdf', url: 'https://www.nhtsa.gov/MY2024.pdf'}, {model_year: 2026, file: 'MY2026.pdf', url: 'https://www.nhtsa.gov/MY2026.pdf'}]}));
+  const legend = db.prepare('INSERT INTO legends VALUES(?,?,?)');
+  for (const [code, country] of [['US', 'United States'], ['J', 'Japan'], ['CN', 'Canada'], ['CH', 'China'], ['G', 'Germany']]) { legend.run(2024, code, country); legend.run(2026, code, country); }
+  const ins = db.prepare('INSERT INTO aala VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+  const c = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const add = (y, make, carline, pct, foreign, fa, eng, tr, flags = []) => ins.run(y, make, make, carline, 'MPV', pct, JSON.stringify(foreign), fa, null, eng, null, tr, null, null, JSON.stringify(flags), 2, c(make), c(carline), `MY${y}.pdf`);
+  add(2024, 'Honda', 'CR-V FWD', 60, [], 'US', 'US', 'US');
+  add(2024, 'Honda', 'CR-V AWD', 60, [{pct: 15, code: 'J'}], 'CN', 'US', 'US');
+  add(2024, 'Honda', 'CR-V AWD', 60, [{pct: 15, code: 'J'}], 'US', 'US', 'US');
+  add(2024, 'Honda', 'CR-V AWD', 60, [{pct: 15, code: 'J'}], 'US', 'US', 'US'); // listed twice with the same figures
+  add(2024, 'Honda', 'CR-V AWD', 60, [{pct: 15, code: 'J'}], 'US', 'J (2.0L)', 'J');
+  add(2024, 'Honda', 'CR-V Hybrid AWD', 55, [{pct: 20, code: 'J'}], 'US', 'US', 'J');
+  add(2026, 'Mitsubishi', 'Outlander Sport SE', 0, [{pct: 90, code: 'J'}], 'J', 'J', 'J');
+  add(2026, 'Mitsubishi', 'Outlander SE 2WD', 1, [{pct: 85, code: 'J'}], 'J', 'J', 'J');
+  add(2026, 'BMW', 'X3', 30, [{pct: 24, code: 'G'}], 'US', null, null, ['unreadable_engine', 'unreadable_trans']);
+  db.close();
+}
+
+test('AALA parts content: carline, drive, hybrid and plant narrow the rows; every remaining version is shown; codes decode only from the legend', () => {
+  const file = path.join(temp, 'aala.db');
+  aalaDb(file);
+  const crv = lookupAala({vehicle: {year: 2024, make: 'HONDA', model: 'CR-V', trim: 'Sport-L'}, transmission: {drive_type: '4WD/4-Wheel Drive/4x4'}, engine: {}, plant: {country: 'UNITED STATES (USA)'}}, file);
+  assert.deepEqual([crv.available, crv.match, crv.vin_specific, crv.rows.length], [true, 'carline', false, 2]);
+  assert.deepEqual(crv.match_basis, ['same model year, make and carline name', 'non-hybrid carline', 'four/all-wheel drive', "final assembly in the VIN's plant country (UNITED STATES (USA))"]);
+  assert.deepEqual(crv.rows.map(r => [r.carline, r.engine_origin.countries, r.transmission_origin.countries, r.listed_times]), [['CR-V AWD', 'United States', 'United States', 2], ['CR-V AWD', 'Japan (2.0L)', 'Japan', 1]]);
+  assert.deepEqual(crv.rows[0].other_major_sources, [{pct: 15, printed: 'J', country: 'Japan'}]);
+  assert.match(crv.rows_note, /2 listed versions fit/);
+  assert.match(crv.note, /not for this car/);
+  const hybrid = lookupAala({vehicle: {year: 2024, make: 'HONDA', model: 'CR-V'}, transmission: {}, engine: {ev_type: 'Strong HEV (Hybrid Electric Vehicle)'}, plant: {}}, file);
+  assert.deepEqual(hybrid.rows.map(r => [r.carline, r.us_canada_parts_pct]), [['CR-V Hybrid AWD', 55]]);
+  // No "Outlander" carline: the closest names, preferring the one whose extra words are the VIN's trim
+  const outlander = lookupAala({vehicle: {year: 2026, make: 'MITSUBISHI', model: 'Outlander', trim: 'SE'}, transmission: {}, engine: {}, plant: {}}, file);
+  assert.deepEqual([outlander.match, outlander.rows.map(r => r.carline)], ['closest_carline', ['Outlander SE 2WD']]);
+  assert.match(outlander.note, /Closest carline name: matched by same model year and make; no carline named Outlander/);
+  const x3 = lookupAala({vehicle: {year: 2026, make: 'BMW', model: 'X3'}, transmission: {}, engine: {}, plant: {}}, file);
+  assert.deepEqual([x3.rows[0].engine_origin, x3.rows[0].unreadable], [null, ['engine_origin', 'transmission_origin']]);
+  assert.deepEqual(lookupAala({vehicle: {year: 2019, make: 'HONDA', model: 'CR-V'}}, file), {available: false, reason: 'model_year_not_covered', model_years_covered: [2024, 2026]});
+  assert.deepEqual(lookupAala({vehicle: {year: 2024, make: 'HONDA', model: 'Pilot'}}, file), {available: false, reason: 'carline_not_listed', model_year: 2024});
+  assert.deepEqual(lookupAala({vehicle: {year: 2024, make: 'HONDA', model: 'CR-V'}}, path.join(temp, 'none.db')), {available: false, reason: 'dataset_not_indexed'});
+  assert.equal(aalaTier('CR-V', 'CR-V AWD'), 3);
+  assert.equal(aalaTier('Outlander', 'Outlander Sport SE'), 2);
+  assert.equal(aalaTier('Q5', 'SQ5'), 0);
+  assert.equal(decode('G (3.3), A (3.4)', {G: 'Germany'}), 'Germany (3.3), A (3.4)');
+});
+
+test('the parts content card lists each version with its label, says unreadable columns aloud, and sits before the theft card', () => {
+  const nodes = new Map();
+  const node = id => ({id, remove() { nodes.delete(this.id); }, insertAdjacentElement(where, el) { nodes.set(el.id, el); el.after = this.id; }});
+  nodes.set('card-plant', node('card-plant'));
+  const ctx = {document: {querySelector: s => nodes.get(s.replace(/^#/, '')) || null, createElement: () => node(null)}, console};
+  vm.createContext(ctx);
+  vm.runInContext(readFileSync(new URL('../public/more-sources.js', import.meta.url), 'utf8'), ctx);
+  const sources = vm.runInContext('MoreSources', ctx);
+  const parts = {available: true, model_year: 2024, match: 'carline', match_basis: ['same model year, make and carline name'], rows_note: '2 listed versions fit; the report does not say which applies to this car.',
+    rows: [{carline: 'CR-V AWD', us_canada_parts_pct: 60, other_major_sources: [{pct: 15, printed: 'J', country: 'Japan'}], final_assembly: {printed: 'US', countries: 'United States'}, engine_origin: {printed: 'US', countries: 'United States'}, transmission_origin: {printed: 'US', countries: 'United States'}},
+      {carline: 'CR-V AWD', us_canada_parts_pct: 60, other_major_sources: [{pct: 15, printed: 'MX', country: null}], final_assembly: {printed: 'US', countries: 'United States'}, engine_origin: null, transmission_origin: null, unreadable: ['engine_origin']}],
+    source: {url: 'https://www.nhtsa.gov/MY2024.pdf'}};
+  sources.render({parts_content: parts, production_theft: {available: true, model_year: 2012, calendar_year: 2012, match: 'line_name', lines: [{manufacturer: 'VOLKSWAGEN', line: 'PASSAT', production: 95583, thefts: 107, thefts_per_1000_produced: 1.1194, rank: 57, lines_ranked: 211}]}});
+  const card = nodes.get('card-parts-content');
+  assert.equal(card.after, 'card-plant');
+  assert.equal(nodes.get('card-production-theft').after, 'card-parts-content');
+  const text = card.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(text, /Parts content and origin/);
+  assert.match(text, /CR-V AWD \(listed version 1 of 2\) US\/Canadian parts content 60% Other major sources Japan 15% Final assembly United States Engine\/motor from United States/);
+  assert.match(text, /listed version 2 of 2\) US\/Canadian parts content 60% Other major sources MX 15% Final assembly United States Engine\/motor from Not readable in the report/);
+  assert.doesNotMatch(text, /Transmission from Not readable/); // only the columns the importer marked
+  assert.match(text, /2 listed versions fit; the report does not say which applies to this car\. Figures for the whole carline .* not this car/);
+  sources.render({parts_content: {available: false, reason: 'model_year_not_covered'}});
+  assert.equal(nodes.has('card-parts-content'), false);
+  assert.equal(nodes.has('card-production-theft'), false);
+});

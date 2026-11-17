@@ -77,6 +77,31 @@ Reports carry `epa_test_vehicles`: rated horsepower (a range when the matched ro
 
 They are the manufacturer's test vehicles for the engine family, not this car. The full report's engine card shows rated horsepower and tested axle ratios with that wording; the car sheet shows rated power only when vPIC has no horsepower. Of the seven example VINs, five match (2015 F-150 2.7 4WD: 325 hp, axle 3.55; 2003 Accord V6: 240 hp, 5-speed automatic, axle 4.43; 2016 Outback 2.5: 175 hp; 2017 Bolt EV: 200 hp; 2024 CR-V hybrid AWD: 145 hp engine rating). The 2013 Tesla Model S and the 2012 Passat 2.5 are not in their model year's list (no test of that configuration was listed that year) and get `no_matching_test_vehicle`.
 
+## Parts content and origin (AALA, added 17 November 2026)
+
+The American Automobile Labeling Act (49 CFR Part 583) makes manufacturers report, per carline and model year, the share of US/Canadian parts content (by value), the other major source countries, the final assembly countries and the countries of origin of the engine and transmission. NHTSA publishes them as PDF tables only ("alphabetical" reports). `scripts/import-aala.py` reads the newest edition found for model years 2020-2027 (8 files, 2.0 MB; the NHTSA listing page refuses scripted requests, so the file links are kept in the script) with pdfminer.six character positions into `data/aala.db`:
+
+- left-hand cells go to the nearest of the Manufacturers / Makes / Carlines headers; origin cells to the header column whose printed span contains them;
+- a cell printed between two origin columns (common in the 2020-2024 layout, which prints second countries in the gaps) could belong to either, so both columns are left empty for that row and listed in `unreadable`; the percentages, which have their own columns, stay;
+- a cell printed over two lines joins its row; when the row's own line already holds text for that column, the extra line may be the neighbour's and the column is left unreadable (a carline in that position rejects the row);
+- two US/Canada percentages in one row, percentages over 100, or a missing carline, make or US/Canada percentage reject the row (kept in a `rejects` table with its cells);
+- country codes are decoded only with the country list printed in the same file (they change meaning: `CN` is Canada, `CH` China, `DE` Denmark, `SW` Sweden); codes a file does not list stay as printed.
+
+| Model year | Rows | Rejected | Rows with an unreadable origin column |
+|---|---|---|---|
+| 2020 | 584 | 31 (5.0%) | 97 |
+| 2021 | 506 | 14 (2.7%) | 102 |
+| 2022 | 492 | 22 (4.3%) | 81 |
+| 2023 | 422 | 31 (6.8%, mostly Ford rows with no percentage in the March 2023 edition) | 29 |
+| 2024 | 525 | 12 (2.2%) | 67 |
+| 2025 | 548 | 1 (0.2%) | 0 |
+| 2026 | 489 | 0 | 0 |
+| 2027 | 53 (early edition) | 0 | 0 |
+
+Accuracy check: the same parser read NHTSA's "by percentage" edition of the same date for MY2024 and MY2020 (the same data, other row order and neighbours). MY2024: all fields agree for all 468 carlines found once in both files. MY2020: 423 of 427 agree; the 4 that differ are Jaguar rows whose printed values differ between NHTSA's two files. US/Canadian percentages agreed in every compared row. MY2020 is therefore included; `--years 2021-2027` leaves it out.
+
+Reports carry `parts_content` for those model years: same model year and make, the carline name (drive, body and hybrid words aside; otherwise the closest names, `match: closest_carline`, preferring carlines whose extra words are the VIN's trim), then narrowed by hybrid or not, drive and the VIN's plant country when some rows fit. Every remaining version is returned (identical printed rows once, with `listed_times`), with `rows_note` when more than one fits. The full report shows a "Parts content and origin" card after Manufacturing. Of the seven example VINs only the 2024 CR-V is in a covered year: CR-V AWD assembled in the United States, 60% US/Canadian parts, Japan 15%, in two listed versions (engine and transmission from the United States, or from Japan); the report does not say which applies to the car.
+
 ## Production and theft, historical (added 17 November 2026)
 
 NHTSA publishes final theft rates for each passenger-vehicle line under the theft prevention standard (49 CFR Part 541) as "Final Theft Data" notices in the Federal Register: thefts of a model year's vehicles reported to the FBI's National Crime Information Center during the same calendar year, the line's production for the model year as manufacturers reported it to the EPA, and thefts per 1,000 produced. `scripts/import-theft-rates.py` finds the notices with the Federal Register API, caches their XML (20 notices, 1.2 MB) and reads the tables (both the five- and six-column layouts) into `data/theft-rates.db`. A newer notice for the same model year replaces an older one (MY2007 was published twice). Federal Register XML starts in 2000 and the notices for MY2011, MY2013 and MY2014 print no table, so the index covers **model years 1998-2010 and 2012**: 3,070 lines, none rejected. Six rows print a rate that differs from thefts / production x 1,000 by more than rounding (for example the 2012 Toyota Corolla); they are kept as printed and flagged `printed_rate_differs`. The all-lines total is printed for MY2012 only.
