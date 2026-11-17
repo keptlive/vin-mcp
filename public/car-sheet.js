@@ -3,10 +3,15 @@
  * Rules kept here (and tested in tests/car-sheet.test.mjs):
  * - Only facts from the report's public sources are printed. A missing value is
  *   left out or shown as "Unknown", never as zero.
- * - Tire pressures, tire size, fuse layout, oil and other owner's-manual facts have
- *   no public per-vehicle source. The sheet links to the maker's official manual
- *   library and leaves labelled spaces to copy the values from the door-pillar
- *   placard (FMVSS No. 110, 49 CFR 571.110 S4.3) and the manual. Nothing is guessed.
+ * - Fuse layout, oil and other owner's-manual facts have no public per-vehicle
+ *   source. The sheet links to the maker's official manual library and leaves
+ *   labelled spaces to copy the values from the door-pillar placard (FMVSS No. 110,
+ *   49 CFR 571.110 S4.3) and the manual. Nothing is guessed.
+ * - Tire size and cold pressures are shown only as NHTSA printed them for its own
+ *   crash-test vehicle of the exact same make, model and model year (report field
+ *   tire_placard), labelled as that test vehicle and linked to the report. They are
+ *   never this VIN's placard values, never another model year's, never estimated;
+ *   the write-in blanks stay for the owner's own placard.
  * - Model-year recall campaigns are not this car's repair status. VIN-specific
  *   status is labelled with the manufacturer source that reported it.
  */
@@ -116,15 +121,48 @@ const CarSheet = (() => {
     return section('size', 'Size and weight', `${list(rows)}<div class="sheet-dims" data-dims><p class="sheet-note sheet-loading">Loading Transport Canada model dimensions…</p></div>`);
   }
 
+  const REPORT_HOST = 'https://nrd-static.nhtsa.dot.gov/';
+  const psiOk = v => Number.isInteger(v) && v > 0;
+  const kpaOk = v => typeof v === 'number' && Number.isFinite(v) && v > 0;
+
+  /** NHTSA's crash-test vehicles of this exact make, model and year: as printed in its reports, or []. */
+  function testedPlacards(tp) {
+    if (!tp || tp.available !== true || !Array.isArray(tp.vehicles)) return [];
+    return tp.vehicles.filter(v => v && present(v.tested_as) && v.tires && present(v.tires.front) && present(v.tires.rear)
+      && v.cold_pressure_psi && psiOk(v.cold_pressure_psi.front) && psiOk(v.cold_pressure_psi.rear)
+      && v.cold_pressure_kpa && kpaOk(v.cold_pressure_kpa.front) && kpaOk(v.cold_pressure_kpa.rear)
+      && String(v.report_url || '').startsWith(REPORT_HOST));
+  }
+
+  function placardItem(v) {
+    const psi = v.cold_pressure_psi, kpa = v.cold_pressure_kpa;
+    const tires = v.tires.front === v.tires.rear ? `${v.tires.front} front and rear` : `${v.tires.front} front, ${v.tires.rear} rear`;
+    const cold = psi.front === psi.rear && kpa.front === kpa.rear
+      ? `${psi.front} psi front and rear (${fmtAuto(kpa.front)} kPa)`
+      : `${psi.front} psi front (${fmtAuto(kpa.front)} kPa), ${psi.rear} psi rear (${fmtAuto(kpa.rear)} kPa)`;
+    const test = Number.isInteger(v.test_no) ? ` ${v.test_no}` : '';
+    return `<li class="placard-test"><span class="placard-as">NHTSA test vehicle: ${esc(v.tested_as)}</span>`
+      + `<span class="placard-values">Tires ${esc(tires)}</span><span class="placard-values">Cold ${esc(cold)}</span>`
+      + `<a href="${esc(v.report_url)}" target="_blank" rel="noopener">NHTSA test report${esc(test)}</a></li>`;
+  }
+
   function tireSection(r) {
-    const raw = r.raw_nhtsa || {}, tpms = (r.safety_equipment || {}).tpms;
+    const raw = r.raw_nhtsa || {}, tpms = (r.safety_equipment || {}).tpms, tp = r.tire_placard;
     const front = num(raw.WheelSizeFront), rear = num(raw.WheelSizeRear);
     const wheels = front && rear && front !== rear ? `${fmtAuto(front)} in front, ${fmtAuto(rear)} in rear` : (front || rear) ? `${fmtAuto(front || rear)} in` : null;
     const tpmsText = !present(tpms) ? null : /^direct$/i.test(tpms) ? 'Direct (a pressure sensor in each wheel)' : /^indirect$/i.test(tpms) ? 'Indirect (reads wheel speed, no pressure sensors)' : tpms;
     const rows = [row('Wheel diameter', wheels), row('Pressure monitor (TPMS)', tpmsText)];
+    const tested = testedPlacards(tp);
+    const tests = tested.length
+      ? `<ul class="placard-tests">${tested.map(placardItem).join('')}</ul><p class="sheet-note placard-governs">Your own door placard governs; it can differ by trim and tire size.</p>`
+      : '';
+    const placard = 'The recommended cold pressures and original tire sizes are printed on the Tire and Loading Information placard, normally on the driver’s door pillar (FMVSS No. 110).';
+    const note = tested.length ? `Copy your car’s own values from its Tire and Loading Information placard, normally on the driver’s door pillar (FMVSS No. 110).`
+      : tp && tp.available === true ? `${placard} NHTSA’s crash-test reports list them only for the vehicles it tested; none with this exact make, model and year is indexed, so mcp.vin shows no values.`
+      : `${placard} NHTSA’s test-vehicle index was not checked for this report, so mcp.vin shows no values.`;
     const fields = [writeIn('Tire size, front'), writeIn('Tire size, rear'), writeIn('Cold pressure, front', 'psi'), writeIn('Cold pressure, rear', 'psi'), writeIn('Spare', 'psi')].join('');
-    return section('tires', 'Tires and wheels', list(rows),
-      `<fieldset class="write-ins"><legend>Copy from the tire placard</legend>${fields}</fieldset><p class="sheet-note">The recommended cold pressures and original tire sizes are printed on the Tire and Loading Information placard, normally on the driver’s door pillar (FMVSS No. 110). No public source lists them per vehicle, so mcp.vin does not show them.</p>`);
+    return section('tires', 'Tires and wheels', list(rows) + tests,
+      `<fieldset class="write-ins"><legend>Copy from the tire placard</legend>${fields}</fieldset><p class="sheet-note">${esc(note)}</p>`);
   }
 
   function manualSection(r) {
@@ -194,7 +232,7 @@ const CarSheet = (() => {
   function footer(r) {
     const vin = esc(r.vin), url = `https://mcp.vin/${vin}`, assembled = fmtDate(r.provenance && r.provenance.assembled_at);
     const maker = r.recall_status && r.recall_status.available && r.recall_status.source && r.recall_status.source.provider;
-    const sources = ['NHTSA vPIC (maker-submitted VIN data)', 'NHTSA recalls, complaints and crash ratings', r.fuel_economy && r.fuel_economy.available && 'EPA FuelEconomy.gov', 'Transport Canada via NHTSA vPIC (dimensions)', maker].filter(Boolean);
+    const sources = ['NHTSA vPIC (maker-submitted VIN data)', 'NHTSA recalls, complaints and crash ratings', testedPlacards(r.tire_placard).length && 'NHTSA crash-test reports (test-vehicle tire placard)', r.fuel_economy && r.fuel_economy.available && 'EPA FuelEconomy.gov', 'Transport Canada via NHTSA vPIC (dimensions)', maker].filter(Boolean);
     const qr = typeof VinQr !== 'undefined' ? VinQr.svg(url, `QR code linking to ${url}`) : '';
     return `<div class="sheet-foot-text"><p><strong>Sources:</strong> ${esc(sources.join('; '))}.${assembled ? ` Data gathered ${esc(assembled)}.` : ''}</p><p>Decoded from the VIN and public records; options, repairs and later changes are not shown. Check the placard, the manual and the official recall links.</p><p class="sheet-live">Live report: <a href="${url}">${url}</a></p></div>${qr ? `<div class="sheet-qr">${qr}</div>` : ''}`;
   }
@@ -295,6 +333,6 @@ const CarSheet = (() => {
     });
   }
 
-  return { manualFor, html, dimensionSummary, dimensionsHtml, fmtDate, render };
+  return { manualFor, html, dimensionSummary, dimensionsHtml, fmtDate, render, testedPlacards };
 })();
 if (typeof window !== 'undefined') window.CarSheet = CarSheet;

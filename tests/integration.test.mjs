@@ -15,6 +15,12 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const stage=await mkdtemp(path.join(tmpdir(),'vin-mcp-tests-'));
 for(const f of ['server.mjs','package.json','lib','public','tests/mock-upstream.mjs','tests/mopar-fixture.mjs','tests/manufacturer-fixtures.mjs'])await cp(path.join(root,f),path.join(stage,f),{recursive:true});
 await symlink(path.join(root,'node_modules'),path.join(stage,'node_modules'),'dir');
+// Fixture tire placard index (built by the real import script): one NHTSA test vehicle for the mock HONDA Accord 2003.
+{const {mkdir}=await import('node:fs/promises');const {spawnSync}=await import('node:child_process');await mkdir(path.join(stage,'data'),{recursive:true});
+ const src=path.join(stage,'data','tire-placards-fixture.jsonl');
+ await writeFile(src,JSON.stringify({make:'HONDA',model:'Accord',model_year:2003,tested_as:'2003 Honda Accord fixture sedan',tires:{front:'P205/65R15 92V',rear:'P205/65R15 92V'},cold_pressure_kpa:{front:220,rear:220},cold_pressure_psi:{front:32,rear:32},test_no:1,report_url:'https://nrd-static.nhtsa.dot.gov/reports/vehdb/fixture.pdf',confidence:'normal',other_reports:[]})+'\n');
+ const code="import importlib.util,sys;s=importlib.util.spec_from_file_location('i',sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);m.build(sys.argv[2],sys.argv[3])";
+ const run=spawnSync('python3',['-c',code,path.join(root,'scripts/import-tire-placards.py'),src,path.join(stage,'data','tire-placards.db')],{encoding:'utf8'});if(run.status!==0)throw Error(run.stderr);}
 const port=23291, base=`http://127.0.0.1:${port}`;
 const env={...process.env,JWT_SECRET:'isolated-test-secret',ADMIN_KEY:'a'.repeat(64),NODE_ENV:'production'};
 const child=spawn(process.execPath,['--import',path.join(stage,'tests/mock-upstream.mjs'),path.join(stage,'server.mjs'),'--http','--port',String(port)],{cwd:stage,env,stdio:['ignore','ignore','pipe']});
@@ -28,6 +34,16 @@ test('REST full report selects matching fuel and caches engine variants separate
   const r=await(await req('/api/vin/'+vin)).json();assert.equal(r.engine.cylinders,6);assert.equal(r.fuel_economy.cylinders,6);assert.equal(r.fuel_economy.combined_mpg,22);
   let other='1HGCM82633A004353';other=other.slice(0,8)+validateVin(other).checksum.expected+other.slice(9);
   const r2=await(await req('/api/vin/'+other)).json();assert.equal(r2.engine.cylinders,4);assert.equal(r2.fuel_economy.cylinders,4);assert.equal(r2.fuel_economy.combined_mpg,25);
+});
+test('REST and MCP reports carry the NHTSA test-vehicle placard block, exact make/model/year only',async()=>{
+  const r=await(await req('/api/vin/'+vin)).json();const t=r.tire_placard;
+  assert.equal(t.available,true);assert.equal(t.scope,'nhtsa_test_vehicle');assert.equal(t.vin_specific,false);assert.match(t.note,/your own door placard governs/i);
+  assert.deepEqual(t.vehicles.map(v=>[v.model_year,v.make,v.model,v.tested_as,v.tires.front,v.cold_pressure_psi.front,v.cold_pressure_kpa.rear,v.test_no,v.confidence]),[[2003,'HONDA','Accord','2003 Honda Accord fixture sedan','P205/65R15 92V',32,220,1,'normal']]);
+  let toyota='4T1BF1FK0CU123456';toyota=toyota.slice(0,8)+validateVin(toyota).checksum.expected+toyota.slice(9);
+  const none=(await(await req('/api/vin/'+toyota)).json()).tire_placard;assert.equal(none.available,true);assert.deepEqual(none.vehicles,[]);assert.equal(none.reason,'no_exact_match');
+  const client=new Client({name:'placard-check',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+  try{await client.connect(transport);const m=JSON.parse((await client.callTool({name:'decode_vin',arguments:{vin}})).content[0].text).tire_placard;
+    assert.deepEqual(m,t);}finally{await transport.terminateSession();await client.close();}
 });
 test('registration, login and identity still work',async()=>{
  let res=await req('/api/auth/register',{email:'isolated@example.invalid',password:'fixture-password',display_name:'Test'});assert.equal(res.status,201);token=(await res.json()).token;

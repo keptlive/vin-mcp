@@ -59,10 +59,52 @@ test('tire pressures, sizes and manual facts are labelled write-in spaces, never
   for (const label of ['Tire size, front', 'Tire size, rear', 'Cold pressure, front', 'Cold pressure, rear', 'Spare', 'Fuse box locations', 'Wiper blade sizes', '12-volt battery'])
     assert.match(body, new RegExp(`<label class="write-in"><span class="write-label">${label}</span><span class="write-field"><input type="text" autocomplete="off" spellcheck="false">`), label);
   assert.doesNotMatch(body, /<input[^>]*value=/);
-  assert.match(text(body), /Tire and Loading Information placard, normally on the driver’s door pillar \(FMVSS No\. 110\)\. No public source lists them per vehicle/);
+  // No placard index in the report: nothing is shown and the sheet says it was not checked.
+  assert.match(text(body), /Tire and Loading Information placard, normally on the driver’s door pillar \(FMVSS No\. 110\)\. NHTSA’s test-vehicle index was not checked for this report, so mcp\.vin shows no values\./);
+  assert.doesNotMatch(body, /NHTSA test vehicle/);
   // An electric car has no engine oil line; a gasoline car does.
   assert.doesNotMatch(body, /Engine oil/);
   assert.match(sheet.html({...base(), engine: {fuel_type: 'Gasoline', cylinders: 6, displacement_l: 3}}).body, /Engine oil grade and capacity/);
+});
+
+const tested = (o = {}) => ({model_year: 2017, make: 'CHEVROLET', model: 'Bolt EV', tested_as: '2017 Chevrolet Bolt EV LT 5-Door Hatchback',
+  tires: {front: '215/50R17 91H', rear: '215/50R17 91H'}, cold_pressure_psi: {front: 38, rear: 38}, cold_pressure_kpa: {front: 260, rear: 260},
+  report_url: 'https://nrd-static.nhtsa.dot.gov/reports/vehdb/v10000/v10000/v10000R001.pdf', test_no: 10000, confidence: 'high', other_reports: [], ...o});
+const placard = vehicles => ({available: true, scope: 'nhtsa_test_vehicle', vin_specific: false, vehicles, note: 'fixture'});
+
+test('NHTSA test-vehicle placard values show above the blanks, labelled, linked, and never fill the blanks', () => {
+  const {sheet} = load();
+  const body = sheet.html({...base(), tire_placard: placard([tested()])}).body;
+  const out = text(body);
+  assert.match(out, /NHTSA test vehicle: 2017 Chevrolet Bolt EV LT 5-Door Hatchback Tires 215\/50R17 91H front and rear Cold 38 psi front and rear \(260 kPa\) NHTSA test report 10000/);
+  assert.match(out, /Your own door placard governs; it can differ by trim and tire size\./);
+  assert.match(body, /<a href="https:\/\/nrd-static\.nhtsa\.dot\.gov\/reports\/vehdb\/v10000\/v10000\/v10000R001\.pdf" target="_blank" rel="noopener">NHTSA test report 10000<\/a>/);
+  // The values sit above the write-in blanks, which stay empty.
+  assert.ok(body.indexOf('NHTSA test vehicle') < body.indexOf('Copy from the tire placard'));
+  assert.doesNotMatch(body, /<input[^>]*value=/);
+  assert.match(out, /Copy your car’s own values from its Tire and Loading Information placard/);
+  assert.match(sheet.html({...base(), tire_placard: placard([tested()])}).foot, /NHTSA crash-test reports \(test-vehicle tire placard\)/);
+  // Front and rear differ: both printed; several tested variants: all listed.
+  const two = text(sheet.html({...base(), tire_placard: placard([
+    tested({tires: {front: 'P245/40ZR20 95Y', rear: 'P275/35ZR20 97Y'}, cold_pressure_psi: {front: 32, rear: 39}, cold_pressure_kpa: {front: 220, rear: 270}}),
+    tested({tested_as: '2017 Chevrolet Bolt EV Premier', test_no: 10001})])}).body);
+  assert.match(two, /Tires P245\/40ZR20 95Y front, P275\/35ZR20 97Y rear Cold 32 psi front \(220 kPa\), 39 psi rear \(270 kPa\)/);
+  assert.match(two, /NHTSA test vehicle: 2017 Chevrolet Bolt EV Premier/);
+});
+
+test('no placard value without an exact indexed match, a complete value and an NHTSA report link', () => {
+  const {sheet} = load();
+  const none = text(sheet.html({...base(), tire_placard: {available: true, scope: 'nhtsa_test_vehicle', vin_specific: false, vehicles: [], reason: 'no_exact_match'}}).body);
+  assert.doesNotMatch(none, /NHTSA test vehicle|Your own door placard governs/);
+  assert.match(none, /none with this exact make, model and year is indexed, so mcp\.vin shows no values/);
+  assert.doesNotMatch(none, /\b0 psi\b/);
+  const down = text(sheet.html({...base(), tire_placard: {available: false, reason: 'dataset_not_indexed', vin_specific: false}}).body);
+  assert.match(down, /index was not checked/); assert.doesNotMatch(down, /NHTSA test vehicle/);
+  for (const bad of [tested({cold_pressure_psi: {front: 38, rear: null}}), tested({cold_pressure_psi: {front: 0, rear: 0}}), tested({tires: {front: '', rear: '215/50R17'}}),
+    tested({report_url: 'https://example.com/r.pdf'}), tested({cold_pressure_kpa: {front: 260}}), tested({tested_as: ''})])
+    assert.doesNotMatch(sheet.html({...base(), tire_placard: placard([bad])}).body, /NHTSA test vehicle/, JSON.stringify(bad));
+  const evil = sheet.html({...base(), tire_placard: placard([tested({tested_as: '<img src=x onerror=alert(1)>', tires: {front: '<b>x</b>', rear: '<b>x</b>'}})])}).body;
+  assert.doesNotMatch(evil, /<img src=x|<b>x/); assert.match(evil, /&lt;img src=x/);
 });
 
 test('owner’s manual links go only to the maker’s official library', () => {
