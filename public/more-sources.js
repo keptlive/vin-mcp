@@ -30,6 +30,11 @@ const MoreSources = (() => {
     const t = r && r.epa_test_vehicles;
     return t && t.available && t.rated_hp ? `${span(t.rated_hp)} hp` : null;
   }
+  /** For hybrids and plug-ins: EPA's figure is the engine alone (hp_note from the server), else ''. */
+  function epaHpCaveat(r) {
+    const t = r && r.epa_test_vehicles;
+    return t && t.available && t.rated_hp && t.hp_note ? 'engine rating, not the combined hybrid system output' : '';
+  }
 
   /** Rows for the full report's engine card: EPA test-vehicle facts, labelled as such. */
   function engineRowsHtml(r) {
@@ -37,7 +42,7 @@ const MoreSources = (() => {
     if (!t || !t.available) return '';
     const years = (t.tested_model_years || []).join(', ');
     const rows = [
-      dataRow('Rated horsepower (EPA test vehicles)', epaHp(r)),
+      dataRow('Rated horsepower (EPA test vehicles)', epaHp(r) && (epaHpCaveat(r) ? `${epaHp(r)} (${epaHpCaveat(r)})` : epaHp(r))),
       dataRow('Axle ratios tested', (t.axle_ratios || []).map(fmt).join(', ')),
       dataRow('Transmission tested', (t.transmissions || []).join('; ')),
       dataRow('EPA test weight', t.test_weight_lb ? `${span(t.test_weight_lb)} lb` : null),
@@ -112,6 +117,6 @@ const MoreSources = (() => {
     part(() => card('card-production-theft', document.querySelector('#card-parts-content') ? 'card-parts-content' : 'card-plant', 'Production and theft (historical)', theftHtml(r)));
   }
 
-  return { builtHtml, epaHp, engineRowsHtml, partsHtml, theftHtml, render };
+  return { builtHtml, epaHp, epaHpCaveat, engineRowsHtml, partsHtml, theftHtml, render };
 })();
 if (typeof window !== 'undefined') window.MoreSources = MoreSources;

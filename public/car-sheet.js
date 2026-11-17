@@ -101,7 +101,7 @@ const CarSheet = (() => {
     const epaHp = !num(e.hp) && typeof MoreSources !== 'undefined' ? MoreSources.epaHp(r) : null;
     const rows = [
       row(isEv ? 'Motor' : 'Engine', engine || null), row('Engine code', code), row('Fuel', fuel ? fuel + grade : null),
-      row('Rated power', epaHp && `${epaHp} (maker’s EPA test vehicles for this engine family)`),
+      row('Rated power', epaHp && `${epaHp} (${MoreSources.epaHpCaveat(r) ? MoreSources.epaHpCaveat(r) + '; ' : ''}maker’s EPA test vehicles for this engine family)`),
       row('Transmission', trans || null), row('Drive', t.drive_type), row('Electrification', e.ev_type),
       row('Battery', battery), row('Charging', charger || null),
       row('EPA fuel economy', mpg), row('EPA range', f.available && num(f.ev_range) ? `${f.ev_range} mi` : null),

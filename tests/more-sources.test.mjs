@@ -133,6 +133,11 @@ test('EPA test vehicles: exact test group first, carried-over groups and closest
   assert.deepEqual([lexus.available, lexus.rated_hp.max], [true, 220]);
   assert.deepEqual(lookupEpaTestCars(car(2015, 'FORD', 'F-150', {engine: {displacement_l: 5.0}}), file), {available: false, reason: 'no_matching_test_vehicle', model_year: 2015});
   assert.deepEqual(lookupEpaTestCars(car(2015, 'FORD', 'F-150'), path.join(temp, 'none.db')), {available: false, reason: 'dataset_not_indexed'});
+  assert.equal(exact.hp_note, undefined);
+  const hybrid = lookupEpaTestCars(car(2014, 'HONDA', 'Accord', {engine: {displacement_l: 2.4, ev_type: 'Strong HEV (Hybrid Electric Vehicle)'}}), file);
+  assert.match(hybrid.hp_note, /This is a hybrid: EPA's rated horsepower is the engine's rating, not the combined system output/);
+  const plugin = lookupEpaTestCars(car(2014, 'HONDA', 'Accord', {engine: {displacement_l: 2.4, ev_type: 'PHEV (Plug-in Hybrid Electric Vehicle)'}}), file);
+  assert.match(plugin.hp_note, /This is a plug-in hybrid/);
   assert.equal(carlineTier('Camry', 'CAMRY SOLARA'), 2);
   assert.equal(carlineTier('Camry', 'CAMRY'), 3);
   assert.equal(carlineTier('Z', 'Z4 ROADSTER'), 0);
@@ -152,6 +157,9 @@ test('the engine card and the car sheet label EPA test-vehicle horsepower; the s
   const report = {vin: '1HGCM82633A004352', vehicle: {year: 2003, make: 'HONDA', model: 'Accord'}, engine: {displacement_l: 3.0, cylinders: 6}, transmission: {}, raw_nhtsa: {}, recalls: {available: true, count: 0, recalls: []}, fuel_economy: {available: false}, epa_test_vehicles: epa};
   const out = sheet.html(report).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(out, /Rated power 240–255 hp \(maker’s EPA test vehicles for this engine family\)/);
+  const hybridEpa = {...epa, rated_hp: {min: 145, max: 145}, hp_note: "This is a hybrid: EPA's rated horsepower is the engine's rating, not the combined system output of the engine and electric motor(s)."};
+  assert.match(sources.engineRowsHtml({epa_test_vehicles: hybridEpa}).replace(/<[^>]+>/g, ' '), /145 hp \(engine rating, not the combined hybrid system output\)/);
+  assert.match(sheet.html({...report, epa_test_vehicles: hybridEpa}).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), /Rated power 145 hp \(engine rating, not the combined hybrid system output; maker’s EPA test vehicles for this engine family\)/);
   const withVpic = sheet.html({...report, engine: {...report.engine, hp: 240}}).body;
   assert.doesNotMatch(withVpic, /Rated power/);
 });
