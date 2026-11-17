@@ -220,6 +220,36 @@ test('capacities and weights: one tested vehicle, both units, the fuel tank labe
   } finally { rmSync(dir, {recursive: true, force: true}); }
 });
 
+test('confirmed corrections of report misprints: shown values corrected, what was printed and why kept', async () => {
+  const conf = [{check: 'same_report', detail: 'its placard row prints 260/260 kPa', report: 'test 11490', report_url: url(11490)}];
+  const fix = {field: 'cold_pressure', rule: 'psi_under_kpa_heading', printed: {value: {front: 38, rear: 38}, unit: 'kPa'},
+    corrected: {value: {front: 38, rear: 38}, unit: 'psi', kpa: {front: 260, rear: 260}}, note: 'NHTSA’s report prints 38/38 under a kPa heading; those are psi.', confirmed_by: conf};
+  const tank = {field: 'fuel_tank_standard_l', rule: 'gallons_under_litres_heading', printed: {value: 16.3, unit: 'L'}, corrected: {value: 16.3, unit: 'gal', litres: 61.7},
+    note: 'NHTSA’s report prints 16.3 under a litres heading; that is 16.3 US gallons, 61.7 L.', confirmed_by: [{check: 'same_generation_version', detail: 'test 6997 prints 61.7 L', report: 'test 6997', report_url: url(6997)}]};
+  const lbkg = {field: 'gvwr', rule: 'pounds_labelled_kg', printed: {value: 7000, unit: 'kg'}, corrected: {value: 7000, unit: 'lb', kg: 3175},
+    note: 'NHTSA’s report prints the GVWR 7,000 under a kg heading; that is 7,000 lb (3,175 kg).', confirmed_by: [{check: 'plausibility', detail: 'x'}]};
+  const {dir, file} = buildIndex([row({cold_pressure_kpa: {front: 260, rear: 260}, cold_pressure_psi: {front: 38, rear: 38}, corrections: [fix]})],
+    [spec({fuel_tank_standard: {litres: 61.7, printed: 16.3, unit_printed: 'L', unit: 'gal', method: 'label_line', correction: tank},
+      gvwr: {value: 7000, unit_printed: 'kg', unit: 'lb', correction: lbkg}})]);
+  try {
+    const r = await lookupTestVehicleData(vin(), {file, dims: tc()});
+    const p = r.tire_placard.vehicles[0];
+    assert.deepEqual([p.cold_pressure_kpa, p.cold_pressure_psi], [{front: 260, rear: 260}, {front: 38, rear: 38}]);
+    assert.equal(p.corrections.length, 1);
+    assert.deepEqual([p.corrections[0].corrected, p.corrections[0].rule, p.corrections[0].printed.value.front], [true, 'psi_under_kpa_heading', 38]);
+    assert.match(p.corrections[0].note, /under a kPa heading/); assert.equal(p.corrections[0].confirmed_by[0].report_url, url(11490));
+    assert.equal(p.corrections[0].report, undefined);  // the shown report's own correction
+    const v = r.test_vehicle_specs.vehicles[0];
+    assert.deepEqual([v.fuel_tank.litres, v.fuel_tank.gallons, v.fuel_tank.printed], [61.7, 16.3, '16.3 gal']);
+    assert.equal(v.fuel_tank.correction.rule, 'gallons_under_litres_heading'); assert.equal(v.fuel_tank.correction.corrected, true);
+    assert.deepEqual([v.gvwr.kg, v.gvwr.lb, v.gvwr.printed], [3175, 7000, '7000 kg']);  // printed as the report has it; the value is pounds
+    assert.equal(v.gvwr.correction.rule, 'pounds_labelled_kg');
+    assert.equal(r.test_vehicle_specs.fuel_tank.values[0].correction.rule, 'gallons_under_litres_heading');
+    const plain = (await lookupTestVehicleData(vin(), {file: buildIndex([row()], [spec()]).file, dims: tc()}));
+    assert.equal(plain.tire_placard.vehicles[0].corrections, undefined); assert.equal(plain.test_vehicle_specs.vehicles[0].gvwr.correction, undefined);
+  } finally { rmSync(dir, {recursive: true, force: true}); }
+});
+
 test('compliance test reports: own link and label, one row per test vehicle, tank and brake test from the closest vehicle that has them', async () => {
   const ctr = n => `https://static.nhtsa.gov/odi/ctr/2020/TRTR-${n}-2020.pdf`;
   const comp = o => ({make: 'FORD', model: 'F-150', model_year: 2021, tested_as: '2021 Ford F-150', vpic_trim: 'XLT', fuel_type: 'Gasoline',

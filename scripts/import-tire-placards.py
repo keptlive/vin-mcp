@@ -91,9 +91,57 @@ def check(row, n):
     for f in ('vpic_series', 'fuel_type', 'ev_type'):
         if row.get(f) is not None and not isinstance(row[f], str):
             bad(f)
+    row['_corrections'] = corrections(row, bad)
 
 
 EXTRA_FIELDS = {'displacement_l': (int, float), 'cylinders': int, 'gvwr_class': str, 'cab': str, 'doors': int, 'plant': str}
+
+# Confirmed corrections of report misprints (research pipeline scripts/corrections.py, owner 2026-11-17: correct when
+# verifiable): a clear mechanical cause plus an independent check. Each keeps what the report printed and why.
+CORRECTION_RULES = ('psi_under_kpa_heading', 'sidewall_maximum_in_pressure_row', 'pressure_digit_dropped', 'size_digit_glitch',
+                    'front_rear_swapped', 'gallons_under_litres_heading', 'pounds_labelled_kg', 'kg_labelled_pounds')
+CORRECTION_CHECKS = ('same_report', 'same_test_vehicle', 'same_generation_version', 'plausibility', 'vpic_gvwr_class')
+
+
+def check_correction(c, bad, where):
+    """One correction record: rule, field, printed and corrected values, a plain-words note and at least one independent
+    check (a supporting vPIC GVWR class alone is not enough). Report links must be NHTSA report URLs."""
+    if not isinstance(c, dict) or set(c) - {'field', 'rule', 'printed', 'corrected', 'note', 'confirmed_by', 'report', 'report_url'} or c.get('rule') not in CORRECTION_RULES:
+        bad(f'{where} correction')
+    if c.get('report_url') is not None and not any(str(c['report_url']).startswith(h) for h in REPORT_HOSTS.values()):
+        bad(f'{where} correction report_url host')
+    if not isinstance(c.get('note'), str) or not 20 <= len(c['note']) <= 500 or not isinstance(c.get('printed'), dict) or not isinstance(c.get('corrected'), dict):
+        bad(f'{where} correction note or values')
+    conf = c.get('confirmed_by')
+    if not isinstance(conf, list) or not conf or not any(isinstance(x, dict) and x.get('check') in CORRECTION_CHECKS[:4] for x in conf):
+        bad(f'{where} correction without an independent check')
+    for x in conf:
+        if not isinstance(x, dict) or x.get('check') not in CORRECTION_CHECKS or not isinstance(x.get('detail'), str) \
+                or (x.get('report_url') is not None and not any(str(x['report_url']).startswith(h) for h in REPORT_HOSTS.values())):
+            bad(f'{where} correction check')
+
+
+def corrections(row, bad):
+    """The row's confirmed corrections as JSON (None without any). A correction names the report it corrects (the shown one or a
+    second report of the row); its corrected values must be the shown ones (pressures to the psi: 248 and 250 kPa are both 36 psi)."""
+    cs = row.get('corrections')
+    if cs is None:
+        return None
+    if not isinstance(cs, list) or not cs:
+        bad('corrections')
+    for c in cs:
+        check_correction(c, bad, 'tire')
+        v = c['corrected'].get('value')
+        if c['field'] == 'cold_pressure':
+            kpa = c['corrected'].get('kpa') or (v if c['corrected'].get('unit') == 'kPa' else None)
+            if not isinstance(kpa, dict) or any(not isinstance(kpa.get(s), (int, float)) or round(kpa[s] / KPA_PER_PSI) != row['cold_pressure_psi'][s] for s in ('front', 'rear')):
+                bad('corrected pressure is not the one shown')
+        elif c['field'] == 'tire_size':
+            if c['corrected'].get('axle') not in ('front', 'rear') or not isinstance(v, str) or re.sub(r'^P|\s', '', v) not in re.sub(r'^P|\s', '', row['tires'][c['corrected']['axle']]):
+                bad('corrected size is not the one shown')
+        else:
+            bad('correction field')
+    return json.dumps(cs, ensure_ascii=False, separators=(',', ':'))
 
 
 def extra(row):
@@ -131,7 +179,13 @@ def check_specs(row, n):
             bad(f'{name} on a battery-electric vehicle')
         if not number(t.get('litres'), 15, 250) or t.get('unit_printed') not in ('L', 'gal') or not number(t.get('printed'), 4, 250):
             bad(name)
-        litres = t['printed'] * (3.785411784 if t['unit_printed'] == 'gal' else 1)
+        unit = t['unit_printed']
+        if t.get('correction') is not None or t.get('unit') is not None:  # a confirmed unit correction: the printed number in its real unit
+            check_correction(t.get('correction'), bad, name)
+            if t.get('unit') not in ('L', 'gal') or t['unit'] == unit or t['correction']['rule'] != 'gallons_under_litres_heading':
+                bad(f'{name} corrected unit')
+            unit = t['unit']
+        litres = t['printed'] * (3.785411784 if unit == 'gal' else 1)
         if abs(litres - t['litres']) > 0.2:
             bad(f'{name} litres do not match the printed value')
         shown += name == 'fuel_tank_standard'
@@ -154,6 +208,11 @@ def check_specs(row, n):
         unit = w.get('unit_printed')
         if unit not in ('kg', 'lb', None) or (unit is None and w.get('unit_assumed') != 'kg'):
             bad(f'{name} unit')
+        if w.get('correction') is not None or w.get('unit') is not None:  # a confirmed unit correction (pounds labelled kg or the reverse)
+            check_correction(w.get('correction'), bad, name)
+            if w.get('unit') not in ('kg', 'lb') or w['unit'] == unit or w['correction']['rule'] not in ('pounds_labelled_kg', 'kg_labelled_pounds'):
+                bad(f'{name} corrected unit')
+            unit = w['unit']
         kg = w.get('value') * 0.45359237 if unit == 'lb' and number(w.get('value'), 0, 1e5) else w.get('value')
         if not number(kg, lo, hi):
             bad(name)
@@ -200,7 +259,7 @@ def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None)
             tire_front TEXT NOT NULL, tire_rear TEXT NOT NULL,
             kpa_front REAL NOT NULL, kpa_rear REAL NOT NULL, psi_front INTEGER NOT NULL, psi_rear INTEGER NOT NULL,
             test_no INTEGER, report_url TEXT NOT NULL, test_type TEXT, other_reports TEXT NOT NULL,
-            confidence TEXT NOT NULL, source TEXT NOT NULL, report_number TEXT, fmvss TEXT, vpic_extra TEXT);
+            confidence TEXT NOT NULL, source TEXT NOT NULL, report_number TEXT, fmvss TEXT, vpic_extra TEXT, corrections TEXT);
             CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);''')
         rows, seen = [], set()
         for n, line in enumerate(payload.decode('utf-8').splitlines(), 1):
@@ -226,12 +285,12 @@ def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None)
                                       **({'report_number': o['report_number']} if o.get('report_number') else {}), 'report_url': o['report_url']}
                                      for o in row.get('other_reports') or []]),
                          row['confidence'], row.get('source') or 'nhtsa_crash_test', row.get('report_number'),
-                         json.dumps(row['fmvss']) if row.get('fmvss') else None, extra(row)))
+                         json.dumps(row['fmvss']) if row.get('fmvss') else None, extra(row), row['_corrections']))
         if not rows:
             raise ValueError('Empty tire placard dataset')
         db.executemany('INSERT INTO placards(make_key,model_key,year,make,model,tested_as,vpic_trim,vpic_series,body_class,drive_type,fuel_type,ev_type,'
                        'powertrain,tire_front,tire_rear,kpa_front,kpa_rear,psi_front,psi_rear,test_no,report_url,test_type,other_reports,confidence,'
-                       'source,report_number,fmvss,vpic_extra) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+                       'source,report_number,fmvss,vpic_extra,corrections) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
         db.execute('CREATE INDEX vehicle_key ON placards(make_key, model_key, year)')
         metadata = {'source': 'NHTSA vehicle crash-test reports (NCAP and FMVSS compliance data sheets), nrd-static.nhtsa.dot.gov; '
                               'NHTSA Office of Vehicle Safety Compliance test reports (FMVSS 110/138/537/135), static.nhtsa.gov/odi/ctr',

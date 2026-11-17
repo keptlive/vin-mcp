@@ -216,6 +216,21 @@ const CarSheet = (() => {
     return parts.length ? `In mcp.vin’s accuracy test, matches like this were right for ${parts.join(', ')}. ` : '';
   }
 
+  /**
+   * A confirmed correction of a misprint in NHTSA's report (report field correction / corrections): on paper the fact
+   * that a misprint was corrected; on screen also what the report printed, why the corrected value holds and links to the
+   * reports that confirm it.
+   */
+  function correctionHtml(c) {
+    if (!c || !present(c.note)) return '';
+    const links = (c.confirmed_by || []).filter(x => x && reportUrlOk(x.report_url) && present(x.report)).map(x => `<a href="${esc(x.report_url)}" target="_blank" rel="noopener">${esc(x.report)}</a>`);
+    const uniq = [...new Set(links)];
+    // a correction of one of several reports names it: "(test 10553): it prints 36/36 under a kPa heading; ..."
+    const which = present(c.report) && reportUrlOk(c.report_url) ? ` <a href="${esc(c.report_url)}" target="_blank" rel="noopener">${esc(c.report)}</a>` : '';
+    const note = esc(String(c.note).replace(/\.\s*$/, '')).replace(which ? /^NHTSA’s report (also )?prints/ : /^$/, (m, also) => `it ${also || ''}prints`);
+    return `<span class="sheet-correction"> Corrected from a misprint in NHTSA’s report<span class="sheet-screen-only">${which}: ${note}${uniq.length ? ` (confirmed by ${uniq.join(', ')})` : ''}</span>.</span>`;
+  }
+
   /** One list item per distinct set of values; tested vehicles with identical values share it. */
   function placardItems(tested) {
     const groups = new Map();
@@ -236,6 +251,7 @@ const CarSheet = (() => {
     return `<li class="placard-test"><span class="placard-as">NHTSA test vehicle${group.length > 1 ? 's' : ''}: ${esc(group.map(x => x.tested_as).join('; '))}</span>`
       + `<span class="placard-match">${matchHtml(group.map(x => x.match), 'Tires and pressures')}</span>`
       + `<span class="placard-values">Tires ${esc(tires)}</span><span class="placard-values">Cold ${esc(cold)}</span>`
+      + group.flatMap(x => x.corrections || []).map(correctionHtml).join('')
       + (group.length > 1 ? `<span class="placard-links">NHTSA test reports ${group.map(link).join(', ')}</span></li>` : `${link(v)}</li>`);
   }
 
@@ -304,7 +320,7 @@ const CarSheet = (() => {
       : m.kind === 'different_variant' ? `From NHTSA’s ${esc(m.tested_model_year)} test vehicle, a different version (${esc(diffWords(m).join('; '))})${TANK_CAVEAT}.`
       : `From NHTSA’s ${esc(vals.map(x => x.model_year).filter((y, i, a) => a.indexOf(y) === i).join(' and '))} test vehicle${vals.length > 1 ? 's' : ''} (yours is ${esc(m.vin_model_year)})${TANK_CAVEAT}.`) + own;
     const acc = ft.accuracy && Number.isFinite(ft.accuracy.right_pct) ? `<span class="sheet-screen-only"> In mcp.vin’s accuracy test, matches like this were right for ${ft.accuracy.right_pct}%.</span>` : '';
-    return rowHtml(ft.best_guess ? 'Fuel tank (best guess)' : 'Fuel tank', `${esc(value)}<span class="sheet-source">${from}${acc}${several}${optional}${others}</span>`);
+    return rowHtml(ft.best_guess ? 'Fuel tank (best guess)' : 'Fuel tank', `${esc(value)}<span class="sheet-source">${from}${acc}${several}${optional}${others}${correctionHtml(vals[0].correction)}</span>`);
   }
 
   /**
@@ -340,8 +356,12 @@ const CarSheet = (() => {
       fuelTankRow(sp, v, r),
       capacityRow(sp, 'payload', 'Payload (vehicle capacity weight)', goodMass(v.payload_vehicle_capacity_weight) ? lb(v.payload_vehicle_capacity_weight) : null),
       capacityRow(sp, 'seating', 'Seating capacity', seats),
-      capacityRow(sp, 'gvwr', 'GVWR (label)', goodMass(v.gvwr) ? lb(v.gvwr) : null),
-      row('GAWR (label)', gawr),
+      v.gvwr && v.gvwr.correction && goodMass(v.gvwr) && !((sp.values_differ || {}).gvwr || []).length
+        ? rowHtml('GVWR (label)', `${esc(lb(v.gvwr))}<span class="sheet-source">${correctionHtml(v.gvwr.correction)}</span>`)
+        : capacityRow(sp, 'gvwr', 'GVWR (label)', goodMass(v.gvwr) ? lb(v.gvwr) : null),
+      gawr && ((v.gawr_front || {}).correction || (v.gawr_rear || {}).correction)
+        ? rowHtml('GAWR (label)', `${esc(gawr)}<span class="sheet-source">${[(v.gawr_front || {}).correction, (v.gawr_rear || {}).correction].map(correctionHtml).join('')}</span>`)
+        : row('GAWR (label)', gawr),
       curb ? rowHtml('Curb weight, as delivered', curb) : '',
     ];
     // one test vehicle can have several compliance reports (FMVSS 110, 138, 537): each is linked

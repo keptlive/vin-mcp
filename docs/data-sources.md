@@ -262,23 +262,51 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   extracts the data sheet text, deletes the PDF, and keeps the matched lines as evidence. Each
   test vehicle's own VIN is decoded with vPIC `DecodeVINValuesBatch` to get the key: vPIC make,
   model and model year, the same names a decoded VIN gets on this site. Rows are rejected (and
-  listed for review, never fixed by hand) when a size is malformed (a load-range letter such as
+  listed for review, never fixed by hand; a confirmed misprint is corrected, see below) when a size is malformed (a load-range letter such as
   `LT265/70R18E` is kept as printed), a pressure is missing or
   outside 180-420 kPa (620 for LT tires), the report disagrees with itself, the VIN fails its
   check digit, or the VIN's model year differs from the report's. Two reports for the same
   vehicle that agree give `confidence: high`; one report gives `normal`; two that disagree are
-  excluded. Versions of one model year (4x2 and AWD, two trims) are compared only with themselves:
+  excluded. Reports agree when they give the same psi (248 and 250 kPa are both 36 psi; the first
+  report's kPa is shown as printed). Versions of one model year (4x2 and AWD, two trims) are compared only with themselves:
   two versions with different pressures are two rows, not a disagreement.
+- **Correct when verifiable (owner rule 17 November 2026).** A misprint is corrected only when it has a
+  clear mechanical cause and an independent check confirms the corrected value; otherwise the row stays
+  rejected and is listed for review with its suspected cause. Causes: a psi value printed under a kPa
+  heading; the tire's own sidewall maximum printed in the cold-pressure row or the placard row; a digit
+  glitch in a size ("254/70R18" where every other row says 245/70R18; one deleted or swapped digit giving
+  a valid size); a pressure with a dropped digit; front and rear swapped. Checks: the same report prints
+  the value elsewhere (placard row against cold-pressure row, "Tire Size on Vehicle"), or another report
+  of the same test vehicle (same VIN), or of a tested vehicle of the same model generation and version
+  (same make, model and powertrain, model years within 2, same wheelbase within 1% or the same year, same
+  tire sizes), prints it. A corrected pressure is always one printed in that report or in another report
+  of the same vehicle, never computed: with no informative row, only a second report of the same test
+  vehicle can supply it. Each correction is stored with the row (`corrections`: field, rule, what was
+  printed, the corrected value, what confirmed it and a plain-words note), and the sheet says "Corrected
+  from a misprint in NHTSA's report" with the note and links on screen. Results on the complete set: 7
+  tire-row corrections (4 sidewall maximum in a pressure row, 2 psi under a kPa heading, 1 size digit
+  glitch; 6 confirmed by the same report, 3 by a same-generation report), 5 of them now used as second
+  reports (2025 Land Cruiser, 2024 Blazer EV, 2020 Atlas Cross Sport, 2018 Titan, 2012 SRX); the 2012
+  Pilot and 2013 Compass ones join a report that disagrees with them or a different tire size, so those
+  vehicles stay excluded. 10 reports whose two pressure rows differ only in rounding (same psi) are no
+  longer called inconsistent. 12 suspected misprints stay rejected for review (no second row or report
+  confirms them). "2285/65R17" and "2353/65R18" are in FMVSS 135 brake reports, which give no tire rows.
+  Leave-one-out before and after on the 2,128 vehicles whose own values did not change: tire size right
+  75.0 -> 75.3%, front pressure 82.1 -> 82.4%, rear 81.3 -> 81.6%, wrong answers 11.5 -> 11.3%, 6.5 -> 6.3%,
+  7.3 -> 7.1%. The admitted reports also exposed conflicts that exclude 4 previously shown rows (2012 CR-V,
+  2012 Pilot, 2013 Compass, a 2013 Ram 1500 version): another test vehicle of the same version printed a
+  different tire size or pressure.
 - **Complete set (17 November 2026).** 1,728 of 1,729 main-queue crash reports and all 538 extra NCAP side and
-  pole reports processed (one main-queue test could not be fetched): 1,245 rows (1,133 from crash reports, 112
-  from compliance reports) for 1,062 make/model/year/powertrain keys, 2,270 reports used, 331 rows rejected. Older data
+  pole reports processed (one main-queue test could not be fetched): 1,242 rows (1,131 from crash reports, 111
+  from compliance reports) for 1,062 make/model/year/powertrain keys, 2,279 reports used, 321 rows rejected
+  (before corrections: 1,245 rows, 2,270 reports, 331 rejected). Older data
   sheets (2005-2012) print the cold pressure in five more labelled forms ("221 kpa FRONT; 207 kpa REAR",
   "Cold Pressure (from tire placard - kPa)* 210 210", a wrapped label, "210 kPa 210 kPa", and a row whose
   table states kPa); 24 of their values were read by hand against the reports, 0 wrong. Left empty on
   purpose: Karco 2010-2011 sheets whose text layer separates the values from their labels (18 reports), and
   sheets with two cold pressures, "(2 persons)" and "(max)" (13). The extra side and pole reports are in:
   where NHTSA's test vehicles of one version and year carried different tire sizes (wheel options, or a
-  misprint; 95 rows) those rows stay excluded. Keeping them when every report confirms its size was tested by
+  misprint; 103 rows since the corrections) those rows stay excluded. Keeping them when every report confirms its size was tested by
   the accuracy test below and dropped: of the 82 vehicles it added, 17 got the right size, 23 a set with it,
   41 a wrong one. Rejected after the accuracy test's hand check: a passenger-tire placard pressure of 290 kPa
   or more equal to the tire's own sidewall maximum on both axles, from a single report (a copied maximum: a
@@ -407,7 +435,23 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   (GVWR against the measured weight and twice it, GAWR sum against GVWR, kg/lb agreement, ranges,
   no tank on a battery-electric vehicle; since 17 November also a tank under 28 L on a car that is not a
   plug-in, or outside 0.015-0.09 L per kg of measured weight: two reports printed gallons under a litre
-  heading) is left out, never corrected. Hand check: 30 reports
+  heading) is left out. Since 17 November a unit mix-up is corrected when it is verifiable (owner rule):
+  pounds printed under a kg heading or the reverse, for GVWR and each GAWR separately, is corrected when
+  exactly one reading (which of the printed units to flip) sits inside the bands accepted vehicles occupy
+  (GVWR 1.1-1.9 times the measured weight, axle ratings each above the measured axle weight and together
+  0.95-1.4 times the GVWR; 99% of the 1,500+ accepted vehicles: 1.18-1.70 and 0.97-1.26) while the printed
+  one fails them; US gallons under a litres heading when the tank as printed is under 28 L or under 0.015 L
+  per kg and the gallon reading fits. Results: 62 field corrections on 24 reports (48 pounds labelled kg,
+  12 kg labelled pounds, 2 gallon tanks: the 2011 Malibu's 16.3 gal, the 2022 Tundra's 32.2 gal; among them
+  the Accent, Rogue, XC90, A6, RX 350, Soul, Mirage, Sportage, Expedition, Focus RS, Murano and one Silverado
+  front axle). Every one passes the plausibility check; 60 also agree with the GVWR class vPIC decodes from
+  the test vehicle's VIN and 31 with another tested vehicle of the same generation and version (within 1%).
+  Each keeps `unit` (the unit the printed number really is) and a `correction` record; the sheet notes it.
+  6 label sets with no unique reading stay excluded for review (2019 Blazer, 2019 Corolla, 2020 Explorer,
+  2025 S60, 2025 Fiat 500e, a Beetle printing 1 lb). In the leave-one-out test, 20 of the 22 recovered GVWRs
+  equal what the closest other tested vehicle prints (the 2 others: a 2015 Mirage against a 1,370 kg
+  neighbour), and GVWR right on unchanged vehicles went 61.5 -> 61.8% with wrong answers unchanged at 7.0%.
+  Hand check: the printed lines of all 24 reports were read against the corrected values. Hand check: 30 reports
   stratified by lab, test type and year, 10 more out of sample for the shown fields, and 20
   server-extracted reports (3 wrong values of 779 on the first pass, all fixed and re-checked
   across every report).

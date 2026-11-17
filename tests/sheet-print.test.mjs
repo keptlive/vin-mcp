@@ -14,7 +14,7 @@ function load() {
 const strip = html => html.replace(/<wbr>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 /** The text that reaches paper: screen-only spans, notes and rows removed (none of them nest another span or row). */
 const paper = html => strip(html
-  .replace(/<span class="sheet-screen-only">[^<]*<\/span>/g, '')
+  .replace(/<span class="sheet-screen-only">(?:[^<]|<a [^>]*>[^<]*<\/a>)*<\/span>/g, '')
   .replace(/<p class="sheet-note[^"]*sheet-screen-only">.*?<\/p>/g, '')
   .replace(/<div class="sheet-row sheet-screen-only">.*?<\/dd><\/div>/g, '')
   .replace(/<details class="placard-fix sheet-screen-only">.*?<\/details>/g, ''));
@@ -61,4 +61,29 @@ test('on paper: rated power keeps its source and the hybrid caveat in short; veh
   assert.doesNotMatch(paper(html), /Vehicle type/);
   html = sheet.html({...base, vehicle: {...base.vehicle, body_class: null}, fuel_economy: {available: false}}).body;
   assert.match(paper(html), /Vehicle type Multipurpose passenger vehicle/);
+});
+
+test('a corrected misprint: paper says it was corrected; the screen also says what was printed and links the confirming report', () => {
+  const sheet = load();
+  const note = 'NHTSA’s report prints 16.3 under a litres heading; that is 16.3 US gallons, 61.7 L, which matches the other tested Malibu';
+  const correction = {corrected: true, rule: 'gallons_under_litres_heading', note: note + '.', printed: {value: 16.3, unit: 'L'},
+    confirmed_by: [{check: 'same_generation_version', detail: 'test 6997 prints 61.7 L', report: 'test 6997', report_url: 'https://nrd-static.nhtsa.dot.gov/reports/vehdb/v06000/v06900/v06997R001.pdf'}]};
+  const tankVal = {litres: 61.7, gallons: 16.3, printed: '16.3 gal', test_no: 7000, model_year: 2011, match_kind: 'exact', correction};
+  const specs = {available: true, match_kind: 'exact', vehicles: [{test_no: 7000, model_year: 2011, tested_as: '2011 Chevrolet Malibu LS', report_url: 'https://nrd-static.nhtsa.dot.gov/reports/vehdb/v07000/v07000R001.pdf',
+    match: {kind: 'exact'}, fuel_tank: tankVal}], fuel_tank: {shown: true, best_guess: false, label: 'NHTSA test vehicle, same model year', values: [tankVal]}};
+  const html = sheet.html({...base, fuel_economy: {available: false}, test_vehicle_specs: specs}).body;
+  assert.match(paper(html), /Corrected from a misprint in NHTSA’s report ?\./);
+  assert.doesNotMatch(paper(html), /litres heading/);
+  assert.match(strip(html), /Corrected from a misprint in NHTSA’s report ?: NHTSA’s report prints 16\.3 under a litres heading; that is 16\.3 US gallons, 61\.7 L, which matches the other tested Malibu \(confirmed by test 6997 \)/);
+  assert.match(html, /href="https:\/\/nrd-static\.nhtsa\.dot\.gov\/reports\/vehdb\/v06000\/v06900\/v06997R001\.pdf"/);
+  // a correction of a second report names that report; the shown values are another report's
+  const u = n => `https://nrd-static.nhtsa.dot.gov/reports/vehdb/v10000/v10500/v${n}R001.pdf`;
+  const placard = {available: true, match_kind: 'exact', vehicles: [{tested_as: '2018 Nissan Titan S Crew Cab', report_url: u(10557), test_no: 10557, source: 'nhtsa_crash_test',
+    match: {kind: 'exact'}, tires: {front: '265/70R18 114S', rear: '265/70R18 114S'}, cold_pressure_psi: {front: 36, rear: 36}, cold_pressure_kpa: {front: 250, rear: 250},
+    other_reports: [{test_no: 10553, report_url: u(10553)}], corrections: [{corrected: true, rule: 'psi_under_kpa_heading', report: 'test 10553', report_url: u(10553),
+      note: 'NHTSA’s report prints 36/36 under a kPa heading; those are psi (248/248 kPa), confirmed by test 10554 (2018 TITAN) prints 250/250 kPa.',
+      confirmed_by: [{check: 'same_generation_version', detail: 'x', report: 'test 10554', report_url: u(10554)}]}]}]};
+  const t = sheet.html({...base, fuel_economy: {available: false}, tire_placard: placard}).body;
+  assert.match(strip(t), /Corrected from a misprint in NHTSA’s report test 10553 ?: it prints 36\/36 under a kPa heading; those are psi/);
+  assert.match(paper(t), /Cold 36 psi front and rear \(250 kPa\) Corrected from a misprint in NHTSA’s report ?\./);
 });
