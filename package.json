@@ -20,7 +20,8 @@
   "scripts": {
     "start": "node server.mjs --http --port 3200",
     "dev": "node --watch server.mjs --http --port 3200",
-    "test": "node scripts/render-tool-directory.mjs --check && node --test tests/*.test.mjs && python3 tests/investigations_test.py && python3 tests/communications_storage_test.py && python3 tests/recall_labels_test.py && python3 tests/epa_test_cars_test.py && python3 tests/theft_rates_test.py && python3 tests/aala_test.py && python3 tests/fueleconomy_test.py"
+    "import:test-vehicles": "python3 scripts/import-tire-placards.py",
+    "test": "node scripts/render-tool-directory.mjs --check && node --test tests/*.test.mjs && python3 tests/investigations_test.py && python3 tests/communications_storage_test.py && python3 tests/recall_labels_test.py && python3 tests/epa_test_cars_test.py && python3 tests/theft_rates_test.py && python3 tests/aala_test.py && python3 tests/fueleconomy_test.py && python3 tests/tire_placards_test.py"
   },
   "keywords": [
     "vin",

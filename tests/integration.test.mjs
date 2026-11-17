@@ -15,6 +15,15 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const stage=await mkdtemp(path.join(tmpdir(),'vin-mcp-tests-'));
 for(const f of ['server.mjs','package.json','lib','public','tests/mock-upstream.mjs','tests/mopar-fixture.mjs','tests/manufacturer-fixtures.mjs'])await cp(path.join(root,f),path.join(stage,f),{recursive:true});
 await symlink(path.join(root,'node_modules'),path.join(stage,'node_modules'),'dir');
+// Fixture tire placard index (built by the real import script): one NHTSA test vehicle for the mock HONDA Accord 2003.
+{const {mkdir}=await import('node:fs/promises');const {spawnSync}=await import('node:child_process');await mkdir(path.join(stage,'data'),{recursive:true});
+ const src=path.join(stage,'data','tire-placards-fixture.jsonl');
+ await writeFile(src,JSON.stringify({make:'HONDA',model:'Accord',model_year:2003,tested_as:'2003 Honda Accord fixture sedan',tires:{front:'P205/65R15 92V',rear:'P205/65R15 92V'},cold_pressure_kpa:{front:220,rear:220},cold_pressure_psi:{front:32,rear:32},test_no:1,report_url:'https://nrd-static.nhtsa.dot.gov/reports/vehdb/fixture.pdf',confidence:'normal',other_reports:[],powertrain:'not_battery_electric'})+'\n');
+ const specs=path.join(stage,'data','test-vehicle-specs-fixture.jsonl');
+ await writeFile(specs,JSON.stringify({make:'HONDA',model:'Accord',model_year:2003,tested_as:'2003 Honda Accord fixture sedan',powertrain:'not_battery_electric',fuel_type:'Gasoline',test_no:1,report_url:'https://nrd-static.nhtsa.dot.gov/reports/vehdb/fixture.pdf',
+  fuel_tank_standard:{litres:64.7,printed:64.7,unit_printed:'L',method:'fixture'},vehicle_capacity_weight_kg:385,seating:{front:2,rear:3,third:0,total:5},gvwr:{value:1950,unit_printed:'kg'},curb_weight_kg:{front:900,rear:550,total:1450}})+'\n');
+ const code="import importlib.util,sys;s=importlib.util.spec_from_file_location('i',sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);m.build(sys.argv[2],sys.argv[3],None,sys.argv[4])";
+ const run=spawnSync('python3',['-c',code,path.join(root,'scripts/import-tire-placards.py'),src,path.join(stage,'data','tire-placards.db'),specs],{encoding:'utf8'});if(run.status!==0)throw Error(run.stderr);}
 const port=23291, base=`http://127.0.0.1:${port}`;
 const env={...process.env,JWT_SECRET:'isolated-test-secret',ADMIN_KEY:'a'.repeat(64),NODE_ENV:'production'};
 const child=spawn(process.execPath,['--import',path.join(stage,'tests/mock-upstream.mjs'),path.join(stage,'server.mjs'),'--http','--port',String(port)],{cwd:stage,env,stdio:['ignore','ignore','pipe']});
@@ -28,6 +37,42 @@ test('REST full report selects matching fuel and caches engine variants separate
   const r=await(await req('/api/vin/'+vin)).json();assert.equal(r.engine.cylinders,6);assert.equal(r.fuel_economy.cylinders,6);assert.equal(r.fuel_economy.combined_mpg,22);
   let other='1HGCM82633A004353';other=other.slice(0,8)+validateVin(other).checksum.expected+other.slice(9);
   const r2=await(await req('/api/vin/'+other)).json();assert.equal(r2.engine.cylinders,4);assert.equal(r2.fuel_economy.cylinders,4);assert.equal(r2.fuel_economy.combined_mpg,25);
+});
+test('REST and MCP reports carry the NHTSA test-vehicle blocks with the match stated',async()=>{
+  const r=await(await req('/api/vin/'+vin)).json();const t=r.tire_placard,s=r.test_vehicle_specs;
+  assert.equal(t.available,true);assert.equal(t.scope,'nhtsa_test_vehicle');assert.equal(t.vin_specific,false);assert.match(t.note,/your own door placard governs/i);assert.equal(t.match_kind,'exact');
+  assert.deepEqual(t.vehicles.map(v=>[v.model_year,v.make,v.model,v.tested_as,v.tires.front,v.cold_pressure_psi.front,v.cold_pressure_kpa.rear,v.test_no,v.confidence,v.match.kind]),[[2003,'HONDA','Accord','2003 Honda Accord fixture sedan','P205/65R15 92V',32,220,1,'normal','exact']]);
+  assert.equal(s.available,true);assert.equal(s.match_kind,'exact');assert.equal(s.vehicles[0].test_no,1);assert.deepEqual(s.vehicles[0].payload_vehicle_capacity_weight,{kg:385,lb:849});
+  // The mock decode gives no fuel type, so the VIN's electrification is unknown: the strict guard shows no tank.
+  assert.equal(s.fuel_tank.shown,false);assert.equal(s.fuel_tank.reason,'different_electrification');
+  let toyota='4T1BF1FK0CU123456';toyota=toyota.slice(0,8)+validateVin(toyota).checksum.expected+toyota.slice(9);
+  const none=(await(await req('/api/vin/'+toyota)).json());assert.equal(none.tire_placard.available,true);assert.deepEqual(none.tire_placard.vehicles,[]);assert.equal(none.tire_placard.reason,'no_close_match');
+  assert.equal(none.test_vehicle_specs.reason,'no_close_match');
+  const client=new Client({name:'placard-check',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+  try{await client.connect(transport);const m=JSON.parse((await client.callTool({name:'decode_vin',arguments:{vin}})).content[0].text);
+    assert.deepEqual(m.tire_placard,t);assert.deepEqual(m.test_vehicle_specs,s);}finally{await transport.terminateSession();await client.close();}
+});
+test('placard corrections: validated, stored for review with the VIN prefix only, listed for the admin, never shown, rate limited',async()=>{
+  const post=body=>req('/api/placard-corrections',body);
+  let res=await post({vin,tire_front:'<script>alert(1)</script>'});assert.equal(res.status,400);assert.match((await res.json()).error,/Front tire size/);
+  res=await post({vin:'NOT-A-VIN',psi_front:32});assert.equal(res.status,400);assert.match((await res.json()).error,/valid VIN/);
+  res=await post({vin,psi_front:500,note:'x'.repeat(10)});assert.equal(res.status,400);assert.match((await res.json()).error,/from 10 to 120/);
+  res=await post({vin,tire_front:'P205/65R15 92V',psi_front:32,psi_rear:'30',fuel_tank:'17.1',fuel_tank_unit:'gal',note:'Door says 32/30.\u0007\n',ip:'203.0.113.9',user:'someone'});
+  assert.equal(res.status,201);assert.deepEqual(await res.json(),{ok:true,message:'Thanks. We review corrections before using them.'});
+  assert.equal((await req('/api/admin/placard-corrections')).status,403);
+  const list=await(await fetch(base+'/api/admin/placard-corrections',{headers:{'x-admin-key':'a'.repeat(64)}})).json();
+  assert.equal(list.count,1);const c=list.corrections[0];
+  assert.deepEqual([c.vin_prefix,c.model_year,c.make,c.model,c.tire_front,c.tire_rear,c.psi_front,c.psi_rear,c.fuel_tank,c.fuel_tank_unit,c.note],
+    [vin.slice(0,11),2003,'HONDA','Accord','P205/65R15 92V',null,32,30,17.1,'gal','Door says 32/30.']);
+  assert.deepEqual(c.shown.tire_placard,{match_kind:'exact',reason:null,vehicles:[{test_no:1,model_year:2003,match_kind:'exact'}]});
+  assert.equal(c.shown.test_vehicle_specs.vehicles[0].test_no,1);assert.ok(c.created_at);
+  // No IP address, no account, no full VIN is stored.
+  const stored=JSON.stringify(list);assert.doesNotMatch(stored,/203\.0\.113\.9|127\.0\.0\.1|someone/);assert.ok(!stored.includes(vin));assert.ok(!('ip' in c));
+  // Never shown to other readers and never changes a value.
+  assert.equal((await(await req('/api/vin/'+vin)).json()).tire_placard.vehicles[0].cold_pressure_psi.front,32);
+  // Rate limited like the other POSTs (5 a minute).
+  res=await post({vin});assert.equal(res.status,400);
+  res=await post({vin,psi_front:33});assert.equal(res.status,429);
 });
 test('registration, login and identity still work',async()=>{
  let res=await req('/api/auth/register',{email:'isolated@example.invalid',password:'fixture-password',display_name:'Test'});assert.equal(res.status,201);token=(await res.json()).token;

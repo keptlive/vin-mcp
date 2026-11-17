@@ -23,6 +23,7 @@ import { capabilities } from './lib/capabilities.mjs';
 import { vinRecallStatus } from './lib/recall-status.mjs';
 import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls } from './lib/reports.mjs';
 import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
+import { validateCorrection, insertCorrection, listCorrections, CorrectionError, THANKS } from './lib/placard-corrections.mjs';
 import { readFile } from 'node:fs/promises';
 import { createToolRegistry } from './lib/mcp/index.mjs';
 import { VERSION } from './lib/version.mjs';
@@ -450,6 +451,18 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   app.post('/api/research/scenario',rateGuard(30),researchHandler(req=>scenario(req.body)));
   app.post('/api/research/compare',rateGuard(5),researchHandler(req=>compareVehicles(req.body?.vins)));
 
+  // "Doesn't match your door placard?" (car sheet): stored for review only; never shown, never applied.
+  app.post('/api/placard-corrections', rateGuard(5), async (req, res) => {
+    let input;
+    try { input = validateCorrection(req.body); }
+    catch (err) { return err instanceof CorrectionError ? res.status(400).json({ error: err.message }) : safeError(res, err); }
+    try {
+      const report = await fullReport(input.vin);  // cached when the sheet was just loaded; a failed decode is stored with no vehicle
+      insertCorrection(db, input, report);
+      res.status(201).json({ ok: true, message: THANKS });
+    } catch (err) { safeError(res, err); }
+  });
+
   app.get('/api/vin/:vin', rateGuard(30), async (req, res) => {
     try { res.json(restReport(await fullReport(req.params.vin), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
   });
@@ -697,6 +710,11 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   });
 
   // Security events
+  // Placard and fuel tank corrections sent from the car sheet, newest first (?limit=1..1000, default 100).
+  app.get('/api/admin/placard-corrections', adminAuth, (req, res) => {
+    try { res.json(listCorrections(db, req.query.limit)); } catch (err) { safeError(res, err); }
+  });
+
   app.get('/api/admin/security', adminAuth, (req, res) => {
     const hours = Math.min(parseInt(req.query.hours) || 24, 168);
     const since = new Date(Date.now() - hours * 3600000).toISOString().replace('T', ' ').slice(0, 19);

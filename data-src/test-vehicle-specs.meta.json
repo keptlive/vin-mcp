@@ -1,0 +1,13 @@
+{
+ "status": "partial: crash-report downloads 1728 of 1729 (main queue) and 538 of 538 (extra NCAP side and pole tests) processed; tests not processed are not indexed. Compliance report text complete (scanned reports without a text layer are skipped, not OCRed)",
+ "generated_at": "2026-11-17T14:48:11+00:00",
+ "source": "NHTSA crash-test report PDFs (nrd-static.nhtsa.dot.gov): data sheet No. 1 (certification label GVWR/GAWR, seating, vehicle capacity weight, usable fuel tank capacity, weight as delivered by axle, wheelbase); NHTSA compliance test reports (static.nhtsa.gov/odi/ctr): FMVSS 110/138/537 placard and label block (GVWR/GAWR, occupant and cargo weight, seating total) and the FMVSS 135 brake test (cold-effectiveness stop from 100 km/h, maximum speed). Keys from vPIC DecodeVINValuesBatch of each test vehicle's own VIN.",
+ "rows": 2197,
+ "sources": {
+  "nhtsa_crash_test": 1972,
+  "nhtsa_compliance_test": 225
+ },
+ "reports_parsed": 2237,
+ "excluded_fields": [],
+ "rules": "Values as printed in the report (unit kept); a field failing a plausibility rule (GVWR vs measured weight, GAWR sum vs GVWR, kg vs lb agreement, range checks) is left out, never corrected. Accuracy: hand checks of 30 local and 20 server-extracted crash reports and 20 compliance reports, every FMVSS 135 value read by hand (research folder stage2/data/field_accuracy.json, ovsc/handcheck/verdicts.json)."
+}
