@@ -108,6 +108,7 @@ const CarSheet = (() => {
       row('EPA fuel economy', mpg), row(f.total_range ? 'EPA electric range' : 'EPA range', f.available && num(f.ev_range) ? `${f.ev_range} mi` : null),
     ];
     const note = range ? `<p class="sheet-note">EPA range: ${esc(f.summary || 'several EPA configurations fit this VIN')}.</p>`
+      : mpg && f.match === 'same_rating' ? `<p class="sheet-note">${esc(f.summary)}.</p>`
       : mpg ? `<p class="sheet-note">${f.match === 'closest' ? 'Closest EPA configuration, not an exact match' : 'EPA figures are for the matched test configuration'}: ${esc(f.matched_variant || 'see full report')}.</p>` : '';
     return section('power', 'Engine and drive', (list(rows) || unknownNote) + note);
   }

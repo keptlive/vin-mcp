@@ -69,20 +69,27 @@ const MoreSources = (() => {
   function fuelSeveralHtml(f) {
     if (!f || f.match !== 'multiple_configurations') return '';
     const range = f.mpg_range && f.mpg_range.combined;
-    const items = (f.configurations || []).map(c => {
-      const what = [c.transmission, num(c.displacement) ? `${fmt(c.displacement)} L` : null, num(c.cylinders) ? `${c.cylinders} cyl` : null, c.engine_note].filter(present).join(', ');
-      const figure = num(c.combined_mpg) ? ` <strong>${esc(c.combined_mpg)} ${esc(c.unit)}</strong> combined${num(c.city_mpg) && num(c.highway_mpg) ? ` (${esc(c.city_mpg)} city, ${esc(c.highway_mpg)} highway)` : ''}` : '';
-      return `<li>${esc(c.epa_model)}${what ? ' · ' + esc(what) : ''}:${figure}${c.source_url ? ` <a href="${esc(c.source_url)}" rel="noopener">EPA</a>` : ''}</li>`;
-    }).join('');
-    const more = num(f.configuration_count) > (f.configurations || []).length ? `<li>and ${esc(f.configuration_count - f.configurations.length)} more</li>` : '';
     return (range ? `<div class="mpg-row"><div class="mpg-item"><div class="mpg-value">${esc(span(range))}</div><div class="mpg-label">Combined ${esc(f.mpg_range.unit)}, range</div></div></div>` : '')
       + `<p class="small">${esc(f.summary || 'Several EPA configurations fit this VIN')}.</p>`
-      + (items || more ? `<ul class="small fuel-configs">${items}${more}</ul>` : '')
+      + configList(f)
       + `<p class="small source-note">EPA rates configurations, not individual cars. Matched by: ${esc(basisText(f))}.</p>`;
+  }
+  /** Each configuration: what separates it in plain words ("6-speed manual"), its figures and EPA's own listing. */
+  function configList(f) {
+    const items = (f.configurations || []).map(c => {
+      const what = [c.transmission, num(c.displacement) ? `${fmt(c.displacement)} L` : null, num(c.cylinders) ? `${c.cylinders} cyl` : null, c.engine_note].filter(present).join(', ');
+      const figure = num(c.combined_mpg) ? `<strong>${esc(c.combined_mpg)} ${esc(c.unit)}</strong> combined${num(c.city_mpg) && num(c.highway_mpg) ? ` (${esc(c.city_mpg)} city, ${esc(c.highway_mpg)} highway)` : ''}` : 'no EPA figure';
+      const epa = `EPA: ${esc(c.epa_model)}${what ? ' · ' + esc(what) : ''}`;
+      return `<li>${c.label ? `${esc(c.label)}: ` : ''}${figure} <span class="source-note">(${epa})</span>${c.source_url ? ` <a href="${esc(c.source_url)}" rel="noopener">EPA</a>` : ''}</li>`;
+    }).join('');
+    const more = num(f.configuration_count) > (f.configurations || []).length ? `<li>and ${esc(f.configuration_count - f.configurations.length)} more</li>` : '';
+    return items || more ? `<ul class="small fuel-configs">${items}${more}</ul>` : '';
   }
   /** Note under a single EPA figure: the closest-match disclosure, or what was matched; '' without a match record. */
   function fuelMatchNote(f) {
     if (!f || !f.available || !f.match) return '';
+    // The same combined rating for every configuration the VIN fits: the figure stands, the configurations are listed.
+    if (f.match === 'same_rating') return `<p class="small">${esc(f.summary)}.</p>${configList(f)}<p class="small source-note">${f.closest ? 'Closest EPA configurations, not an exact match. ' : ''}Matched by: ${esc(basisText(f))}.</p>`;
     return `<p class="small source-note">${f.match === 'closest' ? 'Closest EPA configuration, not an exact match. ' : ''}Matched by: ${esc(basisText(f))}.</p>`;
   }
 

@@ -323,19 +323,28 @@ test('the parts content card lists each version with its label, says unreadable 
 
 // ---- FuelEconomy.gov match disclosure (fuel card and car sheet) ----
 const several = {available: false, reason: 'ambiguous_variant', match: 'multiple_configurations', combined_mpg: null,
-  summary: '47-50 mpg combined across 2 EPA configurations of this model; the VIN does not say which (they differ in EPA listing (Corolla Hybrid (Normal/Eco Modes); Corolla Hybrid (Sport/Normal/Eco Modes)))',
+  summary: '47-50 mpg combined across 2 EPA configurations of this model; the VIN does not say which: EPA listing: Normal/Eco Modes or Sport/Normal/Eco Modes',
+  separated_by: ['EPA listing: Normal/Eco Modes or Sport/Normal/Eco Modes'],
   mpg_range: {unit: 'mpg', combined: {min: 47, max: 50}, city: {min: 50, max: 53}, highway: {min: 43, max: 46}}, configuration_count: 2,
   configurations: [
-    {vehicle_id: '49139', epa_model: 'Corolla Hybrid (Normal/Eco Modes)', transmission: 'Automatic (variable gear ratios)', displacement: 1.8, cylinders: 4, combined_mpg: 50, city_mpg: 53, highway_mpg: 46, unit: 'mpg', source_url: 'https://www.fueleconomy.gov/feg/Find.do?action=sbs&id=49139'},
-    {vehicle_id: '48490', epa_model: 'Corolla Hybrid (Sport/Normal/Eco Modes)', transmission: 'Automatic (variable gear ratios)', displacement: 1.8, cylinders: 4, combined_mpg: 47, city_mpg: 50, highway_mpg: 43, unit: 'mpg', source_url: 'https://www.fueleconomy.gov/feg/Find.do?action=sbs&id=48490'}],
+    {vehicle_id: '49139', epa_model: 'Corolla Hybrid (Normal/Eco Modes)', transmission: 'Automatic (variable gear ratios)', displacement: 1.8, cylinders: 4, combined_mpg: 50, city_mpg: 53, highway_mpg: 46, unit: 'mpg', source_url: 'https://www.fueleconomy.gov/feg/Find.do?action=sbs&id=49139', label: 'Normal/Eco Modes'},
+    {vehicle_id: '48490', epa_model: 'Corolla Hybrid (Sport/Normal/Eco Modes)', transmission: 'Automatic (variable gear ratios)', displacement: 1.8, cylinders: 4, combined_mpg: 47, city_mpg: 50, highway_mpg: 43, unit: 'mpg', source_url: 'https://www.fueleconomy.gov/feg/Find.do?action=sbs&id=48490', label: 'Sport/Normal/Eco Modes'}],
   match_basis: ['same model year, make and model name', '1.8 L engine', 'hybrid powertrain', 'transmission not checked (not in the VIN decode)']};
+
+const sameRating = {available: true, match: 'same_rating', closest: false, combined_mpg: 18, city_mpg: null, highway_mpg: 21, unit: 'mpg', configuration_count: 2,
+  summary: '18 mpg combined for both EPA configurations this VIN fits, so the figure holds whichever it is (they differ in 5-speed automatic or 6-speed manual)',
+  matched_variant: '2 EPA configurations (Wrangler 4WD), all 18 mpg combined', separated_by: ['5-speed automatic or 6-speed manual'],
+  configurations: [
+    {vehicle_id: '37000', epa_model: 'Wrangler 4WD', transmission: 'Automatic 5-spd', displacement: 3.6, cylinders: 6, combined_mpg: 18, city_mpg: 16, highway_mpg: 21, unit: 'mpg', label: '5-speed automatic'},
+    {vehicle_id: '37001', epa_model: 'Wrangler 4WD', transmission: 'Manual 6-spd', displacement: 3.6, cylinders: 6, combined_mpg: 18, city_mpg: 17, highway_mpg: 21, unit: 'mpg', label: '6-speed manual'}],
+  match_basis: ['3.6 L engine']};
 
 test('fuel card: several EPA configurations show their range and each one; a closest match says so; heavy-duty says why', () => {
   const {els, run} = frontend();
   run(`renderFuel({fuel_economy: ${JSON.stringify(several)}})`);
   const body = els.get('#fuel-body').innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(body, /47–50 Combined mpg, range/);
-  assert.match(body, /Corolla Hybrid \(Normal\/Eco Modes\) · Automatic \(variable gear ratios\), 1\.8 L, 4 cyl: 50 mpg combined \(53 city, 46 highway\) EPA/);
+  assert.match(body, /Normal\/Eco Modes: 50 mpg combined \(53 city, 46 highway\) \(EPA: Corolla Hybrid \(Normal\/Eco Modes\) · Automatic \(variable gear ratios\), 1\.8 L, 4 cyl\) EPA/);
   assert.match(body, /the VIN does not say which/);
   assert.match(body, /EPA rates configurations, not individual cars\. Matched by: same model year, make and model name; 1\.8 L engine/);
   assert.doesNotMatch(body, /Multiple EPA variants match/);
@@ -344,6 +353,14 @@ test('fuel card: several EPA configurations show their range and each one; a clo
   run(`renderFuel({fuel_economy: {available: true, match: 'closest', combined_mpg: 21, city_mpg: 18, highway_mpg: 25, matched_variant: 'Acadia AWD · Automatic 9-spd, 6 cyl, 3.6 L', match_basis: ['3.6 L engine', 'differs: the VIN says 6 speeds; EPA lists Automatic 9-spd']}})`);
   const closest = els.get('#fuel-body').innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(closest, /Closest EPA configuration, not an exact match\. Matched by: 3\.6 L engine; differs from the VIN: the VIN says 6 speeds; EPA lists Automatic 9-spd\./);
+  // The same combined rating for every configuration: the figure, the note and each configuration with what separates it.
+  run(`renderFuel({fuel_economy: ${JSON.stringify(sameRating)}})`);
+  const same = els.get('#fuel-body').innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(same, /21 Highway MPG 18 Combined MPG/);
+  assert.doesNotMatch(same, /City MPG/);
+  assert.match(same, /18 mpg combined for both EPA configurations this VIN fits, so the figure holds whichever it is \(they differ in 5-speed automatic or 6-speed manual\)\. 5-speed automatic: 18 mpg combined \(16 city, 21 highway\)/);
+  assert.match(same, /6-speed manual: 18 mpg combined \(17 city, 21 highway\).*Matched by: 3\.6 L engine\./);
+  assert.doesNotMatch(same, /Closest EPA/);
   run(`renderFuel({fuel_economy: {available: false, reason: 'heavy_duty_not_rated', match_basis: ['gross vehicle weight rating over 8,500 lb']}})`);
   assert.match(els.get('#fuel-body').innerHTML, /do not cover heavy-duty pickups and vans/);
   run(`renderFuel({fuel_economy: {available: false, reason: 'not_found', match_basis: ['no EPA model name for this model year matches "Versa Note"']}})`);
@@ -359,6 +376,7 @@ test('car sheet: the EPA range when several configurations fit, the closest-matc
   const text = r => sheet.html(r).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(text({...base, fuel_economy: several}), /EPA fuel economy 47–50 mpg combined \(50–53 city, 43–46 hwy\).*EPA range: 47-50 mpg combined across 2 EPA configurations of this model; the VIN does not say which/);
   assert.match(text({...base, fuel_economy: {available: true, match: 'closest', combined_mpg: 21, city_mpg: 18, highway_mpg: 25, matched_variant: 'Acadia AWD · Automatic 9-spd, 6 cyl, 3.6 L'}}), /EPA fuel economy 21 mpg combined \(18 city, 25 hwy\).*Closest EPA configuration, not an exact match: Acadia AWD/);
+  assert.match(text({...base, fuel_economy: sameRating}), /EPA fuel economy 18 mpg combined .*18 mpg combined for both EPA configurations this VIN fits/);
   const phev = text({...base, fuel_economy: {available: true, match: 'exact', combined_mpg: 40, city_mpg: 43, highway_mpg: 38, ev_range: 37, total_range: 520}});
   assert.match(phev, /EPA electric range 37 mi/);
   assert.doesNotMatch(phev, /520/);
