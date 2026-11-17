@@ -20,47 +20,49 @@ const options = [
 const v6 = {engine:{cylinders:6,displacement_l:2.998832712},transmission:{type:'Automatic',speeds:5}};
 const detail = {id:18657,year:2003,make:'Honda',model:'Accord',cylinders:6,displ:3.0,trany:'Automatic 5-spd',city08:19,highway08:27,comb08:22,co2TailpipeGpm:0,co2TailpipeAGpm:99};
 const originalFetch=globalThis.fetch;
+// These tests drive the FuelEconomy.gov web service path, so the local index is switched off.
+const LIVE={file:'/nonexistent/fueleconomy.db'};
 test.afterEach(()=>{globalThis.fetch=originalFetch;});
 
 test('EPA picks V6 automatic, rather than first four-cylinder option',async()=>{
   const urls=[]; globalThis.fetch=async url=>{urls.push(String(url));return json(String(url).includes('menu/options')?{menuItem:options}:detail);};
-  const f=await getFuelEconomy(2003,'HONDA','Accord',v6);
+  const f=await getFuelEconomy(2003,'HONDA','Accord',v6,LIVE);
   assert.equal(f.available,true); assert.equal(f.cylinders,6); assert.equal(f.vehicle_id,'18657');
   assert.equal(f.combined_mpg,22); assert.match(urls[1],/18657$/); assert.equal(f.co2_grams_per_mile,0);
 });
 test('EPA refuses ambiguous engine/transmission matches',async()=>{
   globalThis.fetch=async()=>json({menuItem:options});
-  const f=await getFuelEconomy(2003,'Honda','Accord',{engine:{cylinders:6}});
+  const f=await getFuelEconomy(2003,'Honda','Accord',{engine:{cylinders:6}},LIVE);
   assert.equal(f.available,false); assert.equal(f.reason,'ambiguous_variant');
 });
 test('EPA never substitutes an incompatible powertrain',async()=>{
   globalThis.fetch=async()=>json({menuItem:options});
-  const f=await getFuelEconomy(2003,'Honda','Accord',{engine:{cylinders:8}});
+  const f=await getFuelEconomy(2003,'Honda','Accord',{engine:{cylinders:8}},LIVE);
   assert.equal(f.reason,'no_matching_variant');
 });
 test('EPA rejects a detail response that disagrees with VIN engine',async()=>{
   globalThis.fetch=async url=>json(String(url).includes('menu/options')?{menuItem:options}:{...detail,cylinders:4});
-  assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6)).available,false);
+  assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6,LIVE)).available,false);
 });
 test('EPA rejects missing and wrong vehicle detail',async()=>{
   for(const body of [{},{...detail,year:2004},{...detail,make:'Toyota'}]){
     globalThis.fetch=async url=>json(String(url).includes('menu/options')?{menuItem:options}:body);
-    assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6)).reason,'invalid_response');
+    assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6,LIVE)).reason,'invalid_response');
   }
 });
 test('EPA identifies upstream HTTP and network errors',async()=>{
   globalThis.fetch=async()=>new Response('',{status:503});
-  assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6)).reason,'upstream_error');
+  assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6,LIVE)).reason,'upstream_error');
   globalThis.fetch=async()=>{throw new Error('offline');};
-  assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6)).reason,'upstream_error');
+  assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6,LIVE)).reason,'upstream_error');
 });
 test('EPA supports a single menu item object',async()=>{
   globalThis.fetch=async url=>json(String(url).includes('menu/options')?{menuItem:options[1]}:detail);
-  assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6)).vehicle_id,'18657');
+  assert.equal((await getFuelEconomy(2003,'Honda','Accord',v6,LIVE)).vehicle_id,'18657');
 });
 test('EPA handles EV option and zero tailpipe emissions',async()=>{
   globalThis.fetch=async url=>json(String(url).includes('menu/options')?{menuItem:{text:'Auto (A1), Electricity',value:'1'}}:{id:1,year:2024,make:'Tesla',model:'Model 3',fuelType:'Electricity',co2TailpipeGpm:0,charge240:8});
-  const f=await getFuelEconomy(2024,'Tesla','Model 3',{engine:{fuel_type:'Electric'},transmission:{type:'Automatic'}});
+  const f=await getFuelEconomy(2024,'Tesla','Model 3',{engine:{fuel_type:'Electric'},transmission:{type:'Automatic'}},LIVE);
   assert.equal(f.available,true);assert.equal(f.is_ev,true);assert.equal(f.co2_grams_per_mile,0);assert.equal(f.ev_charge_time_240v,8);
 });
 for(const [name,fn] of [['recalls',getRecalls],['complaints',getComplaints]]){
