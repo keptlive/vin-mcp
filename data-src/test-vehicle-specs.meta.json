@@ -1,0 +1,9 @@
+{
+ "status": "partial: 102 of 1729 queued report downloads done (download paused); most covered vehicles are model years 2024-2026",
+ "generated_at": "2026-11-17T05:57:03+00:00",
+ "source": "NHTSA crash-test report PDFs (nrd-static.nhtsa.dot.gov): data sheet No. 1 (certification label GVWR/GAWR, seating, vehicle capacity weight, usable fuel tank capacity, weight as delivered by axle, wheelbase). Keys from vPIC DecodeVINValuesBatch of each test vehicle's own VIN.",
+ "rows": 103,
+ "reports_parsed": 103,
+ "excluded_fields": [],
+ "rules": "Values as printed in the report (unit kept); a field failing a plausibility rule (GVWR vs measured weight, GAWR sum vs GVWR, kg vs lb agreement, range checks) is left out, never corrected. Accuracy: 30-report hand check (research folder stage2/data/field_accuracy.json)."
+}

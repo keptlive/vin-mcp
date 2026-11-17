@@ -53,6 +53,9 @@
     <h3>Request logs</h3>
     <p>For every request we record the IP address, the time, the method and path (the path of a lookup contains the VIN), the response status and size, how long it took, the browser or client name, and your account number if you are signed in. We use these logs to keep the service running, to apply rate limits and to stop abuse.</p>
 
+    <h3 id="corrections">When you send a placard or fuel tank correction</h3>
+    <p>The car sheet can show tire, pressure and fuel tank values from a vehicle NHTSA crash-tested. If yours differ, &ldquo;Doesn&rsquo;t match your door placard?&rdquo; lets you send your own values. We store the tire sizes, cold pressures, fuel tank size and note you enter, what the VIN decodes to (model year, make, model, trim, body, drive and powertrain), which NHTSA test vehicles the sheet showed and how closely they matched, the first 11 characters of the VIN only (not its serial number), and the time. The correction itself stores no IP address and no account. Like every request, the request log below records that one was sent. Corrections are read by us before any use, are never shown to other readers and never change a value on the site by themselves. Please leave personal details out of the note.</p>
+
     <h3>When you create an account</h3>
     <p>An account is optional. If you create one we store your email address, a display name if you give one, and your password in a salted, hashed form that cannot be read back. We also store the vehicles you save, the labels you give them and your report settings. We do not send marketing email.</p>
 
@@ -70,6 +73,7 @@
         <tr><td>Security events (failed sign-ins, rate-limit hits)</td><td>90 days</td></tr>
         <tr><td>Web server access logs</td><td>About one day</td></tr>
         <tr><td>Lookup results in server memory</td><td>Up to one hour</td></tr>
+        <tr><td>Placard and fuel tank corrections</td><td>Up to one year</td></tr>
         <tr><td>Account, saved vehicles and settings</td><td>Until you delete them or your account</td></tr>
       </tbody>
     </table>

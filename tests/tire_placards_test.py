@@ -72,14 +72,58 @@ class TirePlacardImportTest(unittest.TestCase):
         self.assertEqual(importer.key('Model  3'), 'MODEL 3')
         self.assertNotEqual(importer.key('F-150'), importer.key('F150'))
 
+    def test_specs_rows_are_validated_and_kept_as_printed(self):
+        def spec(**over):
+            r = {'make': 'FORD', 'model': 'F-150', 'model_year': 2021, 'tested_as': '2021 Ford F-150', 'powertrain': 'not_battery_electric',
+                 'test_no': 11490, 'report_url': URL, 'fuel_tank_standard': {'litres': 87.1, 'printed': 23, 'unit_printed': 'gal', 'method': 'x'},
+                 'vehicle_capacity_weight_kg': 650, 'seating': {'front': 3, 'rear': 3, 'third': 0, 'total': 6},
+                 'gvwr': {'value': 7000, 'unit_printed': 'lb'}, 'gawr_front': {'value': 2205, 'unit_printed': None, 'unit_assumed': 'kg'},
+                 'curb_weight_kg': {'front': 1250, 'rear': 900, 'total': 2150}, 'wheelbase_mm': 3680}
+            r.update(over)
+            return r
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory); src = root/'p.jsonl'; specs = root/'s.jsonl'; target = root/'t.db'
+            write(src, [row()])
+            write(specs, [spec(), spec(test_no=2, model_year=2022, fuel_tank_standard=None, seating=None)])
+            receipt = importer.build(src, target, None, specs)
+            self.assertEqual(receipt['specs']['rows'], 2)
+            with sqlite3.connect(target) as db:
+                data = json.loads(db.execute('SELECT data FROM specs WHERE test_no=11490').fetchone()[0])
+                self.assertEqual(data['gvwr'], {'value': 7000, 'unit_printed': 'lb'})
+                self.assertEqual(data['fuel_tank_standard']['printed'], 23)
+                self.assertNotIn('seating', json.loads(db.execute('SELECT data FROM specs WHERE test_no=2').fetchone()[0]))
+            before = target.read_bytes()
+            bad_rows = [
+                spec(fuel_tank_standard={'litres': 87.1, 'printed': 23, 'unit_printed': 'L', 'method': 'x'}),  # litres must match the printed value
+                spec(powertrain='battery_electric'),  # no fuel tank on a battery-electric vehicle
+                spec(seating={'front': 2, 'rear': 3, 'third': 0, 'total': 6}),  # parts must add up
+                spec(gvwr={'value': 3175, 'unit_printed': None}),  # no printed unit needs the checked kg reading
+                spec(gvwr={'value': 300, 'unit_printed': 'kg'}),
+                spec(vehicle_capacity_weight_kg=0),
+                spec(curb_weight_kg={'front': 1250, 'rear': 900, 'total': 2500}),
+                spec(report_url='https://example.com/x.pdf'),
+                spec(fuel_tank_standard=None, vehicle_capacity_weight_kg=None, seating=None, gvwr=None, gawr_front=None, curb_weight_kg=None),
+            ]
+            for bad in bad_rows:
+                write(specs, [bad])
+                with self.assertRaises(ValueError, msg=json.dumps(bad)):
+                    importer.build(src, target, None, specs)
+            write(specs, [spec(), spec()])  # one row per test
+            with self.assertRaises(ValueError):
+                importer.build(src, target, None, specs)
+            self.assertEqual(target.read_bytes(), before)
+
     def test_shipped_dataset_builds(self):
         src = pathlib.Path(__file__).resolve().parents[1]/'data-src/tire-placards.jsonl'
         meta = src.with_name('tire-placards.meta.json')
+        specs = src.with_name('test-vehicle-specs.jsonl')
         if not src.exists():
             self.skipTest('dataset not shipped')
         with tempfile.TemporaryDirectory() as directory:
-            receipt = importer.build(src, pathlib.Path(directory)/'tire-placards.db', meta)
+            receipt = importer.build(src, pathlib.Path(directory)/'tire-placards.db', meta, specs if specs.exists() else None)
             self.assertGreater(receipt['rows'], 0)
+            if specs.exists():
+                self.assertGreater(receipt['specs']['rows'], 0)
 
 
 if __name__ == '__main__':

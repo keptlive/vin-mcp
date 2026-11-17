@@ -76,7 +76,7 @@ test('NHTSA test-vehicle placard values show above the blanks, labelled, linked,
   const {sheet} = load();
   const body = sheet.html({...base(), tire_placard: placard([tested()])}).body;
   const out = text(body);
-  assert.match(out, /NHTSA test vehicle: 2017 Chevrolet Bolt EV LT 5-Door Hatchback Tires 215\/50R17 91H front and rear Cold 38 psi front and rear \(260 kPa\) NHTSA test report 10000/);
+  assert.match(out, /NHTSA test vehicle: 2017 Chevrolet Bolt EV LT 5-Door Hatchback Same model year\. Tires 215\/50R17 91H front and rear Cold 38 psi front and rear \(260 kPa\) NHTSA test report 10000/);
   assert.match(out, /Your own door placard governs; it can differ by trim and tire size\./);
   assert.match(body, /<a href="https:\/\/nrd-static\.nhtsa\.dot\.gov\/reports\/vehdb\/v10000\/v10000\/v10000R001\.pdf" target="_blank" rel="noopener">NHTSA test report 10000<\/a>/);
   // The values sit above the write-in blanks, which stay empty.
@@ -94,9 +94,9 @@ test('NHTSA test-vehicle placard values show above the blanks, labelled, linked,
 
 test('no placard value without an exact indexed match, a complete value and an NHTSA report link', () => {
   const {sheet} = load();
-  const none = text(sheet.html({...base(), tire_placard: {available: true, scope: 'nhtsa_test_vehicle', vin_specific: false, vehicles: [], reason: 'no_exact_match'}}).body);
+  const none = text(sheet.html({...base(), tire_placard: {available: true, scope: 'nhtsa_test_vehicle', vin_specific: false, vehicles: [], reason: 'no_close_match', max_year_gap: 2}}).body);
   assert.doesNotMatch(none, /NHTSA test vehicle|Your own door placard governs/);
-  assert.match(none, /none with this exact make, model and year is indexed, so mcp\.vin shows no values/);
+  assert.match(none, /none of this make and model within 2 model years is indexed \(not tested, or not indexed yet\), so mcp\.vin shows no values/);
   assert.doesNotMatch(none, /\b0 psi\b/);
   const other = text(sheet.html({...base(), tire_placard: {available: true, scope: 'nhtsa_test_vehicle', vin_specific: false, vehicles: [], reason: 'other_powertrain_only', other_powertrain_not_shown: 1}}).body);
   assert.match(other, /only with a different powertrain \(battery-electric or not\), so mcp\.vin shows no values/); assert.doesNotMatch(other, /NHTSA test vehicle:/);
@@ -107,6 +107,114 @@ test('no placard value without an exact indexed match, a complete value and an N
     assert.doesNotMatch(sheet.html({...base(), tire_placard: placard([bad])}).body, /NHTSA test vehicle/, JSON.stringify(bad));
   const evil = sheet.html({...base(), tire_placard: placard([tested({tested_as: '<img src=x onerror=alert(1)>', tires: {front: '<b>x</b>', rear: '<b>x</b>'}})])}).body;
   assert.doesNotMatch(evil, /<img src=x|<b>x/); assert.match(evil, /&lt;img src=x/);
+});
+
+const nearMatch = (o = {}) => ({kind: 'nearest_model_year', tested_model_year: 2023, vin_model_year: 2025, year_gap: 2,
+  differences: [{field: 'model_year', tested: 2023, yours: 2025}], generation_check: 'unknown', ...o});
+
+test('the match is stated in plain words for each tested vehicle', () => {
+  const {sheet} = load();
+  const out = v => text(sheet.html({...base(), tire_placard: placard([v])}).body);
+  assert.match(out(tested({match: {kind: 'exact', differences: [], year_gap: 0}})), /Same model year\. Tires/);
+  assert.match(out(tested({match: nearMatch()})), /NHTSA tested the 2023 model \(yours is 2025\)\. Tires and pressures can change between years\. Tires 215/);
+  assert.match(out(tested({match: nearMatch({generation_check: 'same_wheelbase'})})), /Transport Canada lists the same wheelbase for both years\./);
+  assert.match(out(tested({match: nearMatch({generation_check: 'different_wheelbase'})})), /different wheelbase for 2023, so it is likely another generation and these values may not apply\./);
+  assert.match(out(tested({match: nearMatch({differences: [{field: 'model_year', tested: 2023, yours: 2025}, {field: 'trim', tested: 'Premier', yours: 'LT'}]})})),
+    /Also different: trim Premier \(yours: LT\)\./);
+  assert.match(out(tested({match: {kind: 'different_variant', tested_model_year: 2017, vin_model_year: 2017, year_gap: 0,
+    differences: [{field: 'electrification', tested: 'plug_in_hybrid', yours: 'none'}]}})),
+    /Same model year, different version: electrification plug-in hybrid \(yours: not hybrid or electric\)\. Tires and pressures can differ between versions\./);
+  assert.match(out(tested({match: nearMatch()})), /Your own door placard governs/);
+});
+
+const specsVehicle = (o = {}) => ({model_year: 2023, make: 'HYUNDAI', model: 'Tucson', tested_as: '2023 Hyundai Tucson SEL AWD', electrification: 'none', test_no: 14989,
+  report_url: 'https://nrd-static.nhtsa.dot.gov/reports/vehdb/v10000/v14900/v14989R001.pdf', match: {kind: 'exact', differences: [], year_gap: 0},
+  fuel_tank: {litres: 54.09, gallons: 14.3, printed: '54.09 L'}, payload_vehicle_capacity_weight: {kg: 420, lb: 926},
+  seating: {front: 2, rear: 3, third: 0, total: 5}, gvwr: {kg: 2205, lb: 4861}, gawr_front: {kg: 1260, lb: 2778}, gawr_rear: {kg: 1200, lb: 2646},
+  curb_weight_as_delivered: {total: {kg: 1580, lb: 3483}, front: {kg: 931, lb: 2052}, rear: {kg: 649, lb: 1431}, front_percent: 58.9}, ...o});
+const specs = (v, fuel = {}) => ({available: true, scope: 'nhtsa_test_vehicle', vin_specific: false, max_year_gap: 2, vehicles: v ? [v] : [], ...(v ? {match_kind: v.match.kind} : {reason: 'no_close_match'}),
+  fuel_tank: v ? {shown: true, best_guess: v.match.kind !== 'exact', values: [{litres: 54.09, gallons: 14.3, printed: '54.09 L', test_no: 14989, model_year: v.model_year, match_kind: v.match.kind}], ...fuel} : {shown: false}});
+const gas = () => ({...base(), engine: {fuel_type: 'Gasoline', cylinders: 4}, vehicle: {...base().vehicle, year: 2025, make: 'HYUNDAI', model: 'Tucson', trim: 'SEL'}});
+
+test('capacities and weights of the NHTSA test vehicle: only the allowed fields, both units, labelled and linked', () => {
+  const {sheet} = load();
+  const html = sheet.html({...gas(), test_vehicle_specs: specs(specsVehicle())});
+  const out = text(html.body);
+  assert.match(out, /NHTSA test vehicle: 2023 Hyundai Tucson SEL AWD Same model year\. Values printed in NHTSA’s test report, not this VIN’s\. NHTSA test report 14989/);
+  assert.match(out, /Fuel tank 14\.3 gal \(54\.09 L\) NHTSA test vehicle, same model year\./);
+  assert.match(out, /Payload \(vehicle capacity weight\) 926 lb \(420 kg\)/);
+  assert.match(out, /Seating capacity 5 \(2 front, 3 rear\)/);
+  assert.match(out, /GVWR \(label\) 4,861 lb \(2,205 kg\)/);
+  assert.match(out, /GAWR \(label\) Front 2,778 lb \(1,260 kg\); rear 2,646 lb \(1,200 kg\)/);
+  assert.match(out, /Curb weight, as delivered 3,483 lb \(1,580 kg\); front 2,052 lb, rear 1,431 lb \(59% front\)/);
+  assert.match(html.body, /<a href="https:\/\/nrd-static\.nhtsa\.dot\.gov\/reports\/vehdb\/v10000\/v14900\/v14989R001\.pdf" target="_blank" rel="noopener">NHTSA test report 14989<\/a>/);
+  assert.match(html.foot, /NHTSA crash-test reports \(test-vehicle capacities and weights\)/);
+  // Nothing else from the report (crash results, equipment, wheelbase) is shown.
+  const block = text(html.body.slice(html.body.indexOf('<div class="tested-specs">'), html.body.indexOf('</section>', html.body.indexOf('<div class="tested-specs">'))));
+  assert.match(block, /^ NHTSA test vehicle: .* \(59% front\) $/);
+  assert.doesNotMatch(block, /\bHIC|injur|\bstars?\b|wheelbase|airbag|crush/i);
+});
+
+test('a fuel tank from another year or version is a best guess; hidden when electrification differs; none for an EV', () => {
+  const {sheet} = load();
+  const near = specsVehicle({model_year: 2023, match: nearMatch()});
+  let out = text(sheet.html({...gas(), test_vehicle_specs: specs(near)}).body);
+  assert.match(out, /Fuel tank \(best guess\) 14\.3 gal \(54\.09 L\) From NHTSA’s 2023 test vehicle \(yours is 2025\); tank size can differ by year, trim and options\./);
+  assert.match(out, /NHTSA tested the 2023 model \(yours is 2025\)\. Capacities and weights can change between years\./);
+  const variant = specsVehicle({model_year: 2025, match: {kind: 'different_variant', tested_model_year: 2025, vin_model_year: 2025, year_gap: 0, differences: [{field: 'trim', tested: 'Limited', yours: 'SEL'}]}});
+  out = text(sheet.html({...gas(), test_vehicle_specs: specs(variant)}).body);
+  assert.match(out, /Fuel tank \(best guess\) 14\.3 gal \(54\.09 L\) From NHTSA’s 2025 test vehicle, a different version \(trim Limited \(yours: SEL\)\); tank size can differ by year, trim and options\./);
+  // Two tied test vehicles with different tanks: both values, never an average.
+  out = text(sheet.html({...gas(), test_vehicle_specs: specs(specsVehicle(), {values: [{litres: 87.1, gallons: 23, model_year: 2023}, {litres: 124.9, gallons: 33, model_year: 2023}],
+    optional_tank_listed: {litres: 124.9, gallons: 33}, model_tank_sizes: [{litres: 87.1, gallons: 23, model_years: [2023]}, {litres: 124.9, gallons: 33, model_years: [2023]}]})}).body);
+  assert.match(out, /23\.0 gal \(87\.1 L\) or 33\.0 gal \(124\.9 L\)/); assert.match(out, /yours depends on options/);
+  assert.match(out, /The report also lists an optional 33\.0 gal \(124\.9 L\) tank\./); assert.match(out, /list more than one tank: 23\.0 gal \(2023\); 33\.0 gal \(2023\)/);
+  out = text(sheet.html({...gas(), test_vehicle_specs: specs(specsVehicle(), {shown: false, reason: 'different_electrification', note: 'NHTSA’s closest test vehicle is a hybrid; no tank size is shown.'})}).body);
+  assert.match(out, /Fuel tank Not shown NHTSA’s closest test vehicle is a hybrid; no tank size is shown\./); assert.doesNotMatch(out, /14\.3 gal/);
+  // A battery-electric VIN has no fuel tank row at all.
+  const ev = sheet.html({...base(), test_vehicle_specs: specs(specsVehicle())}).body;
+  assert.doesNotMatch(ev.slice(ev.indexOf('<div class="tested-specs">'), ev.indexOf('<details')), /Fuel tank/); assert.match(ev, /Payload/);
+});
+
+test('capacities: empty and unknown states are worded, never blank or zero', () => {
+  const {sheet} = load();
+  const out = sp => text(sheet.html({...gas(), test_vehicle_specs: sp}).body);
+  assert.match(out(specs(null)), /NHTSA has no crash-tested vehicle of this make and model within 2 model years in mcp\.vin’s index \(not tested, or not indexed yet\), so no tested fuel tank, payload or axle ratings are shown\. They are on the door-pillar label and in the owner’s manual\./);
+  assert.match(out(undefined), /NHTSA’s test-vehicle index was not checked for this report/);
+  assert.match(out({available: true, vehicles: [], reason: 'other_powertrain_only'}), /only with a different powertrain/);
+  assert.match(out(specs(specsVehicle({fuel_tank: undefined, payload_vehicle_capacity_weight: undefined, seating: undefined, gvwr: undefined, gawr_front: undefined, curb_weight_as_delivered: undefined}), {shown: false, reason: 'not_printed_for_this_test_vehicle', values: []})),
+    /Fuel tank Not shown The test report does not list the tank size\./);
+  assert.doesNotMatch(out(specs(specsVehicle({gvwr: {kg: 0, lb: 0}}))), /GVWR \(label\)/);
+  assert.doesNotMatch(out(specs(specsVehicle({report_url: 'https://example.com/r.pdf'}))), /NHTSA test vehicle:/);
+  const evil = sheet.html({...gas(), test_vehicle_specs: specs(specsVehicle({tested_as: '<img src=x onerror=alert(1)>'}))}).body;
+  assert.doesNotMatch(evil, /<img src=x/);
+});
+
+test('"Doesn’t match your door placard?" sends a correction for review; screen only', async () => {
+  let listener = null, sent = null;
+  const fakeDocument = {documentElement: {classList: {add() {}, remove() {}}}, querySelector: () => null, addEventListener: (type, fn) => { if (type === 'submit') listener = fn; }};
+  class FormData { constructor(form) { this.form = form; } *[Symbol.iterator]() { yield* Object.entries(this.form.values); } }
+  const fetch = async (url, opts) => { sent = {url, opts}; return {ok: true, status: 201, json: async () => ({ok: true, message: 'Thanks. We review corrections before using them.'})}; };
+  const {sheet} = load({document: fakeDocument, FormData, fetch});
+  const body = sheet.html({...gas(), tire_placard: placard([tested()])}).body;
+  assert.match(body, /<details class="placard-fix sheet-screen-only"><summary>Doesn’t match your door placard\?<\/summary><form class="placard-fix-form" data-vin="1G1FW6S06H4188545" novalidate>/);
+  for (const name of ['tire_front', 'tire_rear', 'psi_front', 'psi_rear', 'fuel_tank', 'note']) assert.match(body, new RegExp(`name="${name}"`), name);
+  assert.match(body, /name="tire_front"[^>]*maxlength="40"/); assert.match(body, /name="note" maxlength="500"/);
+  assert.match(body, /<select name="fuel_tank_unit" aria-label="Fuel tank unit"><option value="gal">gal<\/option><option value="L">L<\/option><\/select>/);
+  assert.match(body, /We review corrections before using them; they are never shown to other readers\./); assert.match(body, /href="\/privacy\/#corrections"/);
+  // Nothing shown: the control asks for the values instead.
+  assert.match(sheet.html(gas()).body, /<summary>Tell us what your door placard says<\/summary>/);
+  // The print stylesheet hides it.
+  assert.match(readFileSync(new URL('../public/style.css', import.meta.url), 'utf8'), /\.placard-fix\{display:none!important\}/);
+  // Submitting posts JSON and shows the thanks line.
+  const status = {textContent: ''}, button = {disabled: false}, fields = [{disabled: false}, {disabled: false}];
+  const form = {matches: s => s === 'form.placard-fix-form', dataset: {vin: '1G1FW6S06H4188545'}, values: {tire_front: '235/65R17 104H', psi_front: '35', fuel_tank: '', fuel_tank_unit: 'gal', note: ''},
+    querySelector: s => (s === '.placard-fix-status' ? status : button), querySelectorAll: () => fields};
+  let prevented = false;
+  await listener({target: form, preventDefault: () => { prevented = true; }});
+  assert.ok(prevented); assert.equal(sent.url, '/api/placard-corrections'); assert.equal(sent.opts.method, 'POST');
+  assert.deepEqual(JSON.parse(sent.opts.body), {tire_front: '235/65R17 104H', psi_front: '35', fuel_tank: '', note: '', vin: '1G1FW6S06H4188545'});
+  assert.equal(status.textContent, 'Thanks. We review corrections before using them.'); assert.ok(fields.every(f => f.disabled)); assert.equal(button.disabled, true);
 });
 
 test('owner’s manual links go only to the maker’s official library', () => {
