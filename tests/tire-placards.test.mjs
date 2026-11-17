@@ -5,13 +5,13 @@ import {spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {lookupTirePlacards, keyName} from '../lib/tire-placards.mjs';
+import {lookupTirePlacards, keyName, powertrainClass} from '../lib/tire-placards.mjs';
 
 const importer = fileURLToPath(new URL('../scripts/import-tire-placards.py', import.meta.url));
 const url = n => `https://nrd-static.nhtsa.dot.gov/reports/vehdb/v10000/v11400/v${n}R001.pdf`;
 const row = o => ({make: 'FORD', model: 'F-150', model_year: 2021, tested_as: '2021 Ford F-150 4x4 SuperCrew', vpic_trim: 'XLT',
   tires: {front: '275/60R20 115T', rear: '275/60R20 115T'}, cold_pressure_kpa: {front: 240, rear: 240}, cold_pressure_psi: {front: 35, rear: 35},
-  test_no: 11490, report_url: url(11490), confidence: 'normal', other_reports: [], ...o});
+  test_no: 11490, report_url: url(11490), confidence: 'normal', other_reports: [], powertrain: 'not_battery_electric', ...o});
 
 /** Build a placard index from rows with the real import script (same schema as production). */
 function buildIndex(rows) {
@@ -57,6 +57,36 @@ test('only an exact vPIC make, model and model year matches; every tested varian
     }
     assert.equal(lookupTirePlacards({make: 'FORD', model: '', year: 2021}, file).available, false);
     assert.equal(keyName('  mercedes-benz  c-class '), 'MERCEDES-BENZ C-CLASS');
+  } finally { rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('vPIC powertrain class: battery-electric or not; hybrids and plug-ins are not', () => {
+  assert.equal(powertrainClass('Electric', 'BEV (Battery Electric Vehicle)'), 'battery_electric');
+  assert.equal(powertrainClass('Electric', null), 'battery_electric');
+  assert.equal(powertrainClass('Electric', 'PHEV (Plug-in Hybrid Electric Vehicle)'), 'not_battery_electric');
+  assert.equal(powertrainClass('Gasoline', 'Strong HEV (Hybrid Electric Vehicle)'), 'not_battery_electric');
+  assert.equal(powertrainClass('Flexible Fuel Vehicle (FFV)', ''), 'not_battery_electric');
+  assert.equal(powertrainClass(null, undefined), 'unknown');
+});
+
+test('a test vehicle with a different known powertrain is never shown (one vPIC model name for gas and EV)', () => {
+  // 2025 Chevrolet "Silverado": vPIC names the Silverado EV and the gasoline Silverado alike.
+  const ev = row({make: 'CHEVROLET', model: 'Silverado', model_year: 2025, tested_as: '2025 Chevrolet Silverado EV', powertrain: 'battery_electric',
+    tires: {front: 'LT265/70R18 124/121S', rear: 'LT265/70R18 124/121S'}, cold_pressure_kpa: {front: 420, rear: 420}, cold_pressure_psi: {front: 61, rear: 61}, test_no: 15451, report_url: url(15451)});
+  const old = row({make: 'SUBARU', model: 'Legacy', model_year: 2013, tested_as: '2013 Subaru Legacy four door sedan', powertrain: 'unknown',
+    tires: {front: 'P205/60R16 91V', rear: 'P205/60R16 91V'}, cold_pressure_kpa: {front: 230, rear: 220}, cold_pressure_psi: {front: 33, rear: 32}, test_no: 8063, report_url: url(8063)});
+  const {dir, file} = buildIndex([ev, old]);
+  try {
+    const q = {make: 'CHEVROLET', model: 'Silverado', year: 2025};
+    const gas = lookupTirePlacards({...q, fuelType: 'Gasoline', evType: null}, file);
+    assert.equal(gas.available, true); assert.deepEqual(gas.vehicles, []); assert.equal(gas.reason, 'other_powertrain_only');
+    assert.equal(gas.other_powertrain_not_shown, 1); assert.match(gas.note, /different powertrain/);
+    const bev = lookupTirePlacards({...q, fuelType: 'Electric', evType: 'BEV (Battery Electric Vehicle)'}, file);
+    assert.equal(bev.vehicles.length, 1); assert.equal(bev.vehicles[0].powertrain, 'battery_electric'); assert.deepEqual(bev.vehicles[0].cold_pressure_psi, {front: 61, rear: 61});
+    assert.equal(bev.other_powertrain_not_shown, undefined);
+    // Unknown on either side: only an exact make/model/year match decides (the as-tested line names the vehicle).
+    assert.equal(lookupTirePlacards(q, file).vehicles.length, 1);
+    assert.equal(lookupTirePlacards({make: 'SUBARU', model: 'Legacy', year: 2013, fuelType: 'Gasoline'}, file).vehicles.length, 1);
   } finally { rmSync(dir, {recursive: true, force: true}); }
 });
 

@@ -158,6 +158,7 @@ const CarSheet = (() => {
       : '';
     const placard = 'The recommended cold pressures and original tire sizes are printed on the Tire and Loading Information placard, normally on the driver’s door pillar (FMVSS No. 110).';
     const note = tested.length ? `Copy your car’s own values from its Tire and Loading Information placard, normally on the driver’s door pillar (FMVSS No. 110).`
+      : tp && tp.available === true && tp.reason === 'other_powertrain_only' ? `${placard} NHTSA tested this make, model and year only with a different powertrain (battery-electric or not), so mcp.vin shows no values.`
       : tp && tp.available === true ? `${placard} NHTSA’s crash-test reports list them only for the vehicles it tested; none with this exact make, model and year is indexed, so mcp.vin shows no values.`
       : `${placard} NHTSA’s test-vehicle index was not checked for this report, so mcp.vin shows no values.`;
     const fields = [writeIn('Tire size, front'), writeIn('Tire size, rear'), writeIn('Cold pressure, front', 'psi'), writeIn('Cold pressure, rear', 'psi'), writeIn('Spare', 'psi')].join('');

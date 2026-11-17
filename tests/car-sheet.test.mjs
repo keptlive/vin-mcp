@@ -98,6 +98,8 @@ test('no placard value without an exact indexed match, a complete value and an N
   assert.doesNotMatch(none, /NHTSA test vehicle|Your own door placard governs/);
   assert.match(none, /none with this exact make, model and year is indexed, so mcp\.vin shows no values/);
   assert.doesNotMatch(none, /\b0 psi\b/);
+  const other = text(sheet.html({...base(), tire_placard: {available: true, scope: 'nhtsa_test_vehicle', vin_specific: false, vehicles: [], reason: 'other_powertrain_only', other_powertrain_not_shown: 1}}).body);
+  assert.match(other, /only with a different powertrain \(battery-electric or not\), so mcp\.vin shows no values/); assert.doesNotMatch(other, /NHTSA test vehicle:/);
   const down = text(sheet.html({...base(), tire_placard: {available: false, reason: 'dataset_not_indexed', vin_specific: false}}).body);
   assert.match(down, /index was not checked/); assert.doesNotMatch(down, /NHTSA test vehicle/);
   for (const bad of [tested({cold_pressure_psi: {front: 38, rear: null}}), tested({cold_pressure_psi: {front: 0, rear: 0}}), tested({tires: {front: '', rear: '215/50R17'}}),

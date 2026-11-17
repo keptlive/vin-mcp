@@ -18,7 +18,7 @@ await symlink(path.join(root,'node_modules'),path.join(stage,'node_modules'),'di
 // Fixture tire placard index (built by the real import script): one NHTSA test vehicle for the mock HONDA Accord 2003.
 {const {mkdir}=await import('node:fs/promises');const {spawnSync}=await import('node:child_process');await mkdir(path.join(stage,'data'),{recursive:true});
  const src=path.join(stage,'data','tire-placards-fixture.jsonl');
- await writeFile(src,JSON.stringify({make:'HONDA',model:'Accord',model_year:2003,tested_as:'2003 Honda Accord fixture sedan',tires:{front:'P205/65R15 92V',rear:'P205/65R15 92V'},cold_pressure_kpa:{front:220,rear:220},cold_pressure_psi:{front:32,rear:32},test_no:1,report_url:'https://nrd-static.nhtsa.dot.gov/reports/vehdb/fixture.pdf',confidence:'normal',other_reports:[]})+'\n');
+ await writeFile(src,JSON.stringify({make:'HONDA',model:'Accord',model_year:2003,tested_as:'2003 Honda Accord fixture sedan',tires:{front:'P205/65R15 92V',rear:'P205/65R15 92V'},cold_pressure_kpa:{front:220,rear:220},cold_pressure_psi:{front:32,rear:32},test_no:1,report_url:'https://nrd-static.nhtsa.dot.gov/reports/vehdb/fixture.pdf',confidence:'normal',other_reports:[],powertrain:'not_battery_electric'})+'\n');
  const code="import importlib.util,sys;s=importlib.util.spec_from_file_location('i',sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);m.build(sys.argv[2],sys.argv[3])";
  const run=spawnSync('python3',['-c',code,path.join(root,'scripts/import-tire-placards.py'),src,path.join(stage,'data','tire-placards.db')],{encoding:'utf8'});if(run.status!==0)throw Error(run.stderr);}
 const port=23291, base=`http://127.0.0.1:${port}`;

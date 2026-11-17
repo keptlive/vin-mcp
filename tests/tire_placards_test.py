@@ -9,7 +9,7 @@ URL = 'https://nrd-static.nhtsa.dot.gov/reports/vehdb/v10000/v11400/v11490R001.p
 
 def row(**over):
     r = {'make': 'FORD', 'model': 'F-150', 'model_year': 2021, 'tested_as': '2021 Ford F-150 4x4 SuperCrew',
-         'tires': {'front': '275/60R20 115T', 'rear': '275/60R20 115T'},
+         'tires': {'front': '275/60R20 115T', 'rear': '275/60R20 115T'}, 'powertrain': 'not_battery_electric',
          'cold_pressure_kpa': {'front': 240, 'rear': 240}, 'cold_pressure_psi': {'front': 35, 'rear': 35},
          'test_no': 11490, 'report_url': URL, 'confidence': 'normal', 'other_reports': []}
     r.update(over)
@@ -43,6 +43,8 @@ class TirePlacardImportTest(unittest.TestCase):
                 row(tires={'front': '', 'rear': '275/60R20'}),
                 row(confidence='high'),  # high confidence needs the agreeing second report
                 row(model_year=2021.5),
+                row(powertrain='electric'),  # only battery_electric / not_battery_electric / unknown
+                row(powertrain=None),
             ]
             for bad in bad_rows:
                 write(src, [row(test_no=1), bad])

@@ -158,6 +158,13 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
 - **Matching.** Exact vPIC make + model + model year, case- and space-insensitive and nothing
   else: `F150` does not match `F-150`, and no other model year's values are applied. Every
   tested variant (for example two tire sizes) is listed with its report link.
+- **Powertrain guard.** vPIC gives gasoline and battery-electric versions one model name (the
+  2025 Silverado EV test truck decodes as `Silverado`, with LT tires at 420 kPa). Each row keeps
+  its test vehicle's class from vPIC `FuelTypePrimary` + `ElectrificationLevel`
+  (`battery_electric`, `not_battery_electric`; hybrids and plug-ins are not battery-electric;
+  `unknown` when vPIC gives neither, as for some 2013 decodes). A test vehicle whose known class
+  differs from the decoded VIN's is never shown; if that leaves nothing, the block says
+  `reason: "other_powertrain_only"`.
 - **Meaning.** These are the values of the one vehicle NHTSA tested, not of the decoded VIN.
   The owner's own door placard governs; it can differ by trim and tire size. No match means
   not tested or not indexed, never zero. `available: false` means the index was not present.

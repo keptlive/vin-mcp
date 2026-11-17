@@ -7,7 +7,10 @@ and speed symbol, and the front and rear cold inflation pressures copied from it
 (FMVSS No. 110). The cleaned values live in data-src/tire-placards.jsonl (built offline from the
 report PDFs by the research pipeline; the server never downloads the PDFs). Each row is keyed by the
 vPIC make, model and model year of the test vehicle's own VIN, so a report can match it exactly
-against the VIN it decodes.
+against the VIN it decodes, plus its powertrain class from vPIC (battery_electric, not_battery_electric
+or unknown): vPIC gives gasoline and battery-electric versions one model name (2025 'Silverado'
+includes the Silverado EV), and the site never shows a test vehicle whose known class differs from
+the decoded VIN's.
 
 This builds data/tire-placards.db atomically; a failure leaves the previous file in place."""
 from pathlib import Path
@@ -19,6 +22,7 @@ SOURCE_META = ROOT / 'data-src/tire-placards.meta.json'
 TARGET = ROOT / 'data/tire-placards.db'
 KPA_PER_PSI = 6.894757
 REPORT_HOST = 'https://nrd-static.nhtsa.dot.gov/'
+POWERTRAINS = ('battery_electric', 'not_battery_electric', 'unknown')
 SIZE = re.compile(r'^(LT|P|T|HL)?\s?\d{3}/\d{2}\s?(ZR|RF|R)\s?\d{2}(\.\d)?(\s?(LT|XL))?(\s\d{2,3}(/\d{2,3})?\s?\(?[A-Z]{0,2}\)?)?$')
 
 
@@ -45,6 +49,8 @@ def check(row, n):
         bad('report_url host')
     if row['confidence'] not in ('high', 'normal'):
         bad('confidence')
+    if row.get('powertrain') not in POWERTRAINS:
+        bad('powertrain')
     for side in ('front', 'rear'):
         tire = (row.get('tires') or {}).get(side)
         if not isinstance(tire, str) or not SIZE.match(tire.strip()):
@@ -72,7 +78,7 @@ def build(source, target, meta_path=None):
     try:
         db.executescript('''CREATE TABLE placards(id INTEGER PRIMARY KEY, make_key TEXT NOT NULL, model_key TEXT NOT NULL,
             year INTEGER NOT NULL, make TEXT NOT NULL, model TEXT NOT NULL, tested_as TEXT NOT NULL, vpic_trim TEXT,
-            body_class TEXT, drive_type TEXT, tire_front TEXT NOT NULL, tire_rear TEXT NOT NULL,
+            body_class TEXT, drive_type TEXT, powertrain TEXT NOT NULL, tire_front TEXT NOT NULL, tire_rear TEXT NOT NULL,
             kpa_front REAL NOT NULL, kpa_rear REAL NOT NULL, psi_front INTEGER NOT NULL, psi_rear INTEGER NOT NULL,
             test_no INTEGER NOT NULL, report_url TEXT NOT NULL, test_type TEXT, other_reports TEXT NOT NULL,
             confidence TEXT NOT NULL);
@@ -83,12 +89,12 @@ def build(source, target, meta_path=None):
                 continue
             row = json.loads(line)
             check(row, n)
-            ident = (key(row['make']), key(row['model']), row['model_year'], key(row['tires']['front']), key(row['tires']['rear']))
+            ident = (key(row['make']), key(row['model']), row['model_year'], row['powertrain'], key(row['tires']['front']), key(row['tires']['rear']))
             if ident in seen:
                 raise ValueError(f'line {n}: duplicate make/model/year/tires')
             seen.add(ident)
             rows.append((key(row['make']), key(row['model']), row['model_year'], row['make'].strip(), row['model'].strip(),
-                         row['tested_as'].strip(), row.get('vpic_trim'), row.get('body_class'), row.get('drive_type'),
+                         row['tested_as'].strip(), row.get('vpic_trim'), row.get('body_class'), row.get('drive_type'), row['powertrain'],
                          row['tires']['front'].strip(), row['tires']['rear'].strip(),
                          float(row['cold_pressure_kpa']['front']), float(row['cold_pressure_kpa']['rear']),
                          row['cold_pressure_psi']['front'], row['cold_pressure_psi']['rear'],
@@ -97,9 +103,9 @@ def build(source, target, meta_path=None):
                          row['confidence']))
         if not rows:
             raise ValueError('Empty tire placard dataset')
-        db.executemany('INSERT INTO placards(make_key,model_key,year,make,model,tested_as,vpic_trim,body_class,drive_type,tire_front,tire_rear,'
+        db.executemany('INSERT INTO placards(make_key,model_key,year,make,model,tested_as,vpic_trim,body_class,drive_type,powertrain,tire_front,tire_rear,'
                        'kpa_front,kpa_rear,psi_front,psi_rear,test_no,report_url,test_type,other_reports,confidence) '
-                       'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+                       'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
         db.execute('CREATE INDEX vehicle_key ON placards(make_key, model_key, year)')
         metadata = {'source': 'NHTSA vehicle crash-test reports (NCAP and FMVSS compliance data sheets), nrd-static.nhtsa.dot.gov',
                     'dataset_file': str(Path(source).name), 'sha256': hashlib.sha256(payload).hexdigest(), 'rows': len(rows),
