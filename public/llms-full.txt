@@ -28,6 +28,7 @@ VIN recall status is separate from model-year campaigns. Tesla and Ford provide 
 | NHTSA Complaints | Consumer complaints with crash, fire, injury, and death statistics |
 | NHTSA Safety Ratings | NCAP star ratings for overall, frontal, side, and rollover crash tests |
 | EPA Fuel Economy | City/highway/combined MPG, annual fuel cost, CO2 emissions, EV range and charge time |
+| EPA Test Car List | epa_test_vehicles: rated horsepower, transmission, tested axle ratios, test weight and test group of the manufacturer's EPA certification test vehicles for the engine family (1998-2026); matched by EPA test group, otherwise labelled closest test configuration with match_basis; not this car's build |
 | IMAGIN.studio | Stock vehicle photos from multiple angles |
 
 ## REST API
@@ -51,6 +52,7 @@ Response fields:
 - `dimensions` (object): Curb weight, wheelbase
 - `plant` (object): Assembly plant city, state, country
 - `safety_equipment` (object): Airbags, ABS, ESC, TPMS, backup camera, etc.
+- `epa_test_vehicles` (object): EPA Test Car List match (available, match: epa_test_group or closest_test_configuration, match_basis, rated_hp {min,max}, transmissions, axle_ratios, test_weight_lb, test_groups, drives_as_tested, note); the manufacturer's test vehicles for this engine family, not this car
 - `recalls` (object): Count and array of recall records (campaign number, component, summary, consequence, remedy, manufactured_from/manufactured_to: the manufacturer's build-date range for the campaign, null when none was filed; the VIN does not carry a build month, so this never says the vehicle is affected)
 - `complaints` (object): Count, array of complaints, summary with crash/fire/injury/death counts
 - `safety_ratings` (object): NCAP star ratings — overall, frontal driver/passenger, side driver/passenger, rollover

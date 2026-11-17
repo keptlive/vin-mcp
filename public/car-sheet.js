@@ -97,8 +97,11 @@ const CarSheet = (() => {
     const unit = f.is_ev ? 'MPGe' : 'mpg';
     const mpg = f.available && num(f.combined_mpg) ? `${f.combined_mpg} ${unit} combined${num(f.city_mpg) && num(f.highway_mpg) ? ` (${f.city_mpg} city, ${f.highway_mpg} hwy)` : ''}` : null;
     const isEv = /BEV/i.test(e.ev_type || '') || /^electric$/i.test(e.fuel_type || '');
+    // vPIC often has no horsepower: then the EPA test vehicles' rated figure, labelled (public/more-sources.js).
+    const epaHp = !num(e.hp) && typeof MoreSources !== 'undefined' ? MoreSources.epaHp(r) : null;
     const rows = [
       row(isEv ? 'Motor' : 'Engine', engine || null), row('Engine code', code), row('Fuel', fuel ? fuel + grade : null),
+      row('Rated power', epaHp && `${epaHp} (maker’s EPA test vehicles for this engine family)`),
       row('Transmission', trans || null), row('Drive', t.drive_type), row('Electrification', e.ev_type),
       row('Battery', battery), row('Charging', charger || null),
       row('EPA fuel economy', mpg), row('EPA range', f.available && num(f.ev_range) ? `${f.ev_range} mi` : null),

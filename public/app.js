@@ -141,6 +141,7 @@ function renderResults(report) {
   renderSafetyEquipment(report);
   renderPlant(report);
   renderRaw(report);
+  window.MoreSources?.render(report); // extra official sources (public/more-sources.js)
   if (typeof window !== 'undefined') window.VinWorkspace?.reportUpdated(report);
 }
 
