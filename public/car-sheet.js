@@ -136,11 +136,24 @@ const CarSheet = (() => {
       row('EPA fuel economy', mpg), row(f.total_range ? 'EPA electric range' : 'EPA range', f.available && num(f.ev_range) ? `${f.ev_range} mi` : null),
     ];
     // On paper: the match kind and that the VIN does not say which; the configurations and what separates them are screen only.
-    const note = range ? `<p class="sheet-note">EPA range: ${paperSummary(f.summary || 'several EPA configurations fit this VIN')}.</p>`
-      : mpg && f.match === 'same_rating' ? `<p class="sheet-note">${paperSummary(f.summary)}.</p>`
+    // The transmission assumption (or the owner's choice) prints as its own note, so its label is not repeated in the summary.
+    const tc = f.transmission_choice, summary = tc && f.summary ? String(f.summary).replace(tc.label + ': ', '') : f.summary;
+    const note = choiceNote(f) + (range ? `<p class="sheet-note">EPA range: ${paperSummary(summary || 'several EPA configurations fit this VIN')}.</p>`
+      : mpg && f.match === 'same_rating' ? `<p class="sheet-note">${paperSummary(summary)}.</p>`
       : mpg && f.match === 'closest' ? `<p class="sheet-note">Closest EPA configuration, not an exact match<span class="sheet-screen-only">: ${esc(f.matched_variant || 'see full report')}</span>.</p>`
-      : mpg ? `<p class="sheet-note sheet-screen-only">EPA figures are for the matched test configuration: ${esc(f.matched_variant || 'see full report')}.</p>` : '';
+      : mpg ? `<p class="sheet-note sheet-screen-only">EPA figures are for the matched test configuration: ${esc(f.matched_variant || 'see full report')}.</p>` : '');
     return section('power', 'Engine and drive', (list(rows) || unknownNote) + note);
+  }
+  /** "Assuming an automatic transmission (the VIN does not say)" or the owner's choice; the other side's figure on screen. */
+  function choiceNote(f) {
+    const tc = f.transmission_choice;
+    if (!tc || !tc.label) return '';
+    const other = (f.alternatives || []).find(a => a.for_transmission && a.for_transmission !== tc.chosen);
+    const unit = other && (other.unit || (other.is_ev ? 'MPGe' : 'mpg'));
+    const c = other && other.mpg_range && other.mpg_range.combined;
+    const figure = !other ? null : other.available && num(other.combined_mpg) ? `${other.combined_mpg} ${unit} combined`
+      : c ? `${c.min === c.max ? c.min : `${c.min}–${c.max}`} ${other.mpg_range.unit || unit} combined` : null;
+    return `<p class="sheet-note">${esc(tc.label)}${figure ? `<span class="sheet-screen-only">; with ${other.for_transmission === 'manual' ? 'a manual' : 'an automatic'}: ${esc(figure)}</span>` : ''}.</p>`;
   }
 
   function sizeSection(r) {

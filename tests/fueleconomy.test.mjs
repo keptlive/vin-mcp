@@ -75,6 +75,10 @@ const ROWS = [
   V(37800, 2017, 'Honda', 'Ridgeline FWD', {base: 'Ridgeline', trany: 'Automatic 6-spd', displ: 3.5, cyl: 6, city: 19, hwy: 26, comb: 22}),
   V(37801, 2017, 'Honda', 'Ridgeline AWD', {base: 'Ridgeline', drive: 'All-Wheel Drive', trany: 'Automatic 6-spd', displ: 3.5, cyl: 6, city: 18, hwy: 25, comb: 21}),
   V(32000, 2013, 'Infiniti', 'M37x', {base: 'M', drive: 'All-Wheel Drive', trany: 'Automatic (S7)', displ: 3.7, cyl: 6, city: 18, hwy: 24, comb: 20}),
+  // owner transmission choice: a manual, a dual-clutch and a conventional automatic (two automatic-side ratings)
+  V(35500, 2015, 'Ford', 'Focus FWD', {base: 'Focus', trany: 'Manual 5-spd', displ: 2.0, cyl: 4, city: 26, hwy: 36, comb: 30}),
+  V(35501, 2015, 'Ford', 'Focus FWD', {base: 'Focus', trany: 'Automatic (AM6)', displ: 2.0, cyl: 4, city: 27, hwy: 38, comb: 31}),
+  V(35502, 2015, 'Ford', 'Focus FWD', {base: 'Focus', trany: 'Automatic (S6)', displ: 2.0, cyl: 4, city: 29, hwy: 40, comb: 33}),
 ];
 const EMISSIONS = [['DTYXV02.0XXX', 37000],['FFMXT02.73DH', 35922], ['STYXV01.8P3A', 49139], ['STYXV01.8P3A', 48490], ['STYXV01.8Q2B', 48490], ['MGMXT03.65A1', 42200]];
 
@@ -192,9 +196,9 @@ test('trims: each trim the VIN allows keeps its listing or the base listing; sub
   const fe = await fuel(vin(2019, 'KIA', 'Niro', {displ: 1.6, ev: 'HEV (Hybrid Electric Vehicle) - Level Unknown', trim: 'FE'}));
   assert.deepEqual([fe.match, fe.epa_model, fe.combined_mpg], ['exact', 'Niro FE', 50]);
   const scion = await fuel(vin(2008, 'TOYOTA', 'Scion xD', {displ: 1.8}));
-  assert.equal(scion.match, 'multiple_configurations');
+  // automatic and manual listings, the VIN gives no transmission: the automatic is assumed (owner rule 2026-11-17)
+  assert.deepEqual([scion.match, scion.combined_mpg, scion.assumed, scion.alternatives[0].combined_mpg], ['exact', 28, {transmission: 'automatic'}, 29]);
   assert.match(scion.match_basis[0], /EPA lists "Scion xD" under the make Scion/);
-  assert.deepEqual(scion.mpg_range.combined, {min: 28, max: 29});
 });
 
 test('without the index, or with nothing for the year and make, the FuelEconomy.gov web service is asked', async () => {
@@ -298,4 +302,57 @@ test('a decode field that names both drives, another weight series and a flex-fu
   // Range words count only when every trim alternative states them.
   const ev9 = await fuel(vin(2026, 'KIA', 'EV9', {fuel: 'Electric', ev: 'BEV (Battery Electric Vehicle)', drive: 'RWD/Rear-Wheel Drive', trim: 'Light, Light LR'}));
   assert.equal(ev9.match, 'multiple_configurations');
+});
+
+const choice = (d, transmission) => getFuelEconomy(d.vehicle.year, d.vehicle.make, d.vehicle.model, d, {file, transmission});
+
+test('transmission not in the decode: the automatic configuration, marked as assumed, with the manual as the alternative', async () => {
+  const versa = vin(2016, 'NISSAN', 'Versa', {displ: 1.6, cyl: 4});
+  const f = await fuel(versa);
+  assert.deepEqual([f.available, f.match, f.combined_mpg, f.city_mpg, f.highway_mpg], [true, 'exact', 34, 31, 39]);
+  assert.deepEqual(f.assumed, {transmission: 'automatic'});
+  assert.deepEqual([f.transmission_choice.chosen, f.transmission_choice.basis, f.transmission_choice.label], ['automatic', 'assumed', 'Assuming an automatic transmission (the VIN does not say)']);
+  assert.deepEqual(f.transmission_choice.configuration_counts, {automatic: 1, manual: 1});
+  assert.match(f.transmission_choice.classified, /continuously variable \(CVT\), dual-clutch and automated-manual transmissions count as automatic/i);
+  assert.match(f.summary, /^Assuming an automatic transmission \(the VIN does not say\): 34 mpg combined \(31 city, 39 highway\)/);
+  assert.ok(f.match_basis.includes('assuming an automatic transmission (the VIN does not say)'));
+  assert.deepEqual(f.alternatives.map(a => [a.for_transmission, a.match, a.combined_mpg, a.transmission]), [['manual', 'exact', 30, 'Manual 5-spd']]);
+  assert.doesNotMatch(f.alternatives[0].summary, /Assuming/);
+  // stated by the caller: the manual's figures, said as stated; the automatic becomes the alternative
+  const m = await choice(versa, 'manual');
+  assert.deepEqual([m.combined_mpg, m.transmission, m.assumed, m.stated], [30, 'Manual 5-spd', undefined, {transmission: 'manual', by: 'request'}]);
+  assert.deepEqual([m.transmission_choice.chosen, m.transmission_choice.basis, m.transmission_choice.label], ['manual', 'request', 'Manual transmission, as requested (the VIN does not say)']);
+  assert.match(m.summary, /^Manual transmission, as requested \(the VIN does not say\): 30 mpg combined/);
+  assert.deepEqual(m.alternatives.map(a => [a.for_transmission, a.combined_mpg]), [['automatic', 34]]);
+  assert.doesNotMatch(m.alternatives[0].summary, /Assuming|as requested/);
+  const a = await choice(versa, 'Automatic');
+  assert.deepEqual([a.combined_mpg, a.assumed, a.transmission_choice.basis, a.stated.transmission], [34, undefined, 'request', 'automatic']);
+});
+
+test('transmission choice: the decode decides when it says; one side only and one rating for all are unchanged', async () => {
+  const manual = await fuel(vin(2016, 'NISSAN', 'Versa', {displ: 1.6, cyl: 4, trans: 'Manual/Standard', speeds: 5}));
+  assert.deepEqual([manual.match, manual.combined_mpg, manual.transmission_choice, manual.assumed], ['exact', 30, undefined, undefined]);
+  const cvt = await fuel(vin(2016, 'NISSAN', 'Versa', {displ: 1.6, cyl: 4, trans: 'Continuously Variable Transmission (CVT)'}));
+  assert.deepEqual([cvt.combined_mpg, cvt.transmission_choice], [34, undefined]);
+  // a stated choice never overrides the decode
+  assert.equal((await choice(vin(2016, 'NISSAN', 'Versa', {displ: 1.6, cyl: 4, trans: 'Manual/Standard'}), 'automatic')).combined_mpg, 30);
+  const wrangler = await fuel(vin(2017, 'JEEP', 'Wrangler', {displ: 3.6, cyl: 6, drive: '4WD/4-Wheel Drive/4x4'}));
+  assert.deepEqual([wrangler.match, wrangler.combined_mpg, wrangler.transmission_choice], ['same_rating', 18, undefined]);
+  const corolla = await fuel(vin(2005, 'TOYOTA', 'Corolla', {displ: 1.8}));
+  assert.equal(corolla.transmission_choice, undefined);
+  assert.equal((await choice(vin(2005, 'TOYOTA', 'Corolla', {displ: 1.8}), 'automatic')).combined_mpg, 35); // only a manual listed: unchanged
+});
+
+test('transmission choice: a dual-clutch counts as automatic, and several automatic configurations keep the range rules', async () => {
+  const focus = vin(2015, 'FORD', 'Focus', {displ: 2.0, cyl: 4});
+  const f = await fuel(focus);
+  assert.deepEqual([f.available, f.match, f.reason], [false, 'multiple_configurations', 'ambiguous_variant']);
+  assert.deepEqual(f.mpg_range.combined, {min: 31, max: 33});
+  assert.deepEqual(f.configurations.map(c => c.transmission).sort(), ['Automatic (AM6)', 'Automatic (S6)']);
+  assert.match(f.summary, /6-speed dual-clutch automatic or 6-speed automatic|6-speed automatic or 6-speed dual-clutch automatic/);
+  assert.deepEqual([f.assumed, f.transmission_choice.configuration_counts], [{transmission: 'automatic'}, {automatic: 2, manual: 1}]);
+  assert.match(f.summary, /^Assuming an automatic transmission \(the VIN does not say\): 31-33 mpg combined across 2 EPA configurations/);
+  assert.deepEqual([f.alternatives[0].for_transmission, f.alternatives[0].match, f.alternatives[0].combined_mpg], ['manual', 'exact', 30]);
+  const m = await choice(focus, 'manual');
+  assert.deepEqual([m.available, m.combined_mpg, m.alternatives[0].mpg_range.combined], [true, 30, {min: 31, max: 33}]);
 });

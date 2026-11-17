@@ -130,6 +130,7 @@ $$('[data-vin]').forEach(el => {
 
 // ── Render Results ──
 function renderResults(report) {
+  report = window.OwnerDetails?.applyToReport(report) || report; // the owner's stated transmission (public/owner-details.js)
   renderHero(report);
   window.CarSheet?.render(report);
   renderOverview(report);
@@ -300,7 +301,32 @@ function renderSafetyRatings(r) {
 }
 
 // ── Fuel Economy Card ──
+// The transmission assumption or the owner's choice, and the switch, lead the card (public/owner-details.js).
 function renderFuel(r) {
+  const tc = r.fuel_economy?.transmission_choice; // its label leads the card, so the summary below does not repeat it
+  renderFuelBody(tc && r.fuel_economy.summary ? {...r, fuel_economy: {...r.fuel_economy, summary: String(r.fuel_economy.summary).replace(tc.label + ': ', '')}} : r);
+  const control = window.OwnerDetails?.controlHtml(r.fuel_economy, r.vin);
+  if (control) $('#fuel-body').insertAdjacentHTML('afterbegin', control);
+}
+function rerenderOwnerView(focusChoice) {
+  if (!currentReport) return;
+  const view = window.OwnerDetails?.applyToReport(currentReport) || currentReport;
+  renderFuel(view); window.CarSheet?.render(view); window.VinWorkspace?.reportUpdated(view);
+  if (focusChoice) $('#fuel-body [data-owner-transmission]')?.focus();
+}
+$('#fuel-body').addEventListener('click', async e => {
+  const b = e.target.closest('[data-owner-transmission],[data-owner-save]');
+  if (!b || !currentReport || !window.OwnerDetails) return;
+  if (b.hasAttribute('data-owner-save')) { editVehicleLabel(currentReport.vin); return; }
+  const token = authToken, t = b.dataset.ownerTransmission; b.disabled = true;
+  try {
+    const kept = await OwnerDetails.set(currentReport.vin, {transmission: t}, {request: accountRequest});
+    if (token !== authToken) return;
+    rerenderOwnerView(true);
+    toast(`${t === 'manual' ? 'Manual' : 'Automatic'} transmission ${kept === 'account' ? 'saved with this vehicle' : kept === 'session' ? 'kept for this visit' : 'saved in this browser'}`);
+  } catch (err) { b.disabled = false; toast('Your choice could not be saved. ' + err.message, 'error'); }
+});
+function renderFuelBody(r) {
   const f = r.fuel_economy;
   if (!f || !f.available) {
     // Several EPA configurations fit: their range and each one (public/more-sources.js).
@@ -742,7 +768,7 @@ function openHistory() { window.VinWorkspace?.navigate('saved'); renderHistory()
 function closeHistory() { /* Recent vehicles are an inline workspace view. */ }
 $('#history-toggle').addEventListener('click', openHistory);
 $('#history-close').addEventListener('click', () => window.VinWorkspace?.navigate('report'));
-$('#clear-history').addEventListener('click', () => { localStorage.removeItem(HISTORY_KEY); renderHistory(); });
+$('#clear-history').addEventListener('click', () => { localStorage.removeItem(HISTORY_KEY); window.OwnerDetails?.clear('browser'); renderHistory(); rerenderOwnerView(); });
 
 function checkUrlVin() {
   const match = window.location.pathname.match(new RegExp('^/([A-HJ-NPR-Z0-9]{17})$', 'i'));
@@ -879,6 +905,7 @@ $('#register-form').addEventListener('submit', e => authenticate(e, true));
 $('#logout-btn').addEventListener('click', () => {
   authRevision++; authToken = null; currentUser = null; userPrefs = null; savedVinsList = [];
   localStorage.removeItem('vin-auth-token');
+  window.OwnerDetails?.setAccount([], false); window.OwnerDetails?.clear('session'); rerenderOwnerView();
   $('#saved-status').textContent = '';
   updateAuthUI(); applyPreferences(); toast('Signed out');
   $('#login-btn').focus();
@@ -895,6 +922,7 @@ $('#delete-form').addEventListener('submit', async e => {
     await accountRequest('/api/auth/account', {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#delete-password').value})});
     authRevision++; authToken = null; currentUser = null; userPrefs = null; savedVinsList = [];
     localStorage.removeItem('vin-auth-token');
+    window.OwnerDetails?.setAccount([], false); window.OwnerDetails?.clear('session'); rerenderOwnerView();
     $('#delete-password').value = ''; $('#saved-status').textContent = '';
     closeDialog('#delete-modal'); updateAuthUI(); applyPreferences(); toast('Account deleted');
     $('#login-btn').focus();
@@ -908,6 +936,7 @@ async function loadSavedVins() {
     const data = await accountRequest('/api/user/vins');
     if (token !== authToken) return;
     savedVinsList = data; $('#saved-status').textContent = ''; renderSavedVins();
+    window.OwnerDetails?.setAccount(data, true); rerenderOwnerView();
   } catch (err) { if (token === authToken) $('#saved-status').textContent = 'Saved vehicles could not be loaded. ' + err.message; }
 }
 function updateSaveButton(vin) {
@@ -925,6 +954,11 @@ function editVehicleLabel(vin) {
   $('#label-vin').textContent = vin;
   $('#vehicle-label').value = existing?.label || '';
   $('#label-error').hidden = true;
+  // A transmission the owner stated before saving goes with the vehicle; the dialog says so.
+  const details = !existing && window.OwnerDetails?.get(vin);
+  labelTarget.owner_details = details || null;
+  $('#label-details').textContent = details ? `Your choice, ${details.transmission} transmission, is saved with it.` : '';
+  $('#label-details').hidden = !details;
   openDialog('#label-modal', '#vehicle-label');
 }
 $('#save-vin-btn').addEventListener('click', () => { if (currentReport) editVehicleLabel(currentReport.vin); });
@@ -934,7 +968,7 @@ $('#label-form').addEventListener('submit', async e => {
   const token = authToken, target = {...labelTarget}, label = $('#vehicle-label').value.trim(), button = $('#label-submit');
   button.disabled = true; $('#label-error').hidden = true;
   try {
-    await accountRequest(target.id ? '/api/user/vins/' + target.id : '/api/user/vins', {method:target.id ? 'PUT' : 'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vin:target.vin,label})});
+    await accountRequest(target.id ? '/api/user/vins/' + target.id : '/api/user/vins', {method:target.id ? 'PUT' : 'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vin:target.vin,label,...(!target.id && target.owner_details ? {owner_details:target.owner_details} : {})})});
     if (token !== authToken) return;
     await loadSavedVins(); updateSaveButton(currentReport?.vin); closeDialog('#label-modal'); toast(target.id ? 'Label updated' : 'Vehicle saved');
   } catch (err) { $('#label-error').textContent = err.message; $('#label-error').hidden = false; }

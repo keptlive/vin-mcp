@@ -36,7 +36,7 @@
     </div>
 
     <div class="article-meta">
-      <span class="meta-date">Effective November 16, 2026</span>
+      <span class="meta-date">Effective November 17, 2026</span>
     </div>
 
     <h1>Privacy Policy</h1>
@@ -59,8 +59,11 @@
     <h3>When you create an account</h3>
     <p>An account is optional. If you create one we store your email address, a display name if you give one, and your password in a salted, hashed form that cannot be read back. We also store the vehicles you save, the labels you give them and your report settings. We do not send marketing email.</p>
 
+    <h3 id="owner-details">When you tell us something about your vehicle</h3>
+    <p>Some details are not in the VIN. When EPA lists a model with both an automatic and a manual transmission and the VIN does not say which, the report assumes an automatic and lets you say &ldquo;Mine is a manual&rdquo; (or confirm the automatic). If you are signed in and the vehicle is saved, that choice is stored with the saved vehicle in your account and removed with it. If you are signed in and the vehicle is not saved, the choice is kept in your browser for that visit only, until you save the vehicle with it. If you are not signed in, the choice stays in your browser&rsquo;s local storage, next to your recent reports, and is never sent to us. The REST API and MCP server take the transmission as a request option; it changes that one answer and is not stored (the request log keeps the path, not the query).</p>
+
     <h3>In your browser</h3>
-    <p>The website keeps two things in your browser&rsquo;s local storage: a sign-in token, which expires after 24 hours, and the list of your recent reports. The recent list never leaves your browser. We set no cookies.</p>
+    <p>The website keeps three things in your browser&rsquo;s local storage: a sign-in token, which expires after 24 hours, the list of your recent reports, and, if you are not signed in, the transmission you chose for a vehicle (see above). The recent list and those choices never leave your browser; clearing your recent reports clears the choices too. We set no cookies.</p>
 
     <h3>When you connect an AI client</h3>
     <p>If you connect an MCP client such as Claude, we receive the tool calls it makes, which contain the same VINs and vehicle details as a web lookup. The client&rsquo;s name and its sign-in tokens are held in server memory only. We do not receive your conversation.</p>
@@ -98,7 +101,7 @@
       <li><strong>Use it without an account.</strong> Lookups, the API and the public MCP tools need no sign-up.</li>
       <li><strong>Remove saved vehicles</strong> one at a time from the Saved vehicles panel.</li>
       <li><strong>Delete your account</strong> from the account menu on the website: choose Delete account and confirm with your password. Your account, saved vehicles and settings are removed at once, and your account number is removed from the request logs.</li>
-      <li><strong>Clear recent reports</strong> from the Saved vehicles panel, or by clearing site data in your browser.</li>
+      <li><strong>Clear recent reports</strong> from the Saved vehicles panel, or by clearing site data in your browser. This also clears transmission choices kept in your browser.</li>
       <li><strong>Ask us.</strong> Email <a href="mailto:privacy@mcp.vin">privacy@mcp.vin</a> to get a copy of your data, to correct it, or to have it deleted if you cannot sign in. We answer within 30 days.</li>
     </ul>
 

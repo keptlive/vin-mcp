@@ -22,6 +22,8 @@ import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
 import { vinRecallStatus } from './lib/recall-status.mjs';
 import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls } from './lib/reports.mjs';
+import { normalizeTransmission, applyOwnerDetails } from './lib/transmission-choice.mjs';
+import { validateOwnerDetails, parseOwnerDetails, serializeOwnerDetails, OwnerDetailsError } from './lib/owner-details.mjs';
 import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
 import { validateCorrection, insertCorrection, listCorrections, CorrectionError, THANKS } from './lib/placard-corrections.mjs';
 import { readFile } from 'node:fs/promises';
@@ -463,8 +465,14 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     } catch (err) { safeError(res, err); }
   });
 
+  // ?transmission=automatic|manual: the caller states what the VIN does not (fuel economy only; the cached report is unchanged)
+  const transmissionParam = (req, res) => {
+    try { return { ok: true, value: normalizeTransmission(req.query.transmission) }; }
+    catch { res.status(400).json({ error: 'transmission must be "automatic" or "manual"' }); return { ok: false }; }
+  };
   app.get('/api/vin/:vin', rateGuard(30), async (req, res) => {
-    try { res.json(restReport(await fullReport(req.params.vin), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
+    const t = transmissionParam(req, res); if (!t.ok) return;
+    try { res.json(restReport(applyOwnerDetails(await fullReport(req.params.vin), { transmission: t.value }, { by: 'request' }), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
   });
 
   app.get('/api/vin/:vin/validate', rateGuard(60), (req, res) => {
@@ -506,11 +514,12 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   });
 
   app.get('/api/vin/:vin/fuel', rateGuard(30), async (req, res) => {
+    const t = transmissionParam(req, res); if (!t.ok) return;
     try {
       const decoded = await nhtsaDecode(normalizeVin(req.params.vin));
       if (!decoded) return res.status(400).json({ error: 'Could not decode VIN' });
       const { make, model, year } = decoded.vehicle;
-      res.json(await getFuelEconomy(year, make, model, decoded) || { available: false });
+      res.json(await getFuelEconomy(year, make, model, decoded, { transmission: t.value }) || { available: false });
     } catch (err) { safeError(res, err); }
   });
 
@@ -610,7 +619,8 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   // ---- Saved VINs ----
 
   app.get('/api/user/vins', userAuth, (req, res) => {
-    res.json(db.prepare('SELECT id, vin, label, year, make, model, created_at FROM saved_vins WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id));
+    res.json(db.prepare('SELECT id, vin, label, year, make, model, created_at, owner_details FROM saved_vins WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id)
+      .map(r => ({ ...r, owner_details: parseOwnerDetails(r.owner_details) })));
   });
 
   app.post('/api/user/vins', userAuth, rateGuard(30), async (req, res) => {
@@ -618,13 +628,15 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     let { label } = req.body;
     if (typeof vin !== 'string' || !validateVin(vin).valid) return res.status(400).json({ error: 'Provide a valid VIN (format and checksum)' });
     if (label) label = String(label).slice(0, 200);
+    let details;
+    try { details = validateOwnerDetails(req.body.owner_details); } catch (e) { if (e instanceof OwnerDetailsError) return res.status(400).json({ error: e.message }); throw e; }
     const normalized = normalizeVin(vin);
     const decoded = await nhtsaDecode(normalized);
     try {
-      const result = db.prepare('INSERT INTO saved_vins (user_id, vin, label, year, make, model) VALUES (?, ?, ?, ?, ?, ?)').run(
-        req.user.id, normalized, label || null, decoded?.vehicle?.year || null, decoded?.vehicle?.make || null, decoded?.vehicle?.model || null
+      const result = db.prepare('INSERT INTO saved_vins (user_id, vin, label, year, make, model, owner_details) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+        req.user.id, normalized, label || null, decoded?.vehicle?.year || null, decoded?.vehicle?.make || null, decoded?.vehicle?.model || null, serializeOwnerDetails(details)
       );
-      res.status(201).json({ id: result.lastInsertRowid, vin: normalized, label: label || null, year: decoded?.vehicle?.year, make: decoded?.vehicle?.make, model: decoded?.vehicle?.model });
+      res.status(201).json({ id: result.lastInsertRowid, vin: normalized, label: label || null, year: decoded?.vehicle?.year, make: decoded?.vehicle?.make, model: decoded?.vehicle?.model, owner_details: details });
     } catch (e) {
       if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'VIN already saved' });
       safeError(res, e);
@@ -637,6 +649,15 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     const result = db.prepare('UPDATE saved_vins SET label = ? WHERE id = ? AND user_id = ?').run(label || null, req.params.id, req.user.id);
     if (!result.changes) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
+  });
+
+  // Owner-stated details (transmission) for one saved vehicle; {transmission: null} clears it.
+  app.put('/api/user/vins/:id/details', userAuth, rateGuard(30), (req, res) => {
+    let details;
+    try { details = validateOwnerDetails(req.body?.owner_details ?? req.body); } catch (e) { if (e instanceof OwnerDetailsError) return res.status(400).json({ error: e.message }); return safeError(res, e); }
+    const result = db.prepare('UPDATE saved_vins SET owner_details = ? WHERE id = ? AND user_id = ?').run(serializeOwnerDetails(details), req.params.id, req.user.id);
+    if (!result.changes) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true, owner_details: details });
   });
 
   app.delete('/api/user/vins/:id', userAuth, (req, res) => {

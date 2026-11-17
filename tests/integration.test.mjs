@@ -117,6 +117,50 @@ test('saved VIN create, list, label edit and delete still work',async()=>{
  assert.equal((await req('/api/user/vins/'+saved,{label:'Edited'},token,'PUT')).status,200);
  list=await(await req('/api/user/vins',undefined,token)).json();assert.equal(list[0].label,'Edited');
 });
+test('transmission choice: automatic assumed and marked; ?transmission= and the MCP argument state it; the cache keeps the default',async()=>{
+ let shift='1HGCM82633A004356';shift=shift.slice(0,8)+validateVin(shift).checksum.expected+shift.slice(9);
+ const d=(await(await req('/api/vin/'+shift)).json()).fuel_economy;
+ assert.deepEqual([d.available,d.combined_mpg,d.transmission,d.assumed,d.transmission_choice.basis,d.transmission_choice.label],[true,25,'Automatic 5-spd',{transmission:'automatic'},'assumed','Assuming an automatic transmission (the VIN does not say)']);
+ assert.deepEqual(d.alternatives.map(a=>[a.for_transmission,a.combined_mpg,a.transmission]),[['manual',27,'Manual 5-spd']]);
+ const m=(await(await req('/api/vin/'+shift+'?transmission=manual')).json()).fuel_economy;
+ assert.deepEqual([m.combined_mpg,m.assumed,m.stated,m.transmission_choice.basis],[27,undefined,{transmission:'manual',by:'request'},'request']);
+ assert.equal((await(await req('/api/vin/'+shift)).json()).fuel_economy.combined_mpg,25); // one caller's choice is not cached for the next
+ const bad=await req('/api/vin/'+shift+'?transmission=cvt');assert.equal(bad.status,400);assert.match((await bad.json()).error,/automatic.*manual/);
+ assert.equal((await req('/api/vin/'+shift+'/fuel?transmission=sideways')).status,400);
+ const fm=await(await req('/api/vin/'+shift+'/fuel?transmission=manual')).json();assert.deepEqual([fm.combined_mpg,fm.stated.transmission],[27,'manual']);
+ const fd=await(await req('/api/vin/'+shift+'/fuel')).json();assert.deepEqual([fd.combined_mpg,fd.assumed],[25,{transmission:'automatic'}]);
+ // the decode states a transmission: the parameter changes nothing
+ assert.equal((await(await req('/api/vin/'+vin+'?transmission=manual')).json()).fuel_economy.combined_mpg,22);
+ const client=new Client({name:'transmission-check',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+ try{await client.connect(transport);
+  const tool=(await client.listTools()).tools.find(t=>t.name==='decode_vin');assert.deepEqual(tool.inputSchema.properties.transmission.enum,['automatic','manual']);
+  const md=JSON.parse((await client.callTool({name:'decode_vin',arguments:{vin:shift}})).content[0].text).fuel_economy;
+  assert.deepEqual([md.combined_mpg,md.assumed,md.alternatives[0].combined_mpg],[25,{transmission:'automatic'},27]);
+  const mm=JSON.parse((await client.callTool({name:'decode_vin',arguments:{vin:shift,transmission:'manual'}})).content[0].text).fuel_economy;
+  assert.deepEqual([mm.combined_mpg,mm.stated],[27,{transmission:'manual',by:'request'}]);
+ }finally{await transport.terminateSession();await client.close();}
+});
+test('owner-stated transmission is stored with a saved vehicle, validated, cleared and user-scoped',async()=>{
+ const put=(id,body)=>req('/api/user/vins/'+id+'/details',body,token,'PUT');
+ let res=await put(saved,{owner_details:{transmission:'manual'}});assert.equal(res.status,200);assert.deepEqual((await res.json()).owner_details,{transmission:'manual'});
+ let list=await(await req('/api/user/vins',undefined,token)).json();assert.deepEqual(list[0].owner_details,{transmission:'manual'});assert.equal(list[0].label,'Edited');
+ for(const body of [{transmission:'cvt'},{owner_details:{colour:'red'}},{owner_details:'manual'}]){res=await put(saved,body);assert.equal(res.status,400);}
+ assert.deepEqual((await(await req('/api/user/vins',undefined,token)).json())[0].owner_details,{transmission:'manual'});
+ assert.equal((await put(999999,{transmission:'manual'})).status,404);
+ assert.equal((await req('/api/user/vins/'+saved+'/details',{transmission:'manual'},undefined,'PUT')).status,401);
+ res=await put(saved,{transmission:null});assert.deepEqual((await res.json()).owner_details,null);
+ assert.equal((await(await req('/api/user/vins',undefined,token)).json())[0].owner_details,null);
+ // saving a vehicle with the choice made before it was saved
+ let shift='1HGCM82633A004356';shift=shift.slice(0,8)+validateVin(shift).checksum.expected+shift.slice(9);
+ assert.equal((await req('/api/user/vins',{vin:shift,owner_details:{transmission:'sideways'}},token)).status,400);
+ res=await req('/api/user/vins',{vin:shift,label:'Stick',owner_details:{transmission:'manual'}},token);assert.equal(res.status,201);const id=(await res.json()).id;
+ list=await(await req('/api/user/vins',undefined,token)).json();assert.deepEqual(list.find(s=>s.id===id).owner_details,{transmission:'manual'});
+ const client=new Client({name:'owner-details-check',version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'));
+ try{await client.connect(transport);
+  const vins=JSON.parse((await client.callTool({name:'list_saved_vins',arguments:{user_token:token}})).content[0].text);assert.deepEqual(vins.find(s=>s.id===id).owner_details,{transmission:'manual'});
+ }finally{await transport.terminateSession();await client.close();}
+ assert.equal((await req('/api/user/vins/'+id,undefined,token,'DELETE')).status,200);
+});
 test('all preference fields remain available',async()=>{
  const prefs=await(await req('/api/user/preferences',undefined,token)).json();assert.equal(prefs.show_overview,1);
  const res=await req('/api/user/preferences',{show_engine:false,show_photos:false},token,'PUT');assert.equal(res.status,200);assert.equal((await res.json()).show_engine,0);
