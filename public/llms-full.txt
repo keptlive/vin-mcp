@@ -24,7 +24,7 @@ VIN recall status is separate from model-year campaigns. Tesla and Ford provide 
 | Source | Data Provided |
 |--------|--------------|
 | NHTSA vPIC | Make, model, year, trim, body class, engine specs, transmission, drive type, weight, plant info, 140+ decoded fields |
-| NHTSA Recalls | Model-year campaigns with component, summary, consequence, and remedy for the exact model name; campaigns NHTSA files under related model names (hybrid, spelling, family names) listed separately in related_models as may or may not apply; not VIN repair status |
+| NHTSA Recalls | Model-year campaigns with component, summary, consequence, and remedy for the exact model name; campaigns NHTSA files under related model names (hybrid, spelling, family names) listed separately in related_models as may or may not apply; manufacturer build-date range per campaign (manufactured_from, manufactured_to) and campaign units affected from NHTSA's recall flat file; not VIN repair status |
 | NHTSA Complaints | Consumer complaints with crash, fire, injury, and death statistics |
 | NHTSA Safety Ratings | NCAP star ratings for overall, frontal, side, and rollover crash tests |
 | EPA Fuel Economy | City/highway/combined MPG, annual fuel cost, CO2 emissions, EV range and charge time |
@@ -51,7 +51,7 @@ Response fields:
 - `dimensions` (object): Curb weight, wheelbase
 - `plant` (object): Assembly plant city, state, country
 - `safety_equipment` (object): Airbags, ABS, ESC, TPMS, backup camera, etc.
-- `recalls` (object): Count and array of recall records (campaign number, component, summary, consequence, remedy)
+- `recalls` (object): Count and array of recall records (campaign number, component, summary, consequence, remedy, manufactured_from/manufactured_to: the manufacturer's build-date range for the campaign, null when none was filed; the VIN does not carry a build month, so this never says the vehicle is affected)
 - `complaints` (object): Count, array of complaints, summary with crash/fire/injury/death counts
 - `safety_ratings` (object): NCAP star ratings — overall, frontal driver/passenger, side driver/passenger, rollover
 - `fuel_economy` (object): City/highway/combined MPG, annual fuel cost, CO2 tailpipe g/mi, EV range, charge time
@@ -89,7 +89,7 @@ Returns NHTSA recall data for the decoded vehicle.
 Parameters:
 - `vin` (path, required): 17-character VIN
 
-Response: Array of recall objects with campaign_number, component, summary, consequence, remedy, report_date
+Response: Array of recall objects with campaign_number, component, summary, consequence, remedy, report_date, manufactured_from, manufactured_to (manufacturer build-date range from the recall flat file; null when not filed)
 
 Rate limit: 30 requests/minute per IP
 

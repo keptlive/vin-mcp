@@ -384,6 +384,7 @@ function renderCampaigns(r) {
         ${recall.remedy ? `<div><span class="recall-detail-label">Remedy:</span> ${esc(recall.remedy)}</div>` : ''}
         ${recall.campaign_number ? `<div><span class="recall-detail-label">Campaign:</span> ${esc(recall.campaign_number)}</div>` : ''}
         ${recall.report_received_date || recall.report_date ? `<div><span class="recall-detail-label">Reported to NHTSA:</span> ${esc(recall.report_received_date || recall.report_date)}</div>` : ''}
+        ${window.MoreSources?.builtHtml(recall) || ''}
         ${recall.park_it ? `<div><span class="recall-detail-label">NHTSA advisory:</span> Park it: do not drive until repaired</div>` : ''}
         ${recall.park_outside ? `<div><span class="recall-detail-label">NHTSA advisory:</span> Park outside and away from structures</div>` : ''}
       </div>
@@ -396,6 +397,7 @@ function renderCampaigns(r) {
          <div class="recall-item">
            <div class="recall-component">${esc(recall.component || 'Unknown Component')}</div>
            <div class="recall-summary">${esc(recall.summary || '')}</div>
+           ${window.MoreSources?.builtHtml(recall) || ''}
          </div>`).join('')}</div>`
     : '';
 
@@ -418,9 +420,10 @@ function relatedCampaignsHTML(rec) {
         <div class="recall-summary">${esc(recall.summary || '')}</div>
         ${recall.campaign_number ? `<div><span class="recall-detail-label">Campaign:</span> ${esc(recall.campaign_number)}</div>` : ''}
         ${recall.report_received_date || recall.report_date ? `<div><span class="recall-detail-label">Reported to NHTSA:</span> ${esc(recall.report_received_date || recall.report_date)}</div>` : ''}
+        ${window.MoreSources?.builtHtml(recall) || ''}
       </div>`).join('')}
     </div>`).join('');
-  const flatList = flatOnly ? `<div class="recall-item"><div class="recall-component">Listed in NHTSA's recall file but not returned by NHTSA's live lookup · ${esc(flatOnly.count)}</div><div class="recall-details">${flatOnly.campaigns.map(c => `<div><span class="recall-detail-label">Campaign:</span> ${esc(c.campaign_number)} (filed as ${esc(c.nhtsa_model)})</div>`).join('')}</div></div>` : '';
+  const flatList = flatOnly ? `<div class="recall-item"><div class="recall-component">Listed in NHTSA's recall file but not returned by NHTSA's live lookup · ${esc(flatOnly.count)}</div><div class="recall-details">${flatOnly.campaigns.map(c => `<div><span class="recall-detail-label">Campaign:</span> ${esc(c.campaign_number)} (filed as ${esc(c.nhtsa_model)})</div>${window.MoreSources?.builtHtml(c) || ''}`).join('')}</div></div>` : '';
   const total = (rel.count || 0) + (flatOnly?.count || 0);
   const unchecked = rel.unchecked_labels?.length ? `<p class="empty-state">${esc(rel.unchecked_labels.length)} more related model name${rel.unchecked_labels.length === 1 ? ' was' : 's were'} not checked.</p>` : '';
   return `<h3>Related model names · ${esc(total)} campaign${total === 1 ? '' : 's'}</h3>
