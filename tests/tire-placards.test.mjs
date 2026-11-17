@@ -59,7 +59,7 @@ test('exact: same make, model, year and version; every same-year variant when th
     assert.equal(dims.calls, 0, 'no generation check for an exact match');
     const m = r.vehicles[0].match;
     assert.deepEqual(m, {kind: 'exact', tested_model_year: 2021, vin_model_year: 2021, year_gap: 0, differences: [], generation_check: null});
-    assert.equal(r.vehicles[0].confidence, 'high'); assert.deepEqual(r.vehicles[0].other_reports, [{test_no: 11492, report_url: url(11492)}]);
+    assert.equal(r.vehicles[0].confidence, 'high'); assert.deepEqual(r.vehicles[0].other_reports, [{source: 'nhtsa_crash_test', test_no: 11492, report_url: url(11492), report_label: 'NHTSA crash test 11492'}]);
     assert.deepEqual(r.vehicles[1].cold_pressure_psi, {front: 35, rear: 35}); assert.deepEqual(r.vehicles[1].cold_pressure_kpa, {front: 240, rear: 240});
     assert.match(r.note, /your own door placard governs/i); assert.match(r.note, /Not this VIN/);
     // Front and rear stay separate.
@@ -188,6 +188,7 @@ test('capacities and weights: one tested vehicle, both units, the fuel tank labe
     assert.deepEqual(s.fuel_tank.values.map(x => [x.litres, x.gallons, x.test_no]), [[98.4, 26, 11490]]);
     // The model shows several tank sizes across tested vehicles: listed, never averaged.
     assert.deepEqual(s.fuel_tank.model_tank_sizes.map(x => [x.litres, x.model_years]), [[87.1, [2019, 2023]], [98.4, [2021]], [113.6, [2023]]]);
+    assert.deepEqual(s.fuel_tank.model_tank_sizes.map(x => x.electrification), ['none', 'none', 'hybrid']);
     // 2022 (untested): nearest year, best guess; 2021 and 2023 tie; the 2023 hybrid is skipped for a gasoline VIN.
     s = (await lookupTestVehicleData(vin({year: 2022}), {file, dims})).test_vehicle_specs;
     assert.equal(s.match_kind, 'nearest_model_year');
@@ -214,6 +215,59 @@ test('capacities and weights: one tested vehicle, both units, the fuel tank labe
     try { assert.equal((await lookupTestVehicleData(vin(), {file: f2, dims})).test_vehicle_specs.reason, 'dataset_not_indexed'); }
     finally { rmSync(d2, {recursive: true, force: true}); }
   } finally { rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('compliance test reports: own link and label, one row per test vehicle, tank and brake test from the closest vehicle that has them', async () => {
+  const ctr = n => `https://static.nhtsa.gov/odi/ctr/2020/TRTR-${n}-2020.pdf`;
+  const comp = o => ({make: 'FORD', model: 'F-150', model_year: 2021, tested_as: '2021 Ford F-150', vpic_trim: 'XLT', fuel_type: 'Gasoline',
+    powertrain: 'not_battery_electric', source: 'nhtsa_compliance_test', test_no: null, ...o});
+  const {dir, file} = buildIndex([
+    row({model_year: 2020, test_no: 11400, report_url: url(11400)}),
+    row({source: 'nhtsa_compliance_test', test_no: null, report_number: '646592', fmvss: ['110'], report_url: ctr(646592), confidence: 'high',
+      other_reports: [{source: 'nhtsa_crash_test', test_no: 11491, report_url: url(11491)}]}),
+  ], [
+    spec({model_year: 2020, test_no: 11400, report_url: url(11400)}),
+    comp({report_number: '646592', fmvss: ['110'], report_url: ctr(646592), test_type: 'FMVSS 110 compliance test',
+      other_reports: [{source: 'nhtsa_compliance_test', test_no: null, report_number: '646600', fmvss: ['537'], report_url: ctr(646600)}],
+      seating: {total: 6}, gvwr: {value: 3175, unit_printed: 'kg'}, vehicle_capacity_weight_kg: 650,
+      field_reports: {seating: ['646592'], gvwr: ['646592', '646600'], vehicle_capacity_weight_kg: ['646600']}}),
+    comp({report_number: '110-2360530-TEST', fmvss: ['135'], report_url: ctr(2360530), test_type: 'FMVSS 135 compliance test',
+      braking: {stop_100kmh_lightly_loaded_m: 44.8, stop_100kmh_fully_loaded_m: 48.6}, max_speed_kmh: 180.8}),
+  ]);
+  try {
+    const dims = tc();
+    const r = await lookupTestVehicleData(vin(), {file, dims});
+    const t = r.tire_placard.vehicles[0];
+    assert.equal(r.tire_placard.match_kind, 'exact'); assert.equal(t.source, 'nhtsa_compliance_test'); assert.equal(t.test_no, null);
+    assert.equal(t.report_label, 'NHTSA FMVSS 110 compliance test report 646592'); assert.equal(t.report_url, ctr(646592));
+    assert.deepEqual(t.other_reports.map(o => o.report_label), ['NHTSA crash test 11491']);
+    const s = r.test_vehicle_specs;
+    // Capacities: the exact compliance vehicle (two reports, one row); each value names the report(s) that printed it.
+    assert.equal(s.match_kind, 'exact'); assert.equal(s.vehicles[0].report_number, '646592');
+    assert.deepEqual(s.vehicles[0].seating, {total: 6}); assert.deepEqual(s.vehicles[0].field_reports.vehicle_capacity_weight_kg, ['646600']);
+    assert.deepEqual(s.vehicles[0].other_reports.map(o => o.report_label), ['NHTSA FMVSS 537 compliance test report 646600']);
+    // Compliance reports list no tank: the tank comes from the closest crash-tested vehicle that lists one, as a best guess with its own link.
+    assert.equal(s.fuel_tank.shown, true); assert.equal(s.fuel_tank.best_guess, true);
+    assert.deepEqual(s.fuel_tank.values.map(x => [x.litres, x.model_year, x.match.kind, x.report_url]), [[98.4, 2020, 'nearest_model_year', url(11400)]]);
+    // Brake test: its own vehicle and report, metres as printed, feet converted; a test, not a rating.
+    const b = s.stopping_distance;
+    assert.equal(b.shown, true); assert.match(b.test, /FMVSS No\. 135/); assert.match(b.note, /Not a rating and not this VIN/);
+    assert.deepEqual([b.vehicles[0].lightly_loaded, b.vehicles[0].fully_loaded_gvwr], [{m: 44.8, ft: 147}, {m: 48.6, ft: 159}]);
+    assert.equal(b.vehicles[0].report_label, 'NHTSA FMVSS 135 compliance test report 110-2360530-TEST'); assert.equal(b.vehicles[0].maximum_speed_kmh, 180.8);
+    // No brake test within reach: not shown, never zero.
+    const far = (await lookupTestVehicleData(vin({year: 2017}), {file, dims})).test_vehicle_specs.stopping_distance;
+    assert.deepEqual(far, {shown: false, reason: 'no_brake_test_in_reach'});
+  } finally { rmSync(dir, {recursive: true, force: true}); }
+  // The importer refuses a compliance row with a crash-report host, a test_no, or a field source it does not list.
+  for (const bad of [{report_url: url(1)}, {test_no: 5}, {field_reports: {gvwr: ['999999']}}]) {
+    const dir = mkdtempSync(join(tmpdir(), 'placards-')), src = join(dir, 'p.jsonl'), sp = join(dir, 's.jsonl');
+    writeFileSync(src, JSON.stringify(row()) + '\n');
+    writeFileSync(sp, JSON.stringify(comp({report_number: '646592', report_url: ctr(646592), gvwr: {value: 3175, unit_printed: 'kg'}, field_reports: {gvwr: ['646592']}, ...bad})) + '\n');
+    const code = `import importlib.util,sys;s=importlib.util.spec_from_file_location('i',sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);m.build(sys.argv[2],sys.argv[3],None,sys.argv[4])`;
+    const run = spawnSync('python3', ['-c', code, importer, src, join(dir, 'x.db'), sp], {encoding: 'utf8'});
+    rmSync(dir, {recursive: true, force: true});
+    assert.notEqual(run.status, 0, JSON.stringify(bad)); assert.match(run.stderr, /specs line 1/);
+  }
 });
 
 test('generation check compares Transport Canada wheelbases, or the measured one when the tested year has no record', () => {

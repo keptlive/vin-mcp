@@ -122,10 +122,11 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   vPIC's 145 variables include only wheel diameter, number of wheels and TPMS type; EPA
   and Canadian specification records have no tire fields. The sheet shows the wheel
   diameter and TPMS type when vPIC has them and leaves write-in fields for the placard.
-  Above those fields it shows the placard values of NHTSA's own crash-test vehicle when one
-  was tested with the exact make, model and model year (next section).
-- **Fuse layout, oil, fluids, tank size, towing.** These are in the copyrighted owner's
-  manual. The sheet links to the maker's official manual library and copies nothing.
+  Above those fields it shows the placard values of a vehicle NHTSA tested (crash or compliance test), the
+  closest match by model year and version, with the match stated in words (next section).
+- **Fuse layout, oil, fluids, towing.** These are in the copyrighted owner's manual. (The
+  usable fuel tank of NHTSA's test vehicle is shown, labelled: see `test_vehicle_specs` below.)
+  The sheet links to the maker's official manual library and copies nothing.
   Verified with a plain request: Chevrolet, GMC, Buick and Cadillac `manuals-guides`,
   Toyota, Honda and Acura MyGarage, Nissan. Ford and Tesla refuse scripted requests;
   their pages are confirmed in search results only. No Subaru or Lexus library is listed.
@@ -142,22 +143,81 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   Data Sheet No. 1 of each report copies the test vehicle's Tire and Loading Information
   placard: recommended tire size front and rear, cold pressure front and rear in kPa, load
   index and speed symbol. The test vehicle's VIN is printed in the same report.
+- **Second source: compliance test reports (`source: "nhtsa_compliance_test"`, added 17 November
+  2026).** NHTSA's Office of Vehicle Safety Compliance publishes its FMVSS test reports on
+  `static.nhtsa.gov/odi/ctr/`. The FMVSS 110, 138 and 537 reports copy the same placard block
+  ("Tire Size: Front P235/55R18 ; Rear ... Tire Inflation Pressure: Front 220 kPa (32 psi)"), the
+  certification label and the test vehicle's VIN. They pass the same validation, vPIC decode of the
+  test vehicle's VIN (the decode's year and make must equal the report's), match kinds and wording.
+  Such a row has no crash `test_no`; it is linked by its report number ("NHTSA compliance test
+  report 639465"; newer numbers look like `110-2360530-TEST`). Scanned reports without a text layer
+  are skipped, never OCRed. A variant seen in both sources is one row with the other report listed;
+  where both sources cover the same model, year and size the compliance kPa equalled the crash
+  report's in 71 of 74 overlaps (the 3 others: 240 against 241.3 kPa on a 2014 Jeep Patriot, a
+  rounding; a 2011 Camry with no trim against a Base trim, 220 against 230 kPa).
+  Hand check: 20 compliance reports, 0 wrong values.
 - **Build (offline, not at request time).** The research pipeline downloads each report once,
   extracts the data sheet text, deletes the PDF, and keeps the matched lines as evidence. Each
   test vehicle's own VIN is decoded with vPIC `DecodeVINValuesBatch` to get the key: vPIC make,
   model and model year, the same names a decoded VIN gets on this site. Rows are rejected (and
-  listed for review, never fixed by hand) when a size is malformed, a pressure is missing or
+  listed for review, never fixed by hand) when a size is malformed (a load-range letter such as
+  `LT265/70R18E` is kept as printed), a pressure is missing or
   outside 180-420 kPa (620 for LT tires), the report disagrees with itself, the VIN fails its
   check digit, or the VIN's model year differs from the report's. Two reports for the same
   vehicle that agree give `confidence: high`; one report gives `normal`; two that disagree are
-  excluded. psi is kPa / 6.894757 rounded; reports print kPa.
+  excluded. Versions of one model year (4x2 and AWD, two trims) are compared only with themselves:
+  two versions with different pressures are two rows, not a disagreement.
+- **Full main set (17 November 2026).** 1,728 of 1,729 queued crash reports processed: 1,248 rows (1,136
+  from crash reports, 112 from compliance reports) for 1,073 make/model/year/powertrain keys. Older data
+  sheets (2005-2012) print the cold pressure in five more labelled forms ("221 kpa FRONT; 207 kpa REAR",
+  "Cold Pressure (from tire placard - kPa)* 210 210", a wrapped label, "210 kPa 210 kPa", and a row whose
+  table states kPa); 24 of their values were read by hand against the reports, 0 wrong. Left empty on
+  purpose: Karco 2010-2011 sheets whose text layer separates the values from their labels (18 reports), and
+  sheets with two cold pressures, "(2 persons)" and "(max)" (13). The extra NCAP side and pole reports are
+  used for capacities and crash results but not yet for tires: with them, 22 model-years would lose every
+  tire row because NHTSA's test vehicles of one version carried different tire sizes (wheel options, or a
+  misprint), which the rule above excludes; how to show those is an open owner decision. psi is kPa / 6.894757 rounded; reports print kPa.
 - **Shipped file.** `data-src/tire-placards.jsonl` (+ `.meta.json`) is the cleaned list.
   `python3 scripts/import-tire-placards.py` validates every row (sizes, ranges, psi/kPa
   agreement, NHTSA report URL, confidence rules) and atomically writes `data/tire-placards.db`;
   one bad row fails the whole import. `lib/tire-placards.mjs` reads it.
-- **Matching.** Exact vPIC make + model + model year, case- and space-insensitive and nothing
-  else: `F150` does not match `F-150`, and no other model year's values are applied. Every
-  tested variant (for example two tire sizes) is listed with its report link.
+- **Matching: closest match, stated (owner rule 17 November 2026).** Same vPIC make and model,
+  case- and space-insensitive and nothing else (`F150` does not match `F-150`). Every vehicle
+  shown carries `match {kind, tested_model_year, vin_model_year, year_gap, differences,
+  generation_check}` and the sheet says it in words. Kinds, closest first:
+  1. `exact`: same model year, and no visible difference in trim, series, body, drive or
+     electrification between the two vPIC decodes ("Same model year.");
+  2. `nearest_model_year`, same version: another tested year within `MAX_YEAR_GAP` (2), the
+     nearest one; on a tie (one year older, one newer) both are shown ("NHTSA tested the 2023
+     model (yours is 2025). Tires and pressures can change between years.");
+  3. `different_variant`: same model year, but a visible difference, listed;
+  4. `nearest_model_year` that also differs in version;
+  5. a nearest year whose Transport Canada wheelbase differs from the VIN year's (likely another
+     generation): ranked last and said so.
+  Only the closest kind present is returned. Values are never estimated, blended or averaged:
+  each is one tested vehicle's printed value. The generation check (`generation_check`:
+  `same_wheelbase`, `different_wheelbase`, `unknown`; `null` for the same year) compares the
+  Transport Canada wheelbases (via vPIC `GetCanadianVehicleSpecifications`, the sheet's dimension
+  source, cached one hour) of the two years; when the tested year has no record it uses the
+  wheelbase NHTSA measured on the test vehicle (within 15 mm same, over 30 mm different). It only
+  runs when no exact match exists. Transport Canada has no records yet for many 2026 models, so
+  `unknown` is common for the newest years.
+- **Reach (`MAX_YEAR_GAP` = 2), re-measured 17 November 2026 on the full main crash-report set**
+  (1,248 tire rows, 2,094 capacity rows; `scripts/measure_stability.py`, `scripts/stability_wheelbase.py` in
+  the research folder). Share of pairs of tested vehicles of one model with equal values, by year gap:
+
+  | gap | bare tire size | cold pressures | usable fuel tank (within 1 L) |
+  |---|---|---|---|
+  | 1 year | 195 of 338 (58%); same trim 86 of 109 (79%) | 212 of 338 (63%); same trim 74 of 109 (68%) | 405 of 626 (65%); same trim 137 of 192 (71%) |
+  | 2 years | 167 of 323 (52%); same trim 55 of 74 (74%) | 184 of 323 (57%); same trim 51 of 74 (69%) | 400 of 728 (55%); same trim 86 of 136 (63%) |
+  | 3 years | 128 of 313 (41%) | 160 of 313 (51%) | 363 of 750 (48%) |
+
+  Split by the generation check (wheelbase NHTSA measured on both vehicles, within 15 mm): same
+  wheelbase 1-2 years apart agreed in 60-83% of pairs (tank 82-83%); different wheelbase in 8-40%. So a
+  different-wheelbase year is a weak match, and a 2-year gap with an unknown generation agrees about half
+  the time. The current rule (reach 2, different wheelbase ranked last, every caveat printed) is kept until
+  the owner decides; the measured alternative is in the research notes (reach 1, or 2 only with
+  `same_wheelbase`, never `different_wheelbase`).
 - **Powertrain guard.** vPIC gives gasoline and battery-electric versions one model name (the
   2025 Silverado EV test truck decodes as `Silverado`, with LT tires at 420 kPa). Each row keeps
   its test vehicle's class from vPIC `FuelTypePrimary` + `ElectrificationLevel`
@@ -165,8 +225,66 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   `unknown` when vPIC gives neither, as for some 2013 decodes). A test vehicle whose known class
   differs from the decoded VIN's is never shown; if that leaves nothing, the block says
   `reason: "other_powertrain_only"`.
+
 - **Meaning.** These are the values of the one vehicle NHTSA tested, not of the decoded VIN.
-  The owner's own door placard governs; it can differ by trim and tire size. No match means
-  not tested or not indexed, never zero. `available: false` means the index was not present.
+  The owner's own door placard governs; it can differ by year, trim and tire size. No match
+  within reach means not tested or not indexed, never zero (`reason: "no_close_match"`).
+  `available: false` means the index was not present.
+- **Corrections.** "Doesn't match your door placard?" on the sheet (screen only) posts the
+  reader's own tire sizes, cold pressures and fuel tank (gal or L) with an optional note to
+  `POST /api/placard-corrections` (5 a minute per address, validated, length-capped). Stored in
+  `vin.db` table `placard_corrections` with what the VIN decodes to, the test vehicles shown and
+  their match kind, the VIN's first 11 characters only, and the time; no IP address, no account;
+  kept up to one year. Never shown to other readers and never applied automatically; listed for
+  review at `GET /api/admin/placard-corrections` (ADMIN_KEY). Privacy policy: "When you send a
+  placard or fuel tank correction".
 - **Refresh.** NHTSA adds tests every model year. Re-running the research pipeline and the
   importer picks them up; nothing is fetched by the site itself.
+
+## NHTSA test-vehicle capacities and weights (`test_vehicle_specs`, added 17 November 2026)
+
+- **Source.** The crash reports' Data Sheet No. 1: certification label GVWR and GAWR front/rear
+  (unit as printed; a value printed without a unit is kept only when it is plausible as kg against
+  the measured axle weights), the seating table, vehicle capacity weight (payload), usable
+  capacity of the standard (and optional) fuel tank, and the weight as delivered per axle (curb
+  weight with fluids, before dummies and ballast). Built by the research pipeline's Stage A
+  extractor; each field records its extraction method, and a field failing a plausibility rule
+  (GVWR against the measured weight and twice it, GAWR sum against GVWR, kg/lb agreement, ranges,
+  no tank on a battery-electric vehicle) is left out, never corrected. Hand check: 30 reports
+  stratified by lab, test type and year, 10 more out of sample for the shown fields, and 20
+  server-extracted reports (3 wrong values of 779 on the first pass, all fixed and re-checked
+  across every report).
+- **Compliance reports.** The FMVSS 110/138/537 reports add GVWR and GAWR (kg, checked against
+  the printed lb within 2%), the occupant and cargo weight from the placard (= vehicle capacity
+  weight) and the seating total (no per-row split; shown as the total alone). One test vehicle
+  (one VIN) often has several compliance reports: they form one row, `field_reports` names the
+  report(s) that printed each value, every report is linked, and a value two reports print
+  differently is left out (2 cases). They list no fuel tank.
+- **Stopping distance (full report only, not on the one-page sheet).** The FMVSS 135 brake
+  compliance report prints the cold-effectiveness stop from 100 km/h (pedal force 65-500 N,
+  limit 70 m), lightly loaded and at GVWR: `test_vehicle_specs.stopping_distance` gives the closest
+  tested vehicle's values in metres as printed and feet converted, with its match and report.
+  The report page shows it under the safety ratings ("Brake test of an NHTSA test vehicle (FMVSS
+  No. 135)"), labelled as one vehicle's compliance test, not a rating and not this VIN. Every one
+  of the 44 lightly loaded and 38 GVWR values was read by hand against its printed row. The
+  measured maximum speed is kept in the API (`maximum_speed_kmh`), not displayed.
+- **Shipped file.** `data-src/test-vehicle-specs.jsonl` (+ `.meta.json`), one row per crash
+  report or per compliance-tested vehicle (`source` says which).
+  `npm run import:test-vehicles` (= `python3 scripts/import-tire-placards.py`) rebuilds
+  `data/tire-placards.db` with both tables in one atomic step; one bad row fails the import.
+- **Matching.** The closest-match rule above, preferring a tested vehicle with the same
+  electrification (none, hybrid, mild hybrid, plug-in hybrid, battery-electric) as the VIN. The
+  sheet shows one vehicle (the best match; with more of the capacity fields first) in "Size and
+  weight": fuel tank, payload, seating capacity, GVWR, GAWR, and curb weight as delivered with its
+  front/rear split, in lb and kg, linked to the report.
+- **Fuel tank.** From the closest tested vehicle that lists a tank (it can be another report than
+  the capacities, for example when the closest vehicle is a compliance test; the sheet then links
+  the tank's own report). Always one tested vehicle's printed usable standard tank, litres converted to US
+  gallons with the litres kept (`gallons = L / 3.785411784`), never averaged. Not an exact match:
+  "Fuel tank (best guess)" with "From NHTSA's 2023 test vehicle (yours is 2025); tank size can
+  differ by year, trim and options." When the tested vehicle's electrification differs from the
+  VIN's (or the VIN's is unknown) no tank is shown and the sheet says why. Two equally close tested
+  vehicles with different tanks are both shown; an optional tank listed by the report is named;
+  when this model's tested vehicles list more than one tank size, they are listed with their years.
+- **Not shown.** Crash results (injury measures, crush, post-test observations) are extracted into
+  a research dataset only; NCAP star ratings are not in these reports and are not derived.

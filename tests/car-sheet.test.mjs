@@ -77,13 +77,15 @@ test('NHTSA test-vehicle placard values show above the blanks, labelled, linked,
   const body = sheet.html({...base(), tire_placard: placard([tested()])}).body;
   const out = text(body);
   assert.match(out, /NHTSA test vehicle: 2017 Chevrolet Bolt EV LT 5-Door Hatchback Same model year\. Tires 215\/50R17 91H front and rear Cold 38 psi front and rear \(260 kPa\) NHTSA test report 10000/);
-  assert.match(out, /Your own door placard governs; it can differ by trim and tire size\./);
+  assert.match(out, /Your own door placard governs \(driver’s door pillar\); it can differ by trim and tire size\./);
   assert.match(body, /<a href="https:\/\/nrd-static\.nhtsa\.dot\.gov\/reports\/vehdb\/v10000\/v10000\/v10000R001\.pdf" target="_blank" rel="noopener">NHTSA test report 10000<\/a>/);
   // The values sit above the write-in blanks, which stay empty.
   assert.ok(body.indexOf('NHTSA test vehicle') < body.indexOf('Copy from the tire placard'));
   assert.doesNotMatch(body, /<input[^>]*value=/);
   assert.match(out, /Copy your car’s own values from its Tire and Loading Information placard/);
-  assert.match(sheet.html({...base(), tire_placard: placard([tested()])}).foot, /NHTSA crash-test reports \(test-vehicle tire placard\)/);
+  // On paper the two placard notes are one: the copy note is screen-only when tested values are shown.
+  assert.match(body, /<p class="sheet-note sheet-screen-only">Copy your car’s own values/);
+  assert.match(sheet.html({...base(), tire_placard: placard([tested()])}).foot, /NHTSA test reports \(test-vehicle tire placard\)/);
   // Front and rear differ: both printed; several tested variants: all listed.
   const two = text(sheet.html({...base(), tire_placard: placard([
     tested({tires: {front: 'P245/40ZR20 95Y', rear: 'P275/35ZR20 97Y'}, cold_pressure_psi: {front: 32, rear: 39}, cold_pressure_kpa: {front: 220, rear: 270}}),
@@ -148,7 +150,7 @@ test('capacities and weights of the NHTSA test vehicle: only the allowed fields,
   assert.match(out, /GAWR \(label\) Front 2,778 lb \(1,260 kg\); rear 2,646 lb \(1,200 kg\)/);
   assert.match(out, /Curb weight, as delivered 3,483 lb \(1,580 kg\); front 2,052 lb, rear 1,431 lb \(59% front\)/);
   assert.match(html.body, /<a href="https:\/\/nrd-static\.nhtsa\.dot\.gov\/reports\/vehdb\/v10000\/v14900\/v14989R001\.pdf" target="_blank" rel="noopener">NHTSA test report 14989<\/a>/);
-  assert.match(html.foot, /NHTSA crash-test reports \(test-vehicle capacities and weights\)/);
+  assert.match(html.foot, /NHTSA test reports \(test-vehicle capacities and weights\)/);
   // Nothing else from the report (crash results, equipment, wheelbase) is shown.
   const block = text(html.body.slice(html.body.indexOf('<div class="tested-specs">'), html.body.indexOf('</section>', html.body.indexOf('<div class="tested-specs">'))));
   assert.match(block, /^ NHTSA test vehicle: .* \(59% front\) $/);
@@ -179,7 +181,7 @@ test('a fuel tank from another year or version is a best guess; hidden when elec
 test('capacities: empty and unknown states are worded, never blank or zero', () => {
   const {sheet} = load();
   const out = sp => text(sheet.html({...gas(), test_vehicle_specs: sp}).body);
-  assert.match(out(specs(null)), /NHTSA has no crash-tested vehicle of this make and model within 2 model years in mcp\.vin’s index \(not tested, or not indexed yet\), so no tested fuel tank, payload or axle ratings are shown\. They are on the door-pillar label and in the owner’s manual\./);
+  assert.match(out(specs(null)), /NHTSA has no tested vehicle of this make and model within 2 model years in mcp\.vin’s index \(not tested, or not indexed yet\), so no tested fuel tank, payload or axle ratings are shown\. They are on the door-pillar label and in the owner’s manual\./);
   assert.match(out(undefined), /NHTSA’s test-vehicle index was not checked for this report/);
   assert.match(out({available: true, vehicles: [], reason: 'other_powertrain_only'}), /only with a different powertrain/);
   assert.match(out(specs(specsVehicle({fuel_tank: undefined, payload_vehicle_capacity_weight: undefined, seating: undefined, gvwr: undefined, gawr_front: undefined, curb_weight_as_delivered: undefined}), {shown: false, reason: 'not_printed_for_this_test_vehicle', values: []})),
@@ -330,4 +332,55 @@ test('the page loads the sheet before the app and prints it on its own page', ()
   assert.match(css, /\.car-sheet\{[^}]*break-after:page/);
   // No new outside resources: the sheet CSS and scripts reference no other hosts.
   for (const file of ['car-sheet.js', 'qr.js']) assert.doesNotMatch(readFileSync(new URL('../public/' + file, import.meta.url), 'utf8'), /<script|<link|@import|fetch\(['"`]https?:/);
+});
+
+test('compliance test reports: linked by report number, seating total alone, a tank from another report has its own link', () => {
+  const {sheet} = load();
+  const ctr = n => `https://static.nhtsa.gov/odi/ctr/2020/TRTR-${n}-2020.pdf`;
+  const v = specsVehicle({source: 'nhtsa_compliance_test', test_no: null, report_number: '646592', report_url: ctr(646592),
+    other_reports: [{source: 'nhtsa_compliance_test', test_no: null, report_number: '646600', report_url: ctr(646600)}],
+    seating: {total: 5}, fuel_tank: undefined, curb_weight_as_delivered: undefined});
+  const tank = {values: [{litres: 54.09, gallons: 14.3, printed: '54.09 L', test_no: 14989, model_year: 2023, match_kind: 'exact', match: {kind: 'exact', differences: [], year_gap: 0},
+    tested_as: '2023 Hyundai Tucson SEL AWD', report_url: 'https://nrd-static.nhtsa.dot.gov/reports/vehdb/v10000/v14900/v14989R001.pdf'}]};
+  const html = sheet.html({...gas(), test_vehicle_specs: specs(v, tank)});
+  const out = text(html.body);
+  assert.match(out, /Seating capacity 5 /); assert.doesNotMatch(out, /Seating capacity 5 \(/);
+  assert.match(out, /Values printed in NHTSA’s test reports, not this VIN’s\. NHTSA compliance test reports 646592 , 646600/);
+  assert.match(html.body, /<a href="https:\/\/static\.nhtsa\.gov\/odi\/ctr\/2020\/TRTR-646600-2020\.pdf" target="_blank" rel="noopener">646600<\/a>/);
+  assert.match(out, /Fuel tank 14\.3 gal \(54\.09 L\) NHTSA test vehicle, same model year\. 2023 Hyundai Tucson SEL AWD, NHTSA test report 14989 ?\./);
+  // A placard from a compliance report links its report number.
+  const p = text(sheet.html({...base(), tire_placard: placard([tested({source: 'nhtsa_compliance_test', test_no: null, report_number: '646592', report_url: ctr(646592)})])}).body);
+  assert.match(p, /NHTSA compliance test report 646592/);
+  // Another host is never linked.
+  assert.doesNotMatch(sheet.html({...base(), tire_placard: placard([tested({report_url: 'https://example.com/r.pdf'})])}).body, /NHTSA test vehicle/);
+});
+
+test('full report: the FMVSS 135 brake test block, labelled, linked, and absent when not indexed', () => {
+  const ctx = {console}; vm.createContext(ctx);
+  vm.runInContext(readFileSync(new URL('../public/test-vehicle.js', import.meta.url), 'utf8'), ctx);
+  const tv = vm.runInContext('TestVehicle', ctx);
+  const sd = {shown: true, vehicles: [{tested_as: '2016 BMW X1', report_url: 'https://static.nhtsa.gov/odi/ctr/2016/TRTR-644580-2016-001.pdf',
+    report_label: 'NHTSA FMVSS 135 compliance test report 644580', match: {kind: 'nearest_model_year', tested_model_year: 2016, vin_model_year: 2017, differences: []},
+    lightly_loaded: {m: 44.9, ft: 147}, fully_loaded_gvwr: {m: 48.6, ft: 159}}]};
+  const out = text(tv.html({test_vehicle_specs: {stopping_distance: sd}}));
+  assert.match(out, /Brake test of an NHTSA test vehicle \(FMVSS No\. 135\) 2016 BMW X1 : stop from 100 km\/h \(62 mph\) in 44\.9 m \(147 ft\) lightly loaded; 48\.6 m \(159 ft\) loaded to its GVWR\. NHTSA tested the 2016 model \(yours is 2017\)\. NHTSA FMVSS 135 compliance test report 644580/);
+  assert.match(out, /Not a rating and not this VIN/);
+  assert.equal(tv.html({test_vehicle_specs: {stopping_distance: {shown: false, reason: 'no_brake_test_in_reach'}}}), '');
+  assert.equal(tv.html({}), '');
+  assert.equal(tv.html({test_vehicle_specs: {stopping_distance: {...sd, vehicles: [{...sd.vehicles[0], report_url: 'https://example.com/x.pdf'}]}}}), '');
+  assert.equal(tv.html({test_vehicle_specs: {stopping_distance: {...sd, vehicles: [{...sd.vehicles[0], lightly_loaded: {m: 0, ft: 0}, fully_loaded_gvwr: null}]}}}), '');
+});
+
+test('on paper: at most two tested vehicles and no tank-size list, so the sheet stays one page; all stay on screen', () => {
+  const {sheet} = load();
+  const vs = [tested(), tested({tires: {front: '225/55R18 98H', rear: '225/55R18 98H'}, test_no: 10001}), tested({cold_pressure_psi: {front: 35, rear: 35}, cold_pressure_kpa: {front: 240, rear: 240}, test_no: 10002})];
+  const body = sheet.html({...base(), tire_placard: placard(vs)}).body;
+  assert.equal((body.match(/<li class="placard-test"/g) || []).length, 2);
+  assert.equal((body.match(/<li class="placard-test sheet-screen-only"/g) || []).length, 1);
+  assert.match(body, /<p class="sheet-note sheet-print-only">1 more NHTSA test vehicle with other values: see the live report\.<\/p>/);
+  assert.doesNotMatch(sheet.html({...base(), tire_placard: placard(vs.slice(0, 2))}).body, /sheet-print-only/);
+  const out = sheet.html({...gas(), test_vehicle_specs: specs(specsVehicle(), {model_tank_sizes: [{litres: 54.09, gallons: 14.3, model_years: [2023]}, {litres: 62, gallons: 16.4, model_years: [2016]}]})}).body;
+  assert.match(out, /<span class="sheet-screen-only"> NHTSA’s tested Tucson vehicles list more than one tank: 14\.3 gal \(2023\); 16\.4 gal \(2016\)\.<\/span>/);
+  const css = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.sheet-print-only\{display:none\}/); assert.match(css, /\.car-sheet \.sheet-print-only\{display:block!important\}/);
 });

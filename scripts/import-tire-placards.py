@@ -30,9 +30,11 @@ SPECS = ROOT / 'data-src/test-vehicle-specs.jsonl'
 SPECS_META = ROOT / 'data-src/test-vehicle-specs.meta.json'
 TARGET = ROOT / 'data/tire-placards.db'
 KPA_PER_PSI = 6.894757
-REPORT_HOST = 'https://nrd-static.nhtsa.dot.gov/'
+# Crash-test reports live on nrd-static; Office of Vehicle Safety Compliance test reports on static.nhtsa.gov/odi/ctr/.
+REPORT_HOSTS = {'nhtsa_crash_test': 'https://nrd-static.nhtsa.dot.gov/', 'nhtsa_compliance_test': 'https://static.nhtsa.gov/odi/ctr/'}
 POWERTRAINS = ('battery_electric', 'not_battery_electric', 'unknown')
-SIZE = re.compile(r'^(LT|P|T|HL)?\s?\d{3}/\d{2}\s?(ZR|RF|R)\s?\d{2}(\.\d)?(\s?(LT|XL))?(\s\d{2,3}(/\d{2,3})?\s?\(?[A-Z]{0,2}\)?)?$')
+# load range letter (B-F) as printed on LT and commercial sizes: LT265/70R18E 124/121R, 235/65R16C 121/119R
+SIZE = re.compile(r'^(LT|P|T|HL)?\s?\d{3}/\d{2}\s?(ZR|RF|R)\s?\d{2}(\.\d)?(\s?(LT|XL)|[B-F])?(\s\d{2,3}(/\d{2,3})?\s?\(?[A-Z]{0,2}\)?)?$')
 
 
 def key(text):
@@ -40,6 +42,21 @@ def key(text):
     vPIC spells a model the same way for every VIN, so no other folding is done: 'F-150' and
     'F150' stay different, and only an exact make, model and year match is ever shown."""
     return ' '.join(str(text or '').split()).upper()
+
+
+def check_report(r, bad, what='report'):
+    """A crash-test report has a positive test_no and an nrd-static URL; a compliance test report has no test_no,
+    a numeric report_number and a static.nhtsa.gov/odi/ctr/ URL."""
+    source = r.get('source') or 'nhtsa_crash_test'
+    if source not in REPORT_HOSTS:
+        bad(f'{what} source')
+    if source == 'nhtsa_crash_test' and (not isinstance(r.get('test_no'), int) or r['test_no'] <= 0):
+        bad(f'{what} test_no')
+    if source == 'nhtsa_compliance_test' and (r.get('test_no') is not None or not re.fullmatch(r'\d{3,9}|\d{3}-\d{5,9}-TEST', str(r.get('report_number') or ''))):
+        bad(f'{what} report_number')
+    if not str(r.get('report_url') or '').startswith(REPORT_HOSTS[source]):
+        bad(f'{what} report_url host')
+    return source
 
 
 def check(row, n):
@@ -52,10 +69,7 @@ def check(row, n):
     year = row.get('model_year')
     if not isinstance(year, int) or not 1990 <= year <= 2100:
         bad('model_year')
-    if not isinstance(row.get('test_no'), int) or row['test_no'] <= 0:
-        bad('test_no')
-    if not row['report_url'].startswith(REPORT_HOST):
-        bad('report_url host')
+    check_report(row, bad)
     if row['confidence'] not in ('high', 'normal'):
         bad('confidence')
     if row.get('powertrain') not in POWERTRAINS:
@@ -71,8 +85,7 @@ def check(row, n):
         if not isinstance(psi, int) or abs(psi - kpa / KPA_PER_PSI) > 0.5 + 1e-9:
             bad(f'psi {side} does not match kPa')
     for other in row.get('other_reports') or []:
-        if not isinstance(other.get('test_no'), int) or not str(other.get('report_url', '')).startswith(REPORT_HOST):
-            bad('other_reports')
+        check_report(other, bad, 'other_reports')
     if row['confidence'] == 'high' and not row.get('other_reports'):
         bad('high confidence needs a second report')
     for f in ('vpic_series', 'fuel_type', 'ev_type'):
@@ -93,10 +106,7 @@ def check_specs(row, n):
             bad(f'missing {f}')
     if not isinstance(row.get('model_year'), int) or not 1990 <= row['model_year'] <= 2100:
         bad('model_year')
-    if not isinstance(row.get('test_no'), int) or row['test_no'] <= 0:
-        bad('test_no')
-    if not row['report_url'].startswith(REPORT_HOST):
-        bad('report_url host')
+    check_report(row, bad)
     if row.get('powertrain') not in POWERTRAINS:
         bad('powertrain')
     shown = 0
@@ -118,8 +128,10 @@ def check_specs(row, n):
         shown += 1
     s = row.get('seating')
     if s is not None:
-        parts = [s.get(k) or 0 for k in ('front', 'rear', 'third')]
-        if not all(isinstance(x, int) and 0 <= x <= 9 for x in parts) or not isinstance(s.get('total'), int) or sum(parts) != s['total'] or not 1 <= s['total'] <= 15:
+        # by row (crash reports), or the total alone (compliance reports print the placard's total)
+        parts = [s.get(k) for k in ('front', 'rear', 'third') if k in s]
+        if not isinstance(s.get('total'), int) or not 1 <= s['total'] <= 15 or not all(isinstance(x, int) and 0 <= x <= 9 for x in parts) \
+                or (parts and sum(parts) != s['total']):
             bad('seating')
         shown += 1
     for name, lo, hi in (('gvwr', 700, 6400), ('gawr_front', 300, 4000), ('gawr_rear', 300, 4000)):
@@ -140,6 +152,22 @@ def check_specs(row, n):
         shown += 1
     if row.get('wheelbase_mm') is not None and not number(row['wheelbase_mm'], 1500, 5000):
         bad('wheelbase_mm')
+    b = row.get('braking')
+    if b is not None:  # FMVSS 135 cold-effectiveness stop from 100 km/h (limit 70 m)
+        if not b or set(b) - {'stop_100kmh_lightly_loaded_m', 'stop_100kmh_fully_loaded_m'} or not all(number(v, 25, 75) for v in b.values()):
+            bad('braking')
+        shown += 1
+    if row.get('max_speed_kmh') is not None and not number(row['max_speed_kmh'], 80, 350):
+        bad('max_speed_kmh')
+    # several compliance reports of one test vehicle (one VIN) form one row; field_reports names each value's report(s)
+    for other in row.get('other_reports') or []:
+        check_report(other, bad, 'other_reports')
+    fr = row.get('field_reports')
+    if fr is not None:
+        numbers = {row.get('report_number')} | {o.get('report_number') for o in row.get('other_reports') or []}
+        if not isinstance(fr, dict) or any(k not in SPEC_FIELDS or row.get(k) is None or not isinstance(v, list) or not v or not set(v) <= numbers
+                                           for k, v in fr.items()):
+            bad('field_reports')
     if not shown:
         bad('no shown field')
 
@@ -158,8 +186,8 @@ def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None)
             vpic_series TEXT, body_class TEXT, drive_type TEXT, fuel_type TEXT, ev_type TEXT, powertrain TEXT NOT NULL,
             tire_front TEXT NOT NULL, tire_rear TEXT NOT NULL,
             kpa_front REAL NOT NULL, kpa_rear REAL NOT NULL, psi_front INTEGER NOT NULL, psi_rear INTEGER NOT NULL,
-            test_no INTEGER NOT NULL, report_url TEXT NOT NULL, test_type TEXT, other_reports TEXT NOT NULL,
-            confidence TEXT NOT NULL);
+            test_no INTEGER, report_url TEXT NOT NULL, test_type TEXT, other_reports TEXT NOT NULL,
+            confidence TEXT NOT NULL, source TEXT NOT NULL, report_number TEXT, fmvss TEXT);
             CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);''')
         rows, seen = [], set()
         for n, line in enumerate(payload.decode('utf-8').splitlines(), 1):
@@ -167,9 +195,12 @@ def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None)
                 continue
             row = json.loads(line)
             check(row, n)
-            ident = (key(row['make']), key(row['model']), row['model_year'], row['powertrain'], key(row['tires']['front']), key(row['tires']['rear']))
+            # one row per tested variant and values: two versions of one model year (4x2 and AWD) may share a tire size
+            ident = (key(row['make']), key(row['model']), row['model_year'], row['powertrain'], key(row['tires']['front']), key(row['tires']['rear']),
+                     row['cold_pressure_kpa']['front'], row['cold_pressure_kpa']['rear'],
+                     *(key(row.get(f)) for f in ('vpic_trim', 'vpic_series', 'body_class', 'drive_type', 'fuel_type', 'ev_type')))
             if ident in seen:
-                raise ValueError(f'line {n}: duplicate make/model/year/tires')
+                raise ValueError(f'line {n}: duplicate make/model/year/variant/tires/pressures')
             seen.add(ident)
             rows.append((key(row['make']), key(row['model']), row['model_year'], row['make'].strip(), row['model'].strip(),
                          row['tested_as'].strip(), row.get('vpic_trim'), row.get('vpic_series'), row.get('body_class'), row.get('drive_type'),
@@ -177,16 +208,21 @@ def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None)
                          row['tires']['front'].strip(), row['tires']['rear'].strip(),
                          float(row['cold_pressure_kpa']['front']), float(row['cold_pressure_kpa']['rear']),
                          row['cold_pressure_psi']['front'], row['cold_pressure_psi']['rear'],
-                         row['test_no'], row['report_url'], row.get('test_type'),
-                         json.dumps([{'test_no': o['test_no'], 'report_url': o['report_url']} for o in row.get('other_reports') or []]),
-                         row['confidence']))
+                         row.get('test_no'), row['report_url'], row.get('test_type'),
+                         json.dumps([{'source': o.get('source') or 'nhtsa_crash_test', 'test_no': o.get('test_no'),
+                                      **({'report_number': o['report_number']} if o.get('report_number') else {}), 'report_url': o['report_url']}
+                                     for o in row.get('other_reports') or []]),
+                         row['confidence'], row.get('source') or 'nhtsa_crash_test', row.get('report_number'),
+                         json.dumps(row['fmvss']) if row.get('fmvss') else None))
         if not rows:
             raise ValueError('Empty tire placard dataset')
         db.executemany('INSERT INTO placards(make_key,model_key,year,make,model,tested_as,vpic_trim,vpic_series,body_class,drive_type,fuel_type,ev_type,'
-                       'powertrain,tire_front,tire_rear,kpa_front,kpa_rear,psi_front,psi_rear,test_no,report_url,test_type,other_reports,confidence) '
-                       'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+                       'powertrain,tire_front,tire_rear,kpa_front,kpa_rear,psi_front,psi_rear,test_no,report_url,test_type,other_reports,confidence,'
+                       'source,report_number,fmvss) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
         db.execute('CREATE INDEX vehicle_key ON placards(make_key, model_key, year)')
-        metadata = {'source': 'NHTSA vehicle crash-test reports (NCAP and FMVSS compliance data sheets), nrd-static.nhtsa.dot.gov',
+        metadata = {'source': 'NHTSA vehicle crash-test reports (NCAP and FMVSS compliance data sheets), nrd-static.nhtsa.dot.gov; '
+                              'NHTSA Office of Vehicle Safety Compliance test reports (FMVSS 110/138/537/135), static.nhtsa.gov/odi/ctr',
+                    'sources': {k: sum(1 for r in rows if r[24] == k) for k in REPORT_HOSTS},
                     'dataset_file': str(Path(source).name), 'sha256': hashlib.sha256(payload).hexdigest(), 'rows': len(rows),
                     'keys': len({r[:3] for r in rows}), 'dataset_generated_at': meta_in.get('generated_at'),
                     'reports_used': meta_in.get('reports_used'), 'dataset_status': meta_in.get('status'), 'indexed_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
@@ -206,7 +242,7 @@ def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None)
 
 
 SPEC_FIELDS = ('fuel_tank_standard', 'fuel_tank_optional', 'vehicle_capacity_weight_kg', 'seating', 'gvwr', 'gawr_front', 'gawr_rear',
-               'curb_weight_kg', 'wheelbase_mm')
+               'curb_weight_kg', 'wheelbase_mm', 'braking', 'max_speed_kmh')
 
 
 def build_specs(db, path, meta_path):
@@ -215,8 +251,9 @@ def build_specs(db, path, meta_path):
     meta_in = json.loads(Path(meta_path).read_text()) if meta_path and Path(meta_path).exists() else {}
     db.execute('''CREATE TABLE specs(id INTEGER PRIMARY KEY, make_key TEXT NOT NULL, model_key TEXT NOT NULL, year INTEGER NOT NULL,
         make TEXT NOT NULL, model TEXT NOT NULL, tested_as TEXT NOT NULL, vpic_trim TEXT, vpic_series TEXT, body_class TEXT,
-        drive_type TEXT, fuel_type TEXT, ev_type TEXT, powertrain TEXT NOT NULL, test_no INTEGER NOT NULL UNIQUE,
-        report_url TEXT NOT NULL, test_type TEXT, data TEXT NOT NULL)''')
+        drive_type TEXT, fuel_type TEXT, ev_type TEXT, powertrain TEXT NOT NULL, test_no INTEGER UNIQUE,
+        report_url TEXT NOT NULL, test_type TEXT, data TEXT NOT NULL, source TEXT NOT NULL, report_number TEXT UNIQUE, fmvss TEXT,
+        other_reports TEXT NOT NULL, field_reports TEXT)''')
     rows = []
     for n, line in enumerate(payload.decode('utf-8').splitlines(), 1):
         if not line.strip():
@@ -225,15 +262,18 @@ def build_specs(db, path, meta_path):
         check_specs(row, n)
         rows.append((key(row['make']), key(row['model']), row['model_year'], row['make'].strip(), row['model'].strip(), row['tested_as'].strip(),
                      row.get('vpic_trim'), row.get('vpic_series'), row.get('body_class'), row.get('drive_type'), row.get('fuel_type'),
-                     row.get('ev_type'), row['powertrain'], row['test_no'], row['report_url'], row.get('test_type'),
-                     json.dumps({k: row[k] for k in SPEC_FIELDS if row.get(k) is not None}, separators=(',', ':'))))
+                     row.get('ev_type'), row['powertrain'], row.get('test_no'), row['report_url'], row.get('test_type'),
+                     json.dumps({k: row[k] for k in SPEC_FIELDS if row.get(k) is not None}, separators=(',', ':')),
+                     row.get('source') or 'nhtsa_crash_test', row.get('report_number'), json.dumps(row['fmvss']) if row.get('fmvss') else None,
+                     json.dumps(row.get('other_reports') or []), json.dumps(row['field_reports']) if row.get('field_reports') else None))
     if not rows:
         raise ValueError('Empty test-vehicle specs dataset')
     try:
         db.executemany('INSERT INTO specs(make_key,model_key,year,make,model,tested_as,vpic_trim,vpic_series,body_class,drive_type,fuel_type,'
-                       'ev_type,powertrain,test_no,report_url,test_type,data) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+                       'ev_type,powertrain,test_no,report_url,test_type,data,source,report_number,fmvss,other_reports,field_reports) '
+                       'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
     except sqlite3.IntegrityError as err:
-        raise ValueError(f'specs: duplicate test_no ({err})')
+        raise ValueError(f'specs: duplicate test_no or report ({err})')
     db.execute('CREATE INDEX specs_key ON specs(make_key, model_key, year)')
     metadata = {'dataset_file': path.name, 'sha256': hashlib.sha256(payload).hexdigest(), 'rows': len(rows),
                 'dataset_generated_at': meta_in.get('generated_at'), 'dataset_status': meta_in.get('status'),

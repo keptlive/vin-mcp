@@ -135,6 +135,7 @@ function renderResults(report) {
   renderOverview(report);
   renderEngine(report);
   renderSafetyRatings(report);
+  window.TestVehicle?.render(report); // FMVSS 135 brake test block (public/test-vehicle.js)
   renderFuel(report);
   renderRecalls(report);
   renderComplaints(report);
