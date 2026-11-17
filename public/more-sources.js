@@ -3,6 +3,8 @@
  * - EPA test vehicles (EPA Test Car List): rated horsepower and tested axle ratios in the engine card
  * - parts content and origin for the carline, MY2020-2027 (NHTSA Part 583 / AALA): a card after Manufacturing
  * - production and theft for the vehicle line, MY1998-2012 (NHTSA final theft data): a card after that
+ * - FuelEconomy.gov match disclosure: the range and every configuration when the VIN fits several,
+ *   and the closest-match note when no configuration fits every detail
  *
  * Rules: only report facts are shown; missing values are left out, never zero; every value
  * that is not specific to this VIN says so; a closest match says it is one.
@@ -21,6 +23,7 @@ const MoreSources = (() => {
     return `<div class="recall-built"><span class="recall-detail-label">Build dates:</span> Manufacturer says affected vehicles were built ${range}.${note} Your build month is on the door-jamb label.</div>`;
   }
 
+  const num = v => (v === null || v === undefined || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
   const fmt = v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
   const span = r => (r ? (r.min === r.max ? fmt(r.min) : `${fmt(r.min)}–${fmt(r.max)}`) : null);
   const dataRow = (label, value) => (present(value) ? `<div class="data-row"><span class="data-label">${esc(label)}</span><span class="data-value">${esc(value)}</span></div>` : '');
@@ -53,6 +56,35 @@ const MoreSources = (() => {
   }
 
   const int = v => Number(v).toLocaleString('en-US');
+
+  // ---- FuelEconomy.gov match (fuel card and car sheet) ----
+  const basisText = f => (f.match_basis || []).map(b => String(b).replace(/^differs: /, 'differs from the VIN: ')).join('; ');
+  /** "22–25 mpg combined (19–21 city, 26–29 highway)" when the VIN fits several EPA configurations, else null. */
+  function fuelRangeText(f) {
+    const m = f && f.match === 'multiple_configurations' && f.mpg_range;
+    if (!m || !m.combined) return null;
+    return `${span(m.combined)} ${m.unit} combined${m.city && m.highway ? ` (${span(m.city)} city, ${span(m.highway)} highway)` : ''}`;
+  }
+  /** Fuel card body for several EPA configurations: the range, each configuration and the match basis; '' otherwise. */
+  function fuelSeveralHtml(f) {
+    if (!f || f.match !== 'multiple_configurations') return '';
+    const range = f.mpg_range && f.mpg_range.combined;
+    const items = (f.configurations || []).map(c => {
+      const what = [c.transmission, num(c.displacement) ? `${fmt(c.displacement)} L` : null, num(c.cylinders) ? `${c.cylinders} cyl` : null, c.engine_note].filter(present).join(', ');
+      const figure = num(c.combined_mpg) ? ` <strong>${esc(c.combined_mpg)} ${esc(c.unit)}</strong> combined${num(c.city_mpg) && num(c.highway_mpg) ? ` (${esc(c.city_mpg)} city, ${esc(c.highway_mpg)} highway)` : ''}` : '';
+      return `<li>${esc(c.epa_model)}${what ? ' · ' + esc(what) : ''}:${figure}${c.source_url ? ` <a href="${esc(c.source_url)}" rel="noopener">EPA</a>` : ''}</li>`;
+    }).join('');
+    const more = num(f.configuration_count) > (f.configurations || []).length ? `<li>and ${esc(f.configuration_count - f.configurations.length)} more</li>` : '';
+    return (range ? `<div class="mpg-row"><div class="mpg-item"><div class="mpg-value">${esc(span(range))}</div><div class="mpg-label">Combined ${esc(f.mpg_range.unit)}, range</div></div></div>` : '')
+      + `<p class="small">${esc(f.summary || 'Several EPA configurations fit this VIN')}.</p>`
+      + (items || more ? `<ul class="small fuel-configs">${items}${more}</ul>` : '')
+      + `<p class="small source-note">EPA rates configurations, not individual cars. Matched by: ${esc(basisText(f))}.</p>`;
+  }
+  /** Note under a single EPA figure: the closest-match disclosure, or what was matched; '' without a match record. */
+  function fuelMatchNote(f) {
+    if (!f || !f.available || !f.match) return '';
+    return `<p class="small source-note">${f.match === 'closest' ? 'Closest EPA configuration, not an exact match. ' : ''}Matched by: ${esc(basisText(f))}.</p>`;
+  }
 
   /** Body of the "Production and theft (historical)" card, or '' when the model year or line is not in NHTSA's report. */
   function theftHtml(r) {
@@ -117,6 +149,6 @@ const MoreSources = (() => {
     part(() => card('card-production-theft', document.querySelector('#card-parts-content') ? 'card-parts-content' : 'card-plant', 'Production and theft (historical)', theftHtml(r)));
   }
 
-  return { builtHtml, epaHp, epaHpCaveat, engineRowsHtml, partsHtml, theftHtml, render };
+  return { builtHtml, epaHp, epaHpCaveat, engineRowsHtml, partsHtml, theftHtml, fuelRangeText, fuelSeveralHtml, fuelMatchNote, render };
 })();
 if (typeof window !== 'undefined') window.MoreSources = MoreSources;

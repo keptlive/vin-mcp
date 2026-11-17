@@ -134,6 +134,10 @@ test('EPA test vehicles: exact test group first, carried-over groups and closest
   assert.deepEqual(lookupEpaTestCars(car(2015, 'FORD', 'F-150', {engine: {displacement_l: 5.0}}), file), {available: false, reason: 'no_matching_test_vehicle', model_year: 2015});
   assert.deepEqual(lookupEpaTestCars(car(2015, 'FORD', 'F-150'), path.join(temp, 'none.db')), {available: false, reason: 'dataset_not_indexed'});
   assert.equal(exact.hp_note, undefined);
+  // Several FuelEconomy.gov configurations that all share one test group still join by it.
+  const shared = lookupEpaTestCars(car(2015, 'FORD', 'F-150', {fuel_economy: {available: false, reason: 'ambiguous_variant', match: 'multiple_configurations', efids: ['FFMXT02.73DH']}, transmission: {drive_type: '4WD/4-Wheel Drive/4x4'}}), file);
+  assert.equal(shared.match, 'epa_test_group');
+  assert.match(shared.match_basis[0], /FuelEconomy\.gov configurations this VIN fits \(all share it\)/);
   const hybrid = lookupEpaTestCars(car(2014, 'HONDA', 'Accord', {engine: {displacement_l: 2.4, ev_type: 'Strong HEV (Hybrid Electric Vehicle)'}}), file);
   assert.match(hybrid.hp_note, /This is a hybrid: EPA's rated horsepower is the engine's rating, not the combined system output/);
   const plugin = lookupEpaTestCars(car(2014, 'HONDA', 'Accord', {engine: {displacement_l: 2.4, ev_type: 'PHEV (Plug-in Hybrid Electric Vehicle)'}}), file);
@@ -307,4 +311,42 @@ test('the parts content card lists each version with its label, says unreadable 
   sources.render({parts_content: {available: false, reason: 'model_year_not_covered'}});
   assert.equal(nodes.has('card-parts-content'), false);
   assert.equal(nodes.has('card-production-theft'), false);
+});
+
+// ---- FuelEconomy.gov match disclosure (fuel card and car sheet) ----
+const several = {available: false, reason: 'ambiguous_variant', match: 'multiple_configurations', combined_mpg: null,
+  summary: '47-50 mpg combined across 2 EPA configurations of this model; the VIN does not say which (they differ in EPA listing (Corolla Hybrid (Normal/Eco Modes); Corolla Hybrid (Sport/Normal/Eco Modes)))',
+  mpg_range: {unit: 'mpg', combined: {min: 47, max: 50}, city: {min: 50, max: 53}, highway: {min: 43, max: 46}}, configuration_count: 2,
+  configurations: [
+    {vehicle_id: '49139', epa_model: 'Corolla Hybrid (Normal/Eco Modes)', transmission: 'Automatic (variable gear ratios)', displacement: 1.8, cylinders: 4, combined_mpg: 50, city_mpg: 53, highway_mpg: 46, unit: 'mpg', source_url: 'https://www.fueleconomy.gov/feg/Find.do?action=sbs&id=49139'},
+    {vehicle_id: '48490', epa_model: 'Corolla Hybrid (Sport/Normal/Eco Modes)', transmission: 'Automatic (variable gear ratios)', displacement: 1.8, cylinders: 4, combined_mpg: 47, city_mpg: 50, highway_mpg: 43, unit: 'mpg', source_url: 'https://www.fueleconomy.gov/feg/Find.do?action=sbs&id=48490'}],
+  match_basis: ['same model year, make and model name', '1.8 L engine', 'hybrid powertrain', 'transmission not checked (not in the VIN decode)']};
+
+test('fuel card: several EPA configurations show their range and each one; a closest match says so; heavy-duty says why', () => {
+  const {els, run} = frontend();
+  run(`renderFuel({fuel_economy: ${JSON.stringify(several)}})`);
+  const body = els.get('#fuel-body').innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(body, /47–50 Combined mpg, range/);
+  assert.match(body, /Corolla Hybrid \(Normal\/Eco Modes\) · Automatic \(variable gear ratios\), 1\.8 L, 4 cyl: 50 mpg combined \(53 city, 46 highway\) EPA/);
+  assert.match(body, /the VIN does not say which/);
+  assert.match(body, /EPA rates configurations, not individual cars\. Matched by: same model year, make and model name; 1\.8 L engine/);
+  assert.doesNotMatch(body, /Multiple EPA variants match/);
+  run(`renderFuel({fuel_economy: {available: true, match: 'closest', combined_mpg: 21, city_mpg: 18, highway_mpg: 25, matched_variant: 'Acadia AWD · Automatic 9-spd, 6 cyl, 3.6 L', match_basis: ['3.6 L engine', 'differs: the VIN says 6 speeds; EPA lists Automatic 9-spd']}})`);
+  const closest = els.get('#fuel-body').innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(closest, /Closest EPA configuration, not an exact match\. Matched by: 3\.6 L engine; differs from the VIN: the VIN says 6 speeds; EPA lists Automatic 9-spd\./);
+  run(`renderFuel({fuel_economy: {available: false, reason: 'heavy_duty_not_rated', match_basis: ['gross vehicle weight rating over 8,500 lb']}})`);
+  assert.match(els.get('#fuel-body').innerHTML, /do not cover heavy-duty pickups and vans/);
+  run(`renderFuel({fuel_economy: {available: false, reason: 'not_found', match_basis: ['no EPA model name for this model year matches "Versa Note"']}})`);
+  assert.match(els.get('#fuel-body').innerHTML, /Checked: no EPA model name for this model year matches "Versa Note"\./);
+});
+
+test('car sheet: the EPA range when several configurations fit, the closest-match label otherwise', () => {
+  const ctx = {console, URLSearchParams, setTimeout};
+  vm.createContext(ctx);
+  for (const file of ['qr.js', 'car-sheet.js', 'more-sources.js']) vm.runInContext(readFileSync(new URL('../public/' + file, import.meta.url), 'utf8'), ctx);
+  const sheet = vm.runInContext('CarSheet', ctx);
+  const base = {vin: '1HGCM82633A004352', vehicle: {year: 2025, make: 'TOYOTA', model: 'Corolla'}, engine: {displacement_l: 1.8, cylinders: 4}, transmission: {}, raw_nhtsa: {}, recalls: {available: true, count: 0, recalls: []}};
+  const text = r => sheet.html(r).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(text({...base, fuel_economy: several}), /EPA fuel economy 47–50 mpg combined \(50–53 city, 43–46 highway\).*EPA range: 47-50 mpg combined across 2 EPA configurations of this model; the VIN does not say which/);
+  assert.match(text({...base, fuel_economy: {available: true, match: 'closest', combined_mpg: 21, city_mpg: 18, highway_mpg: 25, matched_variant: 'Acadia AWD · Automatic 9-spd, 6 cyl, 3.6 L'}}), /EPA fuel economy 21 mpg combined \(18 city, 25 hwy\).*Closest EPA configuration, not an exact match: Acadia AWD/);
 });

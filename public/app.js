@@ -302,10 +302,15 @@ function renderSafetyRatings(r) {
 function renderFuel(r) {
   const f = r.fuel_economy;
   if (!f || !f.available) {
+    // Several EPA configurations fit: their range and each one (public/more-sources.js).
+    const several = window.MoreSources?.fuelSeveralHtml?.(f);
+    if (several) { $('#fuel-body').innerHTML = several; return; }
     const message = f?.reason === 'ambiguous_variant' ? 'Multiple EPA variants match. Fuel economy cannot be assigned confidently to this VIN.'
       : f?.reason === 'no_matching_variant' ? 'No EPA variant matches the decoded engine and transmission.'
-      : f?.reason === 'upstream_error' ? 'EPA lookup is temporarily unavailable. Please try again.' : 'No fuel economy data available';
-    $('#fuel-body').innerHTML = `<div class="empty-state">${message}</div>`;
+      : f?.reason === 'upstream_error' ? 'EPA lookup is temporarily unavailable. Please try again.'
+      : f?.reason === 'heavy_duty_not_rated' ? 'EPA fuel economy ratings do not cover heavy-duty pickups and vans (gross vehicle weight rating over 8,500 lb).' : 'No fuel economy data available';
+    const checked = f?.match_basis?.length && f.reason !== 'heavy_duty_not_rated' ? `<p class="small source-note">Checked: ${esc(f.match_basis.join('; '))}.</p>` : '';
+    $('#fuel-body').innerHTML = `<div class="empty-state">${message}</div>${checked}`;
     return;
   }
 
@@ -329,7 +334,7 @@ function renderFuel(r) {
     ['kWh/100mi', f.kwh_per_100mi],
   ];
 
-  $('#fuel-body').innerHTML = mpgRow + details.map(([l, v]) => dataRow(l, v)).join('');
+  $('#fuel-body').innerHTML = mpgRow + details.map(([l, v]) => dataRow(l, v)).join('') + (window.MoreSources?.fuelMatchNote?.(f) || '');
 }
 
 // ── Recalls Card ──

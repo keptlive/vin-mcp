@@ -95,7 +95,8 @@ const CarSheet = (() => {
     const battery = kwh ? `${fmtAuto(kwh)}${kwhTo && kwhTo !== kwh ? '–' + fmtAuto(kwhTo) : ''} kWh` : null;
     const charger = [present(raw.ChargerLevel) && String(raw.ChargerLevel).split(' (')[0], num(raw.ChargerPowerKW) && `${fmtAuto(raw.ChargerPowerKW)} kW`].filter(Boolean).join(', ');
     const unit = f.is_ev ? 'MPGe' : 'mpg';
-    const mpg = f.available && num(f.combined_mpg) ? `${f.combined_mpg} ${unit} combined${num(f.city_mpg) && num(f.highway_mpg) ? ` (${f.city_mpg} city, ${f.highway_mpg} hwy)` : ''}` : null;
+    const range = typeof MoreSources !== 'undefined' ? MoreSources.fuelRangeText(f) : null; // several EPA configurations fit
+    const mpg = f.available && num(f.combined_mpg) ? `${f.combined_mpg} ${unit} combined${num(f.city_mpg) && num(f.highway_mpg) ? ` (${f.city_mpg} city, ${f.highway_mpg} hwy)` : ''}` : range;
     const isEv = /BEV/i.test(e.ev_type || '') || /^electric$/i.test(e.fuel_type || '');
     // vPIC often has no horsepower: then the EPA test vehicles' rated figure, labelled (public/more-sources.js).
     const epaHp = !num(e.hp) && typeof MoreSources !== 'undefined' ? MoreSources.epaHp(r) : null;
@@ -106,7 +107,8 @@ const CarSheet = (() => {
       row('Battery', battery), row('Charging', charger || null),
       row('EPA fuel economy', mpg), row('EPA range', f.available && num(f.ev_range) ? `${f.ev_range} mi` : null),
     ];
-    const note = mpg ? `<p class="sheet-note">EPA figures are for the matched test configuration: ${esc(f.matched_variant || 'see full report')}.</p>` : '';
+    const note = range ? `<p class="sheet-note">EPA range: ${esc(f.summary || 'several EPA configurations fit this VIN')}.</p>`
+      : mpg ? `<p class="sheet-note">${f.match === 'closest' ? 'Closest EPA configuration, not an exact match' : 'EPA figures are for the matched test configuration'}: ${esc(f.matched_variant || 'see full report')}.</p>` : '';
     return section('power', 'Engine and drive', (list(rows) || unknownNote) + note);
   }
 
