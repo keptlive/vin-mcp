@@ -63,7 +63,7 @@ const MoreSources = (() => {
   function fuelRangeText(f) {
     const m = f && f.match === 'multiple_configurations' && f.mpg_range;
     if (!m || !m.combined) return null;
-    return `${span(m.combined)} ${m.unit} combined${m.city && m.highway ? ` (${span(m.city)} city, ${span(m.highway)} highway)` : ''}`;
+    return `${span(m.combined)} ${m.unit} combined${m.city && m.highway ? ` (${span(m.city)} city, ${span(m.highway)} hwy)` : ''}`;
   }
   /** Fuel card body for several EPA configurations: the range, each configuration and the match basis; '' otherwise. */
   function fuelSeveralHtml(f) {

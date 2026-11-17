@@ -325,7 +325,7 @@ function renderFuel(r) {
   const details = [
     ['Fuel Type', f.fuel_type],
     ['Annual Fuel Cost', f.annual_fuel_cost ? `$${f.annual_fuel_cost}` : null],
-    ['CO2 (g/mile)', f.co2_grams_per_mile],
+    ['CO2 (g/mile)', f.co2_grams_per_mile == null ? null : Math.round(f.co2_grams_per_mile)], // the vehicle table carries EPA's unrounded figure (403.9545...)
     ['CO2 (tailpipe)', f.co2_tailpipe],
     ['Fuel Grade', f.fuel_grade],
     ['EV Range', f.ev_range ? `${f.ev_range} mi` : null],

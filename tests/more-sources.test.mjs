@@ -339,6 +339,8 @@ test('fuel card: several EPA configurations show their range and each one; a clo
   assert.match(body, /the VIN does not say which/);
   assert.match(body, /EPA rates configurations, not individual cars\. Matched by: same model year, make and model name; 1\.8 L engine/);
   assert.doesNotMatch(body, /Multiple EPA variants match/);
+  run(`renderFuel({fuel_economy: {available: true, match: 'exact', combined_mpg: 22, city_mpg: 19, highway_mpg: 27, co2_grams_per_mile: 403.95454545454544}})`);
+  assert.match(els.get('#fuel-body').innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), /CO2 \(g\/mile\) 404 /);
   run(`renderFuel({fuel_economy: {available: true, match: 'closest', combined_mpg: 21, city_mpg: 18, highway_mpg: 25, matched_variant: 'Acadia AWD · Automatic 9-spd, 6 cyl, 3.6 L', match_basis: ['3.6 L engine', 'differs: the VIN says 6 speeds; EPA lists Automatic 9-spd']}})`);
   const closest = els.get('#fuel-body').innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(closest, /Closest EPA configuration, not an exact match\. Matched by: 3\.6 L engine; differs from the VIN: the VIN says 6 speeds; EPA lists Automatic 9-spd\./);
@@ -355,6 +357,6 @@ test('car sheet: the EPA range when several configurations fit, the closest-matc
   const sheet = vm.runInContext('CarSheet', ctx);
   const base = {vin: '1HGCM82633A004352', vehicle: {year: 2025, make: 'TOYOTA', model: 'Corolla'}, engine: {displacement_l: 1.8, cylinders: 4}, transmission: {}, raw_nhtsa: {}, recalls: {available: true, count: 0, recalls: []}};
   const text = r => sheet.html(r).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  assert.match(text({...base, fuel_economy: several}), /EPA fuel economy 47–50 mpg combined \(50–53 city, 43–46 highway\).*EPA range: 47-50 mpg combined across 2 EPA configurations of this model; the VIN does not say which/);
+  assert.match(text({...base, fuel_economy: several}), /EPA fuel economy 47–50 mpg combined \(50–53 city, 43–46 hwy\).*EPA range: 47-50 mpg combined across 2 EPA configurations of this model; the VIN does not say which/);
   assert.match(text({...base, fuel_economy: {available: true, match: 'closest', combined_mpg: 21, city_mpg: 18, highway_mpg: 25, matched_variant: 'Acadia AWD · Automatic 9-spd, 6 cyl, 3.6 L'}}), /EPA fuel economy 21 mpg combined \(18 city, 25 hwy\).*Closest EPA configuration, not an exact match: Acadia AWD/);
 });
