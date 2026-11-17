@@ -234,14 +234,15 @@ const CarSheet = (() => {
    * that a misprint was corrected; on screen also what the report printed, why the corrected value holds and links to the
    * reports that confirm it.
    */
-  function correctionHtml(c) {
+  function correctionHtml(c, subject) {
     if (!c || !present(c.note)) return '';
     const links = (c.confirmed_by || []).filter(x => x && reportUrlOk(x.report_url) && present(x.report)).map(x => `<a href="${esc(x.report_url)}" target="_blank" rel="noopener">${esc(x.report)}</a>`);
     const uniq = [...new Set(links)];
     // a correction of one of several reports names it: "(test 10553): it prints 36/36 under a kPa heading; ..."
     const which = present(c.report) && reportUrlOk(c.report_url) ? ` <a href="${esc(c.report_url)}" target="_blank" rel="noopener">${esc(c.report)}</a>` : '';
     const note = esc(String(c.note).replace(/\.\s*$/, '')).replace(which ? /^NHTSA’s report (also )?prints/ : /^$/, (m, also) => `it ${also || ''}prints`);
-    return `<span class="sheet-correction"> Corrected from a misprint in NHTSA’s report<span class="sheet-screen-only">${which}: ${note}${uniq.length ? ` (confirmed by ${uniq.join(', ')})` : ''}</span>.</span>`;
+    // subject: which of several shown values was corrected ("16.3 gal")
+    return `<span class="sheet-correction"> ${subject ? `The ${esc(subject)} value is corrected` : 'Corrected'} from a misprint in NHTSA’s report<span class="sheet-screen-only">${which}: ${note}${uniq.length ? ` (confirmed by ${uniq.join(', ')})` : ''}</span>.</span>`;
   }
 
   /** One list item per distinct set of values; tested vehicles with identical values share it. */
@@ -333,7 +334,7 @@ const CarSheet = (() => {
       : m.kind === 'different_variant' ? `From NHTSA’s ${esc(m.tested_model_year)} test vehicle, a different version (${esc(diffWords(m).join('; '))})${TANK_CAVEAT}.`
       : `From NHTSA’s ${esc(vals.map(x => x.model_year).filter((y, i, a) => a.indexOf(y) === i).join(' and '))} test vehicle${vals.length > 1 ? 's' : ''} (yours is ${esc(m.vin_model_year)})${TANK_CAVEAT}.`) + own;
     const acc = ft.accuracy && Number.isFinite(ft.accuracy.right_pct) ? `<span class="sheet-screen-only"> In mcp.vin’s accuracy test, matches like this were right for ${ft.accuracy.right_pct}%.</span>` : '';
-    return rowHtml(ft.best_guess ? 'Fuel tank (best guess)' : 'Fuel tank', `${esc(value)}<span class="sheet-source">${from}${acc}${several}${optional}${others}${correctionHtml(vals[0].correction)}</span>`);
+    return rowHtml(ft.best_guess ? 'Fuel tank (best guess)' : 'Fuel tank', `${esc(value)}<span class="sheet-source">${from}${acc}${several}${optional}${others}${vals.map(x => correctionHtml(x.correction, vals.length > 1 ? tankText(x) : null)).join('')}</span>`);
   }
 
   /**

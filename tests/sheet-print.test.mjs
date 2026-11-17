@@ -76,6 +76,11 @@ test('a corrected misprint: paper says it was corrected; the screen also says wh
   assert.doesNotMatch(paper(html), /litres heading/);
   assert.match(strip(html), /Corrected from a misprint in NHTSA’s report ?: NHTSA’s report prints 16\.3 under a litres heading; that is 16\.3 US gallons, 61\.7 L, which matches the other tested Malibu \(confirmed by test 6997 \)/);
   assert.match(html, /href="https:\/\/nrd-static\.nhtsa\.dot\.gov\/reports\/vehdb\/v06000\/v06900\/v06997R001\.pdf"/);
+  // several tanks shown, the corrected one second: the note says which value was corrected
+  const other = {litres: 71.9, gallons: 19, printed: '71.9 L', test_no: 6998, model_year: 2011, match_kind: 'exact'};
+  const two = sheet.html({...base, fuel_economy: {available: false}, test_vehicle_specs: {...specs, fuel_tank: {...specs.fuel_tank, values: [other, tankVal]}}}).body;
+  assert.match(paper(two), /19(\.0)? gal \(71\.9 L\) or 16\.3 gal \(61\.7 L\)/);
+  assert.match(paper(two), /The 16\.3 gal \(61\.7 L\) value is corrected from a misprint in NHTSA’s report ?\./);
   // a correction of a second report names that report; the shown values are another report's
   const u = n => `https://nrd-static.nhtsa.dot.gov/reports/vehdb/v10000/v10500/v${n}R001.pdf`;
   const placard = {available: true, match_kind: 'exact', vehicles: [{tested_as: '2018 Nissan Titan S Crew Cab', report_url: u(10557), test_no: 10557, source: 'nhtsa_crash_test',
