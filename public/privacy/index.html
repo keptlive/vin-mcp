@@ -53,6 +53,8 @@
     <h3>Request logs</h3>
     <p>For every request we record the IP address, the time, the method and path (the path of a lookup contains the VIN), the response status and size, how long it took, the browser or client name, and your account number if you are signed in. We use these logs to keep the service running, to apply rate limits and to stop abuse.</p>
 
+    <h3 id="decode-corrections">When you report a decode error</h3>
+    <p>The report and the car sheet check the official decode against other public records and mark values that are corrected, doubtful or filled in. If a decoded value is wrong for your vehicle, &ldquo;Report a decode error&rdquo; lets you say which field and what your vehicle has. We store the field, the value, how you know it (if you choose one) and the note you enter, what the VIN decodes to (model year, make, model, trim), what the report showed for that field (the official value, the checked value and its status), the first 11 characters of the VIN only (not its serial number), and the time. The report itself stores no IP address and no account. Like every request, the request log below records that one was sent. Reports are read by us before any use, are never shown to other readers and never change a value on the site by themselves. Please leave personal details out of the note.</p>
     <h3 id="corrections">When you send a placard or fuel tank correction</h3>
     <p>The car sheet can show tire, pressure and fuel tank values from a vehicle NHTSA tested (crash or compliance test). If yours differ, &ldquo;Doesn&rsquo;t match your door placard?&rdquo; lets you send your own values. We store the tire sizes, cold pressures, fuel tank size and note you enter, what the VIN decodes to (model year, make, model, trim, body, drive and powertrain), which NHTSA test vehicles the sheet showed and how closely they matched, the first 11 characters of the VIN only (not its serial number), and the time. The correction itself stores no IP address and no account. Like every request, the request log below records that one was sent. Corrections are read by us before any use, are never shown to other readers and never change a value on the site by themselves. Please leave personal details out of the note.</p>
 
@@ -74,6 +76,7 @@
         <tr><td>Web server access logs</td><td>About one day</td></tr>
         <tr><td>Lookup results in server memory</td><td>Up to one hour</td></tr>
         <tr><td>Placard and fuel tank corrections</td><td>Up to one year</td></tr>
+        <tr><td>Decode-error reports</td><td>Up to one year</td></tr>
         <tr><td>Account, saved vehicles and settings</td><td>Until you delete them or your account</td></tr>
       </tbody>
     </table>

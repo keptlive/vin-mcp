@@ -450,3 +450,88 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   when this model's tested vehicles list more than one tank size, they are listed with their years.
 - **Not shown.** Crash results (injury measures, crush, post-test observations) are extracted into
   a research dataset only; NCAP star ratings are not in these reports and are not derived.
+
+## Decode checks (`decode_checks`, added 17 November 2026)
+
+The VIN decode (NHTSA vPIC) describes a VIN *pattern*, not the vehicle, and is sometimes wrong. `decode_checks`
+checks it field by field and never overwrites it: the report's `vehicle`, `engine` and `transmission` blocks stay
+vPIC's; the checks sit beside them, and the matchers (fuel economy, EPA test cars, parts content, NHTSA test-vehicle
+tires and capacities) use the checked values. Code: `lib/decode-checks.mjs`, `lib/decode-epa.mjs`,
+`lib/manufacturer-description.mjs`, `lib/decode-report.mjs`.
+
+- **How often vPIC is wrong (audit of 17 November 2026).** The VINs of 2,454 vehicles NHTSA bought and tested
+  (crash and compliance tests, model years 2005-2026) were decoded with vPIC and compared with the data sheet in
+  NHTSA's own report; every disagreement was settled with a third source (EPA's configurations for the model year,
+  the manufacturer's VIN record, measured weight against EPA test-weight classes, a second record in the same
+  report) or left unresolved. Confirmed vPIC error rate, with a 95% interval: drive type 11/1,344 = 0.8%
+  (0.5-1.5%); engine displacement 0.2%; cylinders 0.3%; electrification 0.3% (mild hybrids decoded as plain
+  gasoline: 5 of 43 Buicks); transmission type 0.1-0.6%; transmission speeds 12/351 = 3.4% (2.0-5.9%, all model
+  year 2016 or later, mostly a speed count carried over from an earlier year); body class 0.2%; seats 4.8%; GVWR
+  class 0.7%; make, model and model year 0. vPIC leaves fields blank far more often than it is wrong: drive 25%,
+  transmission type 63%, speeds 72%, seats 67% of these vehicles. In the same audit the lab record was wrong about
+  as often as vPIC on some fields (13 cylinder misprints), which is why no single lab value corrects anything.
+- **Evidence, strongest first** (`precedence`): `owner` (values the reader states; reserved for the owner
+  choices), `manufacturer_vin_record` (the manufacturer's description of this VIN), `nhtsa_test_vehicle_pattern`
+  (NHTSA lab records of test vehicles with the same VIN pattern), `vpic_decode`, `assumption` (EPA lists only one
+  value for the model year).
+- **Manufacturer's description of the VIN.** Some makers' VIN recall lookups name the vehicle in the reply the
+  site already fetches for `recall_status` (no extra request; cached 15 minutes per VIN): Volkswagen (`model`,
+  "ATLAS S 3.6 LAUNCH FWD"), Audi (`model`, "A6 SEDAN 2.0T FWD MULTITRONIC"), Land Rover and Jaguar (`vehicle` or
+  `vehicleName`, cut at 40 characters, "Range Rover Evoque 2.0L Si4 Petrol 4WD A"), Subaru (`modelName` +
+  `trimName`), Honda and Acura (`model_group_name` only). Ford, GM, Tesla, Nissan and Mopar replies carry none.
+  `recall_status.manufacturer_description` keeps the raw text, the reply field, the source and retrieval time,
+  and `parsed`: only what the text states without doubt (engine size, cylinders, diesel/petrol/hybrid/electric,
+  transmission family, drive, body, doors, Subaru trim). Unclear words stay in `not_parsed`; two words that
+  disagree leave the field unset; "e-tron", "PZEV", "FED", a lone "A" and Subaru's "2.5X" are never read as
+  powertrain, transmission or drive. The VIN page is drawn before the maker replies and never waits for it
+  (`sources.manufacturer_record.status: "not_checked"`); the REST report, MCP `decode_vin` and comparisons
+  re-run the checks with it (`used`, `not_available` or `not_supported`). In a gentle sample of 16 NHTSA test
+  vehicles the description agreed with vPIC on every stated field except drive on both 2018 Atlases (vPIC AWD,
+  Volkswagen "FWD", both test reports FWD), and named "MULTITRONIC" (a CVT) where vPIC said "Automatic".
+- **NHTSA test-vehicle evidence.** `data-src/decode-evidence.jsonl` (built offline by the audit, imported with
+  `npm run import:decode-evidence` into `data/decode-evidence.db`): 2,418 test vehicles in 1,643 VIN patterns
+  (543 with two or more vehicles), the values NHTSA's lab recorded (drive, engine size, cylinders,
+  electrification from the test title, transmission type and speeds, seating capacity and GVWR from the
+  certification label, measured weight) and the test numbers and report links. Values the audit found to be lab
+  misprints or parser misreads (52) are withheld with the reason. A VIN pattern is positions 1-8, 10 and 11.
+  A vehicle never counts as evidence for itself.
+- **Statuses per field.** `confirmed` (a source agrees); `corrected` (the manufacturer's record, two or more
+  test vehicles that agree and none that differ, or one test vehicle whose value EPA lists when it does not list
+  vPIC's); `doubtful` (test vehicles differ, one test vehicle differs and EPA lists both, EPA lists no such value
+  or combination for the model year, vPIC says "2WD/4WD", or an impossible combination: an electric car with
+  cylinders or a manual, an engine size outside 0.2-1.3 L per cylinder, a measured weight above the GVWR class);
+  `filled` (vPIC blank: from a test vehicle, or from EPA when it lists only one drive, or only one kind of hybrid,
+  for the model year); `unverified`; `unknown`. Each field keeps `original` (vPIC's text), `shown`, `basis`,
+  `rule`, `note`, `evidence` (test numbers and report links, what EPA lists) and `candidates` for a doubt. GVWR
+  varies with options inside a pattern, so a GVWR difference is only noted unless two test vehicles agree, and is
+  never corrected.
+- **What the matchers use** (`matching`): `checked_value` for corrections and most fills; `widened` for a doubt
+  (the field is dropped, so fuel economy returns the range of the configurations that fit); `official_value`
+  otherwise. Held-out tests showed two kinds of evidence too weak to narrow a match, so they are shown but not
+  used by the matchers: a drive or transmission filled from a single pattern's test vehicles (often a base-model
+  guess), and an engine size or cylinder count EPA does not list under the model's name (EPA names some versions
+  separately, such as the CTS-V). A value EPA lists only under another name carrying the model's ("Shelby GT500
+  Mustang") is not called unlisted.
+- **Held-out accuracy.** A third of the VIN patterns (787 test vehicles) was held out and checked with evidence
+  from the other vehicles of the same pattern, never their own record. Corrections: 12 fixed (cylinders 3,
+  electrification 3, seats 6), 0 broke a right value. Of the 13 vPIC errors in engine size, cylinders,
+  electrification and speeds, 6 were corrected, 6 marked doubtful and 1 missed; of 20 seating errors 6 were
+  corrected, 4 marked doubtful; the 3 GVWR class errors were missed. Doubts on a right value: 2. Fills: drive
+  119 of 121 right (EPA's only drive 42 of 42; with no pattern evidence at all, 101 of 101), engine size 2/2,
+  cylinders 94/94, speeds 138/138, seats 181/182, transmission 173/175. Fuel economy on the held-out vehicles:
+  exact matches 493 to 499, wrong single figures or ranges 26 to 25 of 622 checkable. On the 40 test vehicles
+  whose decode was wrong in a field the fuel matcher reads: exact 9 to 25, errors 10 to 7 of 36.
+- **Coverage.** Pattern evidence exists for few VINs outside NHTSA's own test fleet: on 1,617 VINs of cars listed
+  for sale by US dealers (a sample weighted to new 2025-2027 vehicles), 3.1% had a test vehicle with the same
+  pattern (6.1% of used cars). EPA cross-checks reached 87.5% of them. The checks marked at least one field on
+  16.1% (filled 14.6%, mostly a mild hybrid EPA lists for every version of the model year, or EPA's only drive;
+  doubtful 1.5%; corrected 0%). The manufacturer's record adds Volkswagen, Audi, Land Rover, Jaguar and Subaru
+  VINs whenever their lookup answers.
+- **"Report a decode error".** The report and the car sheet carry a screen-only form (`POST
+  /api/decode-corrections`, 5 per minute per IP): which field, what the vehicle has, how the reader knows, a
+  note. Stored for review only (`GET /api/admin/decode-corrections`), never shown to other readers, never
+  applied; the VIN's first 11 characters only and no IP address; kept up to one year (privacy page,
+  "When you report a decode error").
+- **Report to NHTSA.** The audit's confirmed vPIC errors (73 VIN patterns, plus 14 patterns NHTSA tested with
+  different seating layouts) are written up with the evidence for each in the research folder
+  (`NHTSA-vPIC-decode-errors-2026-11-17.md` and `.csv`), not in this repository.

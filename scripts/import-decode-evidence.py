@@ -110,7 +110,8 @@ def main():
     db.execute('VACUUM')
     db.close()
     os.replace(tmp, TARGET)
-    print(f'{TARGET.relative_to(ROOT)}: {len(rows)} test vehicles, {len({r["pattern"] for r in rows})} VIN patterns')
+    shown = TARGET.relative_to(ROOT) if TARGET.is_relative_to(ROOT) else TARGET
+    print(f'{shown}: {len(rows)} test vehicles, {len({r["pattern"] for r in rows})} VIN patterns')
 
 
 if __name__ == '__main__':

@@ -24,6 +24,7 @@ import { vinRecallStatus } from './lib/recall-status.mjs';
 import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls } from './lib/reports.mjs';
 import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
 import { validateCorrection, insertCorrection, listCorrections, CorrectionError, THANKS } from './lib/placard-corrections.mjs';
+import { validateDecodeCorrection, insertDecodeCorrection, listDecodeCorrections, DecodeCorrectionError, DECODE_THANKS } from './lib/decode-corrections.mjs';
 import { readFile } from 'node:fs/promises';
 import { createToolRegistry } from './lib/mcp/index.mjs';
 import { VERSION } from './lib/version.mjs';
@@ -463,6 +464,18 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     } catch (err) { safeError(res, err); }
   });
 
+  // "Report a decode error" (web report, car sheet): stored for review only; never shown, never applied.
+  app.post('/api/decode-corrections', rateGuard(5), async (req, res) => {
+    let input;
+    try { input = validateDecodeCorrection(req.body); }
+    catch (err) { return err instanceof DecodeCorrectionError ? res.status(400).json({ error: err.message }) : safeError(res, err); }
+    try {
+      const report = await fullReport(input.vin);
+      insertDecodeCorrection(db, input, report);
+      res.status(201).json({ ok: true, message: DECODE_THANKS });
+    } catch (err) { safeError(res, err); }
+  });
+
   app.get('/api/vin/:vin', rateGuard(30), async (req, res) => {
     try { res.json(restReport(await fullReport(req.params.vin), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
   });
@@ -713,6 +726,10 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   // Placard and fuel tank corrections sent from the car sheet, newest first (?limit=1..1000, default 100).
   app.get('/api/admin/placard-corrections', adminAuth, (req, res) => {
     try { res.json(listCorrections(db, req.query.limit)); } catch (err) { safeError(res, err); }
+  });
+  // Decode-error reports, newest first (?limit=1..1000, default 100).
+  app.get('/api/admin/decode-corrections', adminAuth, (req, res) => {
+    try { res.json(listDecodeCorrections(db, req.query.limit)); } catch (err) { safeError(res, err); }
   });
 
   app.get('/api/admin/security', adminAuth, (req, res) => {
