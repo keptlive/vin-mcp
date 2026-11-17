@@ -84,13 +84,34 @@ const CarSheet = (() => {
     const rows = [
       row('Year', v.year), row('Make', makeName(v.make)), row('Model', v.model), row('Trim', v.trim),
       row('Body', v.body_class), row('Cab', raw.BodyCabType), row('Bed', bed), row('Doors', num(v.doors)), row('Seats', seats),
-      row('Vehicle type', present(v.vehicle_type) ? sentence(v.vehicle_type) : null),
+      // The regulatory class repeats the body style: screen only on paper when the body is known (one-page print).
+      row('Vehicle type', present(v.vehicle_type) ? sentence(v.vehicle_type) : null).replace('<div class="sheet-row">', present(v.body_class) ? '<div class="sheet-row sheet-screen-only">' : '<div class="sheet-row">'),
       row('Manufacturer', present(raw.Manufacturer) ? titleCase(raw.Manufacturer) : null),
       row('Assembly plant', [p.city, p.state, p.country].filter(present).map(titleCase).join(', ')),
     ];
     return section('vehicle', 'Vehicle', list(rows) || unknownNote);
   }
 
+
+  /**
+   * Print rules for the one-page sheet: what prints is a leading part of the screen text, and the explanation after it
+   * is screen only (class sheet-screen-only), so screen and paper never say different things.
+   * Rated power: "175 hp (maker’s EPA test vehicles)" on paper; a hybrid's "engine rating" caveat prints.
+   */
+  function ratedPower(hp, caveat) {
+    const so = t => `<span class="sheet-screen-only">${t}</span>`;
+    const cav = caveat ? (/^engine rating/.test(caveat) ? `engine rating${so(esc(caveat.slice('engine rating'.length)))}; ` : `${esc(caveat)}; `) : '';
+    return `${esc(hp)} (${cav}maker’s EPA test vehicles${so(' for this engine family')})`;
+  }
+  /** A FuelEconomy.gov summary on paper: through "the VIN does not say which" / "the figure holds whichever it is"; what separates the configurations is screen only. */
+  function paperSummary(summary) {
+    const s = String(summary || '');
+    for (const mark of ['the VIN does not say which', 'so the figure holds whichever it is']) {
+      const i = s.indexOf(mark);
+      if (i >= 0 && i + mark.length < s.length) return esc(s.slice(0, i + mark.length)) + `<span class="sheet-screen-only">${esc(s.slice(i + mark.length))}</span>`;
+    }
+    return esc(s);
+  }
   function powerSection(r) {
     const e = r.engine || {}, t = r.transmission || {}, raw = r.raw_nhtsa || {}, f = r.fuel_economy || {};
     const engine = engineText(e, raw);
@@ -109,14 +130,16 @@ const CarSheet = (() => {
     const epaHp = !num(e.hp) && typeof MoreSources !== 'undefined' ? MoreSources.epaHp(r) : null;
     const rows = [
       row(isEv ? 'Motor' : 'Engine', engine || null), row('Engine code', code), row('Fuel', fuel ? fuel + grade : null),
-      row('Rated power', epaHp && `${epaHp} (${MoreSources.epaHpCaveat(r) ? MoreSources.epaHpCaveat(r) + '; ' : ''}maker’s EPA test vehicles for this engine family)`),
+      epaHp ? rowHtml('Rated power', ratedPower(epaHp, MoreSources.epaHpCaveat(r))) : '',
       row('Transmission', trans || null), row('Drive', t.drive_type), row('Electrification', e.ev_type),
       row('Battery', battery), row('Charging', charger || null),
       row('EPA fuel economy', mpg), row(f.total_range ? 'EPA electric range' : 'EPA range', f.available && num(f.ev_range) ? `${f.ev_range} mi` : null),
     ];
-    const note = range ? `<p class="sheet-note">EPA range: ${esc(f.summary || 'several EPA configurations fit this VIN')}.</p>`
-      : mpg && f.match === 'same_rating' ? `<p class="sheet-note">${esc(f.summary)}.</p>`
-      : mpg ? `<p class="sheet-note">${f.match === 'closest' ? 'Closest EPA configuration, not an exact match' : 'EPA figures are for the matched test configuration'}: ${esc(f.matched_variant || 'see full report')}.</p>` : '';
+    // On paper: the match kind and that the VIN does not say which; the configurations and what separates them are screen only.
+    const note = range ? `<p class="sheet-note">EPA range: ${paperSummary(f.summary || 'several EPA configurations fit this VIN')}.</p>`
+      : mpg && f.match === 'same_rating' ? `<p class="sheet-note">${paperSummary(f.summary)}.</p>`
+      : mpg && f.match === 'closest' ? `<p class="sheet-note">Closest EPA configuration, not an exact match<span class="sheet-screen-only">: ${esc(f.matched_variant || 'see full report')}</span>.</p>`
+      : mpg ? `<p class="sheet-note sheet-screen-only">EPA figures are for the matched test configuration: ${esc(f.matched_variant || 'see full report')}.</p>` : '';
     return section('power', 'Engine and drive', (list(rows) || unknownNote) + note);
   }
 
@@ -157,7 +180,7 @@ const CarSheet = (() => {
     const list = (Array.isArray(matches) ? matches : [matches]).filter(Boolean), m = list[0];
     if (!m || m.kind === 'exact') return 'Same model year.';
     const diffs = [...new Set(list.flatMap(diffWords))];
-    if (m.kind === 'different_variant') return esc(`Same model year, different version: ${diffs.join('; ') || 'see the report'}. ${subject} can differ between versions.`);
+    if (m.kind === 'different_variant') return esc(`Same model year, different version: ${diffs.join('; ') || 'see the report'}.`) + `<span class="sheet-screen-only"> ${esc(subject)} can differ between versions.</span>`;
     const years = [...new Set(list.map(x => x.tested_model_year))].sort();
     // "can change between years" is screen only: the year is stated, and the sheet must print on one page
     let out = esc(years.length > 1 ? `NHTSA tested the ${years.join(' and ')} models (yours is ${m.vin_model_year}); both list the same values.`
@@ -256,6 +279,7 @@ const CarSheet = (() => {
     return `${fmt(t.gallons, 1)} gal (${/^\d+(\.\d+)? L$/.test(printed) ? printed.slice(0, -2) : fmtAuto(t.litres)} L)`;
   }
 
+  const TANK_CAVEAT = '<span class="sheet-screen-only">; tank size can differ by year, trim and options</span>'; // paper: the "best guess" label says it
   /** Fuel tank row: one tested vehicle's printed usable standard tank; labelled a best guess unless exact. */
   function fuelTankRow(sp, v, r) {
     const ft = sp.fuel_tank || {}, isEv = /BEV/i.test((r.engine || {}).ev_type || '') || /^electric$/i.test((r.engine || {}).fuel_type || '');
@@ -277,8 +301,8 @@ const CarSheet = (() => {
     const m = vals[0].match || v.match || {};
     const own = reportUrlOk(vals[0].report_url) && vals[0].report_url !== v.report_url ? ` ${vals[0].tested_as ? esc(vals[0].tested_as) + ', ' : ''}${reportLink(vals[0])}.` : '';
     const from = (!ft.best_guess ? 'NHTSA test vehicle, same model year.'
-      : m.kind === 'different_variant' ? `From NHTSA’s ${esc(m.tested_model_year)} test vehicle, a different version (${esc(diffWords(m).join('; '))}); tank size can differ by year, trim and options.`
-      : `From NHTSA’s ${esc(vals.map(x => x.model_year).filter((y, i, a) => a.indexOf(y) === i).join(' and '))} test vehicle${vals.length > 1 ? 's' : ''} (yours is ${esc(m.vin_model_year)}); tank size can differ by year, trim and options.`) + own;
+      : m.kind === 'different_variant' ? `From NHTSA’s ${esc(m.tested_model_year)} test vehicle, a different version (${esc(diffWords(m).join('; '))})${TANK_CAVEAT}.`
+      : `From NHTSA’s ${esc(vals.map(x => x.model_year).filter((y, i, a) => a.indexOf(y) === i).join(' and '))} test vehicle${vals.length > 1 ? 's' : ''} (yours is ${esc(m.vin_model_year)})${TANK_CAVEAT}.`) + own;
     const acc = ft.accuracy && Number.isFinite(ft.accuracy.right_pct) ? `<span class="sheet-screen-only"> In mcp.vin’s accuracy test, matches like this were right for ${ft.accuracy.right_pct}%.</span>` : '';
     return rowHtml(ft.best_guess ? 'Fuel tank (best guess)' : 'Fuel tank', `${esc(value)}<span class="sheet-source">${from}${acc}${several}${optional}${others}</span>`);
   }
@@ -311,14 +335,14 @@ const CarSheet = (() => {
     const seats = s && num(s.total) ? `${s.total}${rowsOf.length ? ` (${rowsOf.join(', ')})` : ''}` : null; // compliance reports print the total only
     const gawr = goodMass(v.gawr_front) && goodMass(v.gawr_rear) ? `Front ${lb(v.gawr_front)}; rear ${lb(v.gawr_rear)}` : null;
     const curb = c && goodMass(c.total) && goodMass(c.front) && goodMass(c.rear)
-      ? `${lb(c.total)}; front ${fmt(c.front.lb)} lb, rear ${fmt(c.rear.lb)} lb (${fmt(c.front_percent)}% front)` : null;
+      ? `${lb(c.total)}<span class="sheet-screen-only">; front ${fmt(c.front.lb)} lb, rear ${fmt(c.rear.lb)} lb (${fmt(c.front_percent)}% front)</span>` : null; // axle split: screen only (one-page print)
     const rows = [
       fuelTankRow(sp, v, r),
       capacityRow(sp, 'payload', 'Payload (vehicle capacity weight)', goodMass(v.payload_vehicle_capacity_weight) ? lb(v.payload_vehicle_capacity_weight) : null),
       capacityRow(sp, 'seating', 'Seating capacity', seats),
       capacityRow(sp, 'gvwr', 'GVWR (label)', goodMass(v.gvwr) ? lb(v.gvwr) : null),
       row('GAWR (label)', gawr),
-      row('Curb weight, as delivered', curb),
+      curb ? rowHtml('Curb weight, as delivered', curb) : '',
     ];
     // one test vehicle can have several compliance reports (FMVSS 110, 138, 537): each is linked
     const links = [v, ...(Array.isArray(v.other_reports) ? v.other_reports : []).filter(o => o && reportUrlOk(o.report_url))];
@@ -349,7 +373,7 @@ const CarSheet = (() => {
       ? `<p class="sheet-manual"><a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.title)}</a><span class="sheet-url">${esc(host(m.url))}</span></p>`
       : `<p class="sheet-manual">No official online manual library is listed here for ${esc(makeName((r.vehicle || {}).make) || 'this make')}. Use the printed manual in the glovebox or the maker’s owner website.</p>`;
     const fields = [!isEv && writeIn('Engine oil grade and capacity'), writeIn('Fuse box locations'), writeIn('Wiper blade sizes'), writeIn('12-volt battery'), writeIn('Notes')].filter(Boolean).join('');
-    return section('manual', 'Owner’s manual and service', link + `<p class="sheet-note">The manual shows the fuse box diagrams, fluid types and capacities. mcp.vin links to it and does not copy it.</p><fieldset class="write-ins"><legend>Copy from the manual</legend>${fields}</fieldset>`);
+    return section('manual', 'Owner’s manual and service', link + `<p class="sheet-note">The manual shows the fuse box diagrams, fluid types and capacities.<span class="sheet-screen-only"> mcp.vin links to it and does not copy it.</span></p><fieldset class="write-ins"><legend>Copy from the manual</legend>${fields}</fieldset>`);
   }
 
   function recallSection(r) {
@@ -452,7 +476,7 @@ const CarSheet = (() => {
     const rows = [row('Length', summary.length), row('Width', summary.width), row('Height', summary.height),
       num(d.wheel_base) ? '' : row('Wheelbase', summary.wheelbase), num(d.curb_weight) ? '' : row('Curb weight', summary.curb)];
     const which = summary.count === 1 ? `the record “${summary.names[0] || 'unnamed'}”` : summary.count <= 3 ? `${summary.count} records (${summary.names.join('; ')})` : `${summary.count} model variants; ranges cover all of them`;
-    return `${list(rows)}<p class="sheet-note">Transport Canada model data, ${esc(which)}. Not specific to this VIN.</p>`;
+    return `${list(rows)}<p class="sheet-note">Transport Canada model data<span class="sheet-screen-only">, ${esc(which)}</span>. Not specific to this VIN.</p>`;
   }
 
   let current = null;

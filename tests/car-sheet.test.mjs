@@ -148,7 +148,7 @@ test('capacities and weights of the NHTSA test vehicle: only the allowed fields,
   assert.match(out, /Seating capacity 5 \(2 front, 3 rear\)/);
   assert.match(out, /GVWR \(label\) 4,861 lb \(2,205 kg\)/);
   assert.match(out, /GAWR \(label\) Front 2,778 lb \(1,260 kg\); rear 2,646 lb \(1,200 kg\)/);
-  assert.match(out, /Curb weight, as delivered 3,483 lb \(1,580 kg\); front 2,052 lb, rear 1,431 lb \(59% front\)/);
+  assert.match(out, /Curb weight, as delivered 3,483 lb \(1,580 kg\) ?; front 2,052 lb, rear 1,431 lb \(59% front\)/);
   assert.match(html.body, /<a href="https:\/\/nrd-static\.nhtsa\.dot\.gov\/reports\/vehdb\/v10000\/v14900\/v14989R001\.pdf" target="_blank" rel="noopener">NHTSA test report 14989<\/a>/);
   assert.match(html.foot, /NHTSA test reports \(test-vehicle capacities and weights\)/);
   // Nothing else from the report (crash results, equipment, wheelbase) is shown.
@@ -161,11 +161,11 @@ test('a fuel tank from another year or version is a best guess; hidden when elec
   const {sheet} = load();
   const near = specsVehicle({model_year: 2023, match: nearMatch()});
   let out = text(sheet.html({...gas(), test_vehicle_specs: specs(near)}).body);
-  assert.match(out, /Fuel tank \(best guess\) 14\.3 gal \(54\.09 L\) From NHTSA’s 2023 test vehicle \(yours is 2025\); tank size can differ by year, trim and options\./);
+  assert.match(out, /Fuel tank \(best guess\) 14\.3 gal \(54\.09 L\) From NHTSA’s 2023 test vehicle \(yours is 2025\) ?; tank size can differ by year, trim and options ?\./);
   assert.match(out, /NHTSA tested the 2023 model \(yours is 2025\)\. Capacities and weights can change between years\./);
   const variant = specsVehicle({model_year: 2025, match: {kind: 'different_variant', tested_model_year: 2025, vin_model_year: 2025, year_gap: 0, differences: [{field: 'trim', tested: 'Limited', yours: 'SEL'}]}});
   out = text(sheet.html({...gas(), test_vehicle_specs: specs(variant)}).body);
-  assert.match(out, /Fuel tank \(best guess\) 14\.3 gal \(54\.09 L\) From NHTSA’s 2025 test vehicle, a different version \(trim Limited \(yours: SEL\)\); tank size can differ by year, trim and options\./);
+  assert.match(out, /Fuel tank \(best guess\) 14\.3 gal \(54\.09 L\) From NHTSA’s 2025 test vehicle, a different version \(trim Limited \(yours: SEL\)\) ?; tank size can differ by year, trim and options ?\./);
   // Two tied test vehicles with different tanks: both values, never an average.
   out = text(sheet.html({...gas(), test_vehicle_specs: specs(specsVehicle(), {values: [{litres: 87.1, gallons: 23, model_year: 2023}, {litres: 124.9, gallons: 33, model_year: 2023}],
     optional_tank_listed: {litres: 124.9, gallons: 33}, model_tank_sizes: [{litres: 87.1, gallons: 23, model_years: [2023]}, {litres: 124.9, gallons: 33, model_years: [2023]}]})}).body);
@@ -274,7 +274,7 @@ test('Transport Canada variants: one value when they agree, a range when not, ze
   const html = text(sheet.dimensionsHtml(two, base()));
   assert.match(html, /Length 187\.8–189\.4 in/);
   assert.doesNotMatch(html, /Height|Wheelbase|Curb weight/); // height is missing; vPIC already gives wheelbase and weight
-  assert.match(html, /Transport Canada model data, 2 records \(A; B\)\. Not specific to this VIN\./);
+  assert.match(html, /Transport Canada model data ?, 2 records \(A; B\) ?\. Not specific to this VIN\./);
 });
 
 test('the QR code matches the reference encoding and is labelled', () => {

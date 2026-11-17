@@ -168,10 +168,10 @@ test('the engine card and the car sheet label EPA test-vehicle horsepower; the s
   assert.equal(sources.engineRowsHtml({epa_test_vehicles: {available: false, reason: 'no_matching_test_vehicle'}}), '');
   const report = {vin: '1HGCM82633A004352', vehicle: {year: 2003, make: 'HONDA', model: 'Accord'}, engine: {displacement_l: 3.0, cylinders: 6}, transmission: {}, raw_nhtsa: {}, recalls: {available: true, count: 0, recalls: []}, fuel_economy: {available: false}, epa_test_vehicles: epa};
   const out = sheet.html(report).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  assert.match(out, /Rated power 240–255 hp \(maker’s EPA test vehicles for this engine family\)/);
+  assert.match(out, /Rated power 240–255 hp \(maker’s EPA test vehicles for this engine family ?\)/);
   const hybridEpa = {...epa, rated_hp: {min: 145, max: 145}, hp_note: "This is a hybrid: EPA's rated horsepower is the engine's rating, not the combined system output of the engine and electric motor(s)."};
   assert.match(sources.engineRowsHtml({epa_test_vehicles: hybridEpa}).replace(/<[^>]+>/g, ' '), /145 hp \(engine rating, not the combined hybrid system output\)/);
-  assert.match(sheet.html({...report, epa_test_vehicles: hybridEpa}).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), /Rated power 145 hp \(engine rating, not the combined hybrid system output; maker’s EPA test vehicles for this engine family\)/);
+  assert.match(sheet.html({...report, epa_test_vehicles: hybridEpa}).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), /Rated power 145 hp \(engine rating ?, not the combined hybrid system output ?; maker’s EPA test vehicles for this engine family ?\)/);
   const withVpic = sheet.html({...report, engine: {...report.engine, hp: 240}}).body;
   assert.doesNotMatch(withVpic, /Rated power/);
 });
@@ -375,7 +375,7 @@ test('car sheet: the EPA range when several configurations fit, the closest-matc
   const base = {vin: '1HGCM82633A004352', vehicle: {year: 2025, make: 'TOYOTA', model: 'Corolla'}, engine: {displacement_l: 1.8, cylinders: 4}, transmission: {}, raw_nhtsa: {}, recalls: {available: true, count: 0, recalls: []}};
   const text = r => sheet.html(r).body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(text({...base, fuel_economy: several}), /EPA fuel economy 47–50 mpg combined \(50–53 city, 43–46 hwy\).*EPA range: 47-50 mpg combined across 2 EPA configurations of this model; the VIN does not say which/);
-  assert.match(text({...base, fuel_economy: {available: true, match: 'closest', combined_mpg: 21, city_mpg: 18, highway_mpg: 25, matched_variant: 'Acadia AWD · Automatic 9-spd, 6 cyl, 3.6 L'}}), /EPA fuel economy 21 mpg combined \(18 city, 25 hwy\).*Closest EPA configuration, not an exact match: Acadia AWD/);
+  assert.match(text({...base, fuel_economy: {available: true, match: 'closest', combined_mpg: 21, city_mpg: 18, highway_mpg: 25, matched_variant: 'Acadia AWD · Automatic 9-spd, 6 cyl, 3.6 L'}}), /EPA fuel economy 21 mpg combined \(18 city, 25 hwy\).*Closest EPA configuration, not an exact match ?: Acadia AWD/);
   assert.match(text({...base, fuel_economy: sameRating}), /EPA fuel economy 18 mpg combined .*18 mpg combined for both EPA configurations this VIN fits/);
   const phev = text({...base, fuel_economy: {available: true, match: 'exact', combined_mpg: 40, city_mpg: 43, highway_mpg: 38, ev_range: 37, total_range: 520}});
   assert.match(phev, /EPA electric range 37 mi/);
