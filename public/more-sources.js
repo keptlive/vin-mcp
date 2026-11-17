@@ -54,7 +54,7 @@ const MoreSources = (() => {
     const p = r && r.production_theft;
     if (!p || !p.available || !(p.lines || []).length) return '';
     const several = p.lines.length > 1;
-    const lines = p.lines.map(l => (several ? `<p class="small"><strong>${esc(l.line)}</strong></p>` : '') + [
+    const lines = p.lines.map((l, i) => (several ? `<p class="small"${i ? ' style="margin-top:14px"' : ''}><strong>${esc(l.line)}</strong></p>` : '') + [
       dataRow('Vehicle line', several ? null : `${l.line} (${l.manufacturer})`),
       dataRow(`Production, model year ${p.model_year}`, int(l.production)),
       dataRow(`Thefts in ${p.calendar_year}`, int(l.thefts)),
@@ -72,7 +72,7 @@ const MoreSources = (() => {
     if (!a || !a.available || !(a.rows || []).length) return '';
     const several = a.rows.length > 1;
     const origin = (o, col, row) => (o ? o.countries : (row.unreadable || []).includes(col) ? 'Not readable in the report' : null);
-    const body = a.rows.map((row, i) => (several ? `<p class="small"><strong>${esc(row.carline)}</strong> (listed version ${i + 1} of ${a.rows.length})</p>` : '') + [
+    const body = a.rows.map((row, i) => (several ? `<p class="small"${i ? ' style="margin-top:14px"' : ''}><strong>${esc(row.carline)}</strong> (listed version ${i + 1} of ${a.rows.length})</p>` : '') + [
       dataRow('Carline in the report', several ? null : row.carline),
       dataRow('US/Canadian parts content', `${row.us_canada_parts_pct}%`),
       dataRow('Other major sources', (row.other_major_sources || []).map(f => `${f.country || f.printed} ${f.pct}%`).join(', ') || null),
