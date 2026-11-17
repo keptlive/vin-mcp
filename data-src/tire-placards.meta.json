@@ -1,6 +1,6 @@
 {
  "status": "partial: 102 of 1729 queued report downloads done (download paused); most covered vehicles are model years 2024-2026",
- "generated_at": "2026-11-17T05:00:20+00:00",
+ "generated_at": "2026-11-17T05:10:23+00:00",
  "source": "NHTSA vehicle crash-test database (nrd.api.nhtsa.dot.gov) report PDFs (nrd-static.nhtsa.dot.gov): data sheet No. 1, vehicle tire information (placard). Keys from vPIC DecodeVINValuesBatch of each test vehicle's own VIN.",
  "rows": 94,
  "reports_used": 98,
