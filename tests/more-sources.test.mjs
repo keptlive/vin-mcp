@@ -121,6 +121,14 @@ test('EPA test vehicles: exact test group first, carried-over groups and closest
   const carried = lookupEpaTestCars(car(2015, 'HONDA', 'Accord', {fuel_economy: {available: true, efids: ['EHNXV02.4CBP']}}), file);
   assert.deepEqual([carried.match, carried.tested_model_years], ['epa_test_group', [2014]]);
   assert.match(carried.match_basis[0], /tested for model year 2014 and carried over/);
+  // FuelEconomy.gov writes this model year's letter (F = 2015) where the list kept the certification's (E = 2014).
+  const letter = lookupEpaTestCars(car(2015, 'HONDA', 'Accord', {fuel_economy: {available: true, efids: ['FHNXV02.4CBP']}}), file);
+  assert.deepEqual([letter.match, letter.test_groups, letter.tested_model_years], ['epa_test_group', ['EHNXV02.4CBP'], [2014]]);
+  assert.match(letter.match_basis[0], /EPA test group EHNXV02\.4CBP of the matched FuelEconomy\.gov configuration \(FuelEconomy\.gov: FHNXV02\.4CBP; same engine family, the list keeps the earlier model-year letter\), tested for model year 2014 and carried over/);
+  const sameYear = lookupEpaTestCars(car(2015, 'FORD', 'F-150', {fuel_economy: {available: true, efids: ['GFMXT02.73DH']}, transmission: {drive_type: '4WD/4-Wheel Drive/4x4'}}), file);
+  assert.deepEqual([sameYear.match, sameYear.test_groups, sameYear.tested_model_years], ['epa_test_group', ['FFMXT02.73DH'], [2015]]);
+  // Nothing within three model years: no join by group.
+  assert.notEqual(lookupEpaTestCars(car(2019, 'HONDA', 'Accord', {fuel_economy: {available: true, efids: ['KHNXV02.4CBP']}}), file).match, 'epa_test_group');
   // No EPA configuration match: same make, model name and engine size, then drive from the carline name.
   const closest = lookupEpaTestCars(car(2015, 'FORD', 'F-150', {engine: {displacement_l: 2.7}, transmission: {drive_type: '4WD/4-Wheel Drive/4x4'}}), file);
   assert.equal(closest.match, 'closest_test_configuration');
