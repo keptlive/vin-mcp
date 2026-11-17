@@ -77,7 +77,7 @@ test('NHTSA test-vehicle placard values show above the blanks, labelled, linked,
   const body = sheet.html({...base(), tire_placard: placard([tested()])}).body;
   const out = text(body);
   assert.match(out, /NHTSA test vehicle: 2017 Chevrolet Bolt EV LT 5-Door Hatchback Same model year\. Tires 215\/50R17 91H front and rear Cold 38 psi front and rear \(260 kPa\) NHTSA test report 10000/);
-  assert.match(out, /Your own door placard governs \(driver’s door pillar\); it can differ by trim and tire size\./);
+  assert.match(out, /Your own door placard governs \(driver’s door pillar\) ?; it can differ by trim and tire size ?\./); // the trim clause is screen only
   assert.match(body, /<a href="https:\/\/nrd-static\.nhtsa\.dot\.gov\/reports\/vehdb\/v10000\/v10000\/v10000R001\.pdf" target="_blank" rel="noopener">NHTSA test report 10000<\/a>/);
   // The values sit above the write-in blanks, which stay empty.
   assert.ok(body.indexOf('NHTSA test vehicle') < body.indexOf('Copy from the tire placard'));
@@ -383,4 +383,37 @@ test('on paper: at most two tested vehicles and no tank-size list, so the sheet 
   assert.match(out, /<span class="sheet-screen-only"> NHTSA’s tested Tucson vehicles list more than one tank: 14\.3 gal \(2023\); 16\.4 gal \(2016\)\.<\/span>/);
   const css = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
   assert.match(css, /\.sheet-print-only\{display:none\}/); assert.match(css, /\.car-sheet \.sheet-print-only\{display:block!important\}/);
+});
+
+test('accuracy wording, value sets when equally close tested vehicles differ, and withheld weights', () => {
+  const {sheet} = load();
+  const acc = {kind: 'exact', payload_right_pct: 87, seating_right_pct: 98, gvwr_right_pct: 93, basis: 'fixture'};
+  // equally close vehicles differ on payload and GVWR: both values, never one picked; seating agrees -> one value
+  const set = (kg, lb, as) => ({value: {kg, lb}, tested_as: as, model_year: 2023});
+  let sp = {...specs(specsVehicle()), accuracy: acc,
+    values_differ: {payload: [set(420, 926, '2023 Hyundai Tucson SEL AWD'), set(450, 992, '2023 Hyundai Tucson Limited AWD')],
+      gvwr: [set(2205, 4861, '2023 Hyundai Tucson SEL AWD'), set(2250, 4960, '2023 Hyundai Tucson Limited AWD')]}};
+  sp.fuel_tank.accuracy = {kind: 'exact', right_pct: 92};
+  let out = text(sheet.html({...gas(), test_vehicle_specs: sp}).body);
+  assert.match(out, /Payload \(vehicle capacity weight\) 926 lb \(420 kg\) or 992 lb \(450 kg\) NHTSA’s equally close test vehicles differ: 2023 Hyundai Tucson SEL AWD, 926 lb \(420 kg\); 2023 Hyundai Tucson Limited AWD, 992 lb \(450 kg\); yours depends on version and options\./);
+  assert.match(out, /GVWR \(label\) 4,861 lb \(2,205 kg\) or 4,960 lb \(2,250 kg\)/);
+  assert.match(out, /Seating capacity 5 \(2 front, 3 rear\)/);
+  assert.match(out, /In mcp\.vin’s accuracy test, matches like this were right for payload 87%, seating 98%, GVWR 93%\./);
+  assert.match(out, /In mcp\.vin’s accuracy test, matches like this were right for 92%\./);
+  // another version: GVWR and GAWR withheld with the reason; the GVWR accuracy is not quoted
+  const other = specsVehicle({match: {kind: 'different_variant', differences: [{field: 'trim', tested: 'Limited', yours: 'SEL'}], year_gap: 0},
+    gvwr: undefined, gawr_front: undefined, gawr_rear: undefined,
+    withheld: {fields: ['gvwr', 'gawr_front', 'gawr_rear'], reason: 'different_version', note: 'GVWR and axle ratings (one label) of a different version are not shown: in mcp.vin’s accuracy test a different version’s GVWR matched the vehicle’s own in only about 4 of 10 cases.'}});
+  sp = {...specs(other), accuracy: {kind: 'different_variant', payload_right_pct: 68, seating_right_pct: 92}};
+  out = text(sheet.html({...gas(), test_vehicle_specs: sp}).body);
+  assert.doesNotMatch(out, /GVWR \(label\)|GAWR \(label\)/);
+  assert.match(out, /GVWR and axle ratings \(one label\) of a different version are not shown/);
+  assert.match(out, /matches like this were right for payload 68%, seating 92%\./);
+  // tires: the accuracy of the match kind joins the governs note
+  const tp = {...placard([{tested_as: '2023 Hyundai Tucson SEL AWD', tires: {front: '235/60R18 103H', rear: '235/60R18 103H'},
+    cold_pressure_psi: {front: 36, rear: 36}, cold_pressure_kpa: {front: 250, rear: 250}, test_no: 14989,
+    report_url: 'https://nrd-static.nhtsa.dot.gov/reports/vehdb/v10000/v14900/v14989R001.pdf', match: {kind: 'exact', differences: [], year_gap: 0}}]),
+    accuracy: {kind: 'exact', tire_size_right_pct: 91, cold_pressure_right_pct: 96}};
+  out = text(sheet.html({...gas(), tire_placard: tp}).body);
+  assert.match(out, /In mcp\.vin’s accuracy test, matches like this were right for tire size 91%, pressures 96%\. ?Your own door placard governs/);
 });

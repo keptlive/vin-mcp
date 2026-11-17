@@ -132,18 +132,20 @@ const CarSheet = (() => {
   const ELEC = { battery_electric: 'battery-electric', plug_in_hybrid: 'plug-in hybrid', fuel_cell: 'fuel-cell', mild_hybrid: 'mild hybrid', hybrid: 'hybrid', none: 'not hybrid or electric' };
   const lb = v => `${fmt(v.lb)} lb (${fmt(v.kg)} kg)`;
 
+  const DIFF_LABEL = { wheel_size: 'wheel size', gvwr_class: 'GVWR' };
   /** Visible differences other than the year, in words: "trim Limited (yours: SEL)". */
   function diffWords(m) {
     return ((m && m.differences) || []).filter(d => d && d.field !== 'model_year' && present(d.tested) && present(d.yours)).map(d => {
       const [a, b] = d.field === 'electrification' ? [ELEC[d.tested] || d.tested, ELEC[d.yours] || d.yours] : [d.tested, d.yours];
-      return `${d.field} ${a} (yours: ${b})`;
+      return `${DIFF_LABEL[d.field] || d.field} ${a} (yours: ${b})`;
     });
   }
 
   /**
    * How tested vehicles relate to this VIN, in plain words, as escaped HTML (match objects from the report).
    * Several vehicles with the same values are described together ("the 2024 and 2026 models"). The
-   * reassuring same-wheelbase sentence is screen only; every caveat prints.
+   * reassuring same-wheelbase sentence and the generic "can change between years" are screen only (the year and
+   * every listed difference print).
    */
   function matchHtml(matches, subject) {
     const list = (Array.isArray(matches) ? matches : [matches]).filter(Boolean), m = list[0];
@@ -151,8 +153,9 @@ const CarSheet = (() => {
     const diffs = [...new Set(list.flatMap(diffWords))];
     if (m.kind === 'different_variant') return esc(`Same model year, different version: ${diffs.join('; ') || 'see the report'}. ${subject} can differ between versions.`);
     const years = [...new Set(list.map(x => x.tested_model_year))].sort();
-    let out = esc(years.length > 1 ? `NHTSA tested the ${years.join(' and ')} models (yours is ${m.vin_model_year}); both list the same values. ${subject} can change between years.`
-      : `NHTSA tested the ${m.tested_model_year} model (yours is ${m.vin_model_year}). ${subject} can change between years.`);
+    // "can change between years" is screen only: the year is stated, and the sheet must print on one page
+    let out = esc(years.length > 1 ? `NHTSA tested the ${years.join(' and ')} models (yours is ${m.vin_model_year}); both list the same values.`
+      : `NHTSA tested the ${m.tested_model_year} model (yours is ${m.vin_model_year}).`) + `<span class="sheet-screen-only"> ${esc(subject)} can change between years.</span>`;
     if (diffs.length) out += esc(` Also different: ${diffs.join('; ')}.`);
     const other = list.filter(x => x.generation_check === 'different_wheelbase').map(x => x.tested_model_year);
     if (other.length) out += esc(` Transport Canada lists a different wheelbase for ${other.join(' and ')}, so it is likely another generation and these values may not apply.`);
@@ -173,6 +176,16 @@ const CarSheet = (() => {
   }
 
   const PRINT_MAX = 2;
+
+  /**
+   * "In mcp.vin’s accuracy test, matches like this were right for tire size 92%, pressures 96%. " (report field
+   * accuracy), or ''. Screen only: the one-page print keeps the match wording and caveats, not the percentages.
+   */
+  function accuracyText(a, fields) {
+    if (!a) return '';
+    const parts = fields.filter(([k]) => Number.isFinite(a[`${k}_right_pct`])).map(([k, label]) => `${label} ${a[`${k}_right_pct`]}%`);
+    return parts.length ? `In mcp.vin’s accuracy test, matches like this were right for ${parts.join(', ')}. ` : '';
+  }
 
   /** One list item per distinct set of values; tested vehicles with identical values share it. */
   function placardItems(tested) {
@@ -208,12 +221,13 @@ const CarSheet = (() => {
     const items = placardItems(tested), more = items.length - PRINT_MAX;
     const listed = items.map((h, i) => i < PRINT_MAX ? h : h.replace('<li class="placard-test"', '<li class="placard-test sheet-screen-only"')).join('');
     const tests = tested.length
-      ? `<ul class="placard-tests">${listed}</ul>${more > 0 ? `<p class="sheet-note sheet-print-only">${more} more NHTSA test vehicle${more > 1 ? 's' : ''} with other values: see the live report.</p>` : ''}<p class="sheet-note placard-governs">Your own door placard governs (driver’s door pillar); it can differ by trim and tire size.</p>`
+      ? `<ul class="placard-tests">${listed}</ul>${more > 0 ? `<p class="sheet-note sheet-print-only">${more} more NHTSA test vehicle${more > 1 ? 's' : ''} with other values: see the live report.</p>` : ''}<p class="sheet-note placard-governs"><span class="sheet-screen-only">${esc(accuracyText(tp.accuracy, [['tire_size', 'tire size'], ['cold_pressure', 'pressures']]))}</span>Your own door placard governs (driver’s door pillar)<span class="sheet-screen-only">; it can differ by trim and tire size</span>.</p>`
       : '';
     const placard = 'The recommended cold pressures and original tire sizes are printed on the Tire and Loading Information placard, normally on the driver’s door pillar (FMVSS No. 110).';
     const reach = tp && Number.isInteger(tp.max_year_gap) ? tp.max_year_gap : 2;
     const note = tested.length ? `Copy your car’s own values from its Tire and Loading Information placard (driver’s door pillar).`
       : tp && tp.available === true && tp.reason === 'other_powertrain_only' ? `${placard} NHTSA tested this make and model nearby only with a different powertrain (battery-electric or not), so mcp.vin shows no values.`
+      : tp && tp.available === true && tp.reason === 'other_generation_only' ? `${placard} NHTSA tested this make and model nearby only in years Transport Canada lists with a different wheelbase (likely another generation), so mcp.vin shows no values.`
       : tp && tp.available === true ? `${placard} NHTSA’s test reports list them only for the vehicles it tested; none of this make and model within ${reach} model years is indexed (not tested, or not indexed yet), so mcp.vin shows no values.`
       : `${placard} NHTSA’s test-vehicle index was not checked for this report, so mcp.vin shows no values.`;
     const fields = [writeIn('Tire size, front'), writeIn('Tire size, rear'), writeIn('Cold pressure, front', 'psi'), writeIn('Cold pressure, rear', 'psi'), writeIn('Spare', 'psi')].join('');
@@ -244,6 +258,7 @@ const CarSheet = (() => {
       ? `<span class="sheet-screen-only"> NHTSA’s tested ${esc(v.model)} vehicles list more than one tank: ${ft.model_tank_sizes.map(s => `${fmt(s.gallons, 1)} gal (${s.model_years.join(', ')}${s.electrification && s.electrification !== 'none' ? ', ' + (ELEC[s.electrification] || s.electrification) : ''})`).join('; ')}.</span>` : '';  // screen only: the list can be long, and the sheet must print on one page
     if (!ft.shown) {
       const why = ft.reason === 'different_electrification' ? esc(ft.note || 'The tested vehicle’s electrification differs from this VIN’s, so no tank size is shown.')
+        : ft.reason === 'other_generation_only' ? 'NHTSA’s nearby tested vehicles that list a tank are from years with a different wheelbase (likely another generation).'
         : 'The test report does not list the tank size.';
       return rowHtml('Fuel tank', `Not shown<span class="sheet-source">${why}${others}</span>`);
     }
@@ -258,7 +273,20 @@ const CarSheet = (() => {
     const from = (!ft.best_guess ? 'NHTSA test vehicle, same model year.'
       : m.kind === 'different_variant' ? `From NHTSA’s ${esc(m.tested_model_year)} test vehicle, a different version (${esc(diffWords(m).join('; '))}); tank size can differ by year, trim and options.`
       : `From NHTSA’s ${esc(vals.map(x => x.model_year).filter((y, i, a) => a.indexOf(y) === i).join(' and '))} test vehicle${vals.length > 1 ? 's' : ''} (yours is ${esc(m.vin_model_year)}); tank size can differ by year, trim and options.`) + own;
-    return rowHtml(ft.best_guess ? 'Fuel tank (best guess)' : 'Fuel tank', `${esc(value)}<span class="sheet-source">${from}${several}${optional}${others}</span>`);
+    const acc = ft.accuracy && Number.isFinite(ft.accuracy.right_pct) ? `<span class="sheet-screen-only"> In mcp.vin’s accuracy test, matches like this were right for ${ft.accuracy.right_pct}%.</span>` : '';
+    return rowHtml(ft.best_guess ? 'Fuel tank (best guess)' : 'Fuel tank', `${esc(value)}<span class="sheet-source">${from}${acc}${several}${optional}${others}</span>`);
+  }
+
+  /**
+   * One capacity row. When NHTSA's equally close tested vehicles print different values and no matching rule
+   * separates them (report field test_vehicle_specs.values_differ), all values are shown, never one picked.
+   */
+  function capacityRow(sp, field, label, own) {
+    const set = ((sp.values_differ || {})[field] || []).filter(x => x && x.value);
+    const text = x => field === 'seating' ? (num(x.total) ? String(x.total) : null) : goodMass(x) ? lb(x) : null;
+    const vals = set.map(x => ({...x, text: text(x.value)})).filter(x => x.text);
+    if (vals.length < 2) return row(label, own);
+    return rowHtml(label, `${esc(vals.map(x => x.text).join(' or '))}<span class="sheet-source sheet-screen-only">NHTSA’s equally close test vehicles differ: ${esc(vals.map(x => `${x.tested_as}, ${x.text}`).join('; '))}; yours depends on version and options.</span>`);
   }
 
   /** Capacities and weights of NHTSA's test vehicle (closest match), inside "Size and weight". */
@@ -268,6 +296,7 @@ const CarSheet = (() => {
     if (!v) {
       const why = !sp || sp.available !== true ? 'NHTSA’s test-vehicle index was not checked for this report, so no tested fuel tank, payload or axle ratings are shown.'
         : sp.reason === 'other_powertrain_only' ? 'NHTSA tested this make and model nearby only with a different powertrain, so its fuel tank, payload and axle ratings are not shown.'
+        : sp.reason === 'other_generation_only' ? 'NHTSA tested this make and model nearby only in years Transport Canada lists with a different wheelbase (likely another generation), so its fuel tank, payload and axle ratings are not shown.'
         : `NHTSA has no tested vehicle of this make and model within ${reach} model years in mcp.vin’s index (not tested, or not indexed yet), so no tested fuel tank, payload or axle ratings are shown.`;
       return `<p class="sheet-note tested-none">${why} They are on the door-pillar label and in the owner’s manual.</p>`;
     }
@@ -279,17 +308,18 @@ const CarSheet = (() => {
       ? `${lb(c.total)}; front ${fmt(c.front.lb)} lb, rear ${fmt(c.rear.lb)} lb (${fmt(c.front_percent)}% front)` : null;
     const rows = [
       fuelTankRow(sp, v, r),
-      row('Payload (vehicle capacity weight)', goodMass(v.payload_vehicle_capacity_weight) ? lb(v.payload_vehicle_capacity_weight) : null),
-      row('Seating capacity', seats),
-      row('GVWR (label)', goodMass(v.gvwr) ? lb(v.gvwr) : null),
+      capacityRow(sp, 'payload', 'Payload (vehicle capacity weight)', goodMass(v.payload_vehicle_capacity_weight) ? lb(v.payload_vehicle_capacity_weight) : null),
+      capacityRow(sp, 'seating', 'Seating capacity', seats),
+      capacityRow(sp, 'gvwr', 'GVWR (label)', goodMass(v.gvwr) ? lb(v.gvwr) : null),
       row('GAWR (label)', gawr),
       row('Curb weight, as delivered', curb),
     ];
     // one test vehicle can have several compliance reports (FMVSS 110, 138, 537): each is linked
     const links = [v, ...(Array.isArray(v.other_reports) ? v.other_reports : []).filter(o => o && reportUrlOk(o.report_url))];
     return `<div class="tested-specs"><p class="tested-specs-head">NHTSA test vehicle: ${esc(v.tested_as)}</p>`
-      + `<p class="sheet-note tested-match">${matchHtml(v.match, 'Capacities and weights')} Values printed in NHTSA’s test report${links.length > 1 ? 's' : ''}, not this VIN’s. ${links.length > 1 ? `NHTSA ${v.source === 'nhtsa_compliance_test' ? 'compliance ' : ''}test reports ${links.map(x => reportLink(x, true)).join(', ')}` : reportLink(v)}</p>`
-      + `${list(rows) || '<p class="sheet-note">The test report lists none of these values.</p>'}</div>`;
+      + `<p class="sheet-note tested-match">${matchHtml(v.match, 'Capacities and weights')} Values printed in NHTSA’s test report${links.length > 1 ? 's' : ''}, not this VIN’s. <span class="sheet-screen-only">${esc(accuracyText(sp.accuracy, [['payload', 'payload'], ['seating', 'seating'], ...(goodMass(v.gvwr) ? [['gvwr', 'GVWR']] : [])]))}</span>${links.length > 1 ? `NHTSA ${v.source === 'nhtsa_compliance_test' ? 'compliance ' : ''}test reports ${links.map(x => reportLink(x, true)).join(', ')}` : reportLink(v)}</p>`
+      + `${list(rows) || '<p class="sheet-note">The test report lists none of these values.</p>'}`
+      + `${v.withheld && present(v.withheld.note) ? `<p class="sheet-note tested-withheld sheet-screen-only">${esc(v.withheld.note)}</p>` : ''}</div>`;
   }
 
   /** "Doesn't match your door placard?": a correction for review; screen only, never printed or shown to others. */

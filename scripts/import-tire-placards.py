@@ -93,6 +93,19 @@ def check(row, n):
             bad(f)
 
 
+EXTRA_FIELDS = {'displacement_l': (int, float), 'cylinders': int, 'gvwr_class': str, 'cab': str, 'doors': int, 'plant': str}
+
+
+def extra(row):
+    """The test vehicle's own vPIC matching features (engine, GVWR class, cab, doors, plant) as JSON, or None."""
+    x = row.get('vpic_extra')
+    if not x:
+        return None
+    if not isinstance(x, dict) or any(k not in EXTRA_FIELDS or not isinstance(v, EXTRA_FIELDS[k]) or isinstance(v, bool) for k, v in x.items()):
+        raise ValueError(f'bad vpic_extra {x!r}')
+    return json.dumps(x, separators=(',', ':'), sort_keys=True)
+
+
 def number(v, lo, hi):
     return isinstance(v, (int, float)) and not isinstance(v, bool) and lo <= v <= hi
 
@@ -187,7 +200,7 @@ def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None)
             tire_front TEXT NOT NULL, tire_rear TEXT NOT NULL,
             kpa_front REAL NOT NULL, kpa_rear REAL NOT NULL, psi_front INTEGER NOT NULL, psi_rear INTEGER NOT NULL,
             test_no INTEGER, report_url TEXT NOT NULL, test_type TEXT, other_reports TEXT NOT NULL,
-            confidence TEXT NOT NULL, source TEXT NOT NULL, report_number TEXT, fmvss TEXT);
+            confidence TEXT NOT NULL, source TEXT NOT NULL, report_number TEXT, fmvss TEXT, vpic_extra TEXT);
             CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);''')
         rows, seen = [], set()
         for n, line in enumerate(payload.decode('utf-8').splitlines(), 1):
@@ -213,12 +226,12 @@ def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None)
                                       **({'report_number': o['report_number']} if o.get('report_number') else {}), 'report_url': o['report_url']}
                                      for o in row.get('other_reports') or []]),
                          row['confidence'], row.get('source') or 'nhtsa_crash_test', row.get('report_number'),
-                         json.dumps(row['fmvss']) if row.get('fmvss') else None))
+                         json.dumps(row['fmvss']) if row.get('fmvss') else None, extra(row)))
         if not rows:
             raise ValueError('Empty tire placard dataset')
         db.executemany('INSERT INTO placards(make_key,model_key,year,make,model,tested_as,vpic_trim,vpic_series,body_class,drive_type,fuel_type,ev_type,'
                        'powertrain,tire_front,tire_rear,kpa_front,kpa_rear,psi_front,psi_rear,test_no,report_url,test_type,other_reports,confidence,'
-                       'source,report_number,fmvss) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+                       'source,report_number,fmvss,vpic_extra) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
         db.execute('CREATE INDEX vehicle_key ON placards(make_key, model_key, year)')
         metadata = {'source': 'NHTSA vehicle crash-test reports (NCAP and FMVSS compliance data sheets), nrd-static.nhtsa.dot.gov; '
                               'NHTSA Office of Vehicle Safety Compliance test reports (FMVSS 110/138/537/135), static.nhtsa.gov/odi/ctr',
@@ -253,7 +266,7 @@ def build_specs(db, path, meta_path):
         make TEXT NOT NULL, model TEXT NOT NULL, tested_as TEXT NOT NULL, vpic_trim TEXT, vpic_series TEXT, body_class TEXT,
         drive_type TEXT, fuel_type TEXT, ev_type TEXT, powertrain TEXT NOT NULL, test_no INTEGER UNIQUE,
         report_url TEXT NOT NULL, test_type TEXT, data TEXT NOT NULL, source TEXT NOT NULL, report_number TEXT UNIQUE, fmvss TEXT,
-        other_reports TEXT NOT NULL, field_reports TEXT)''')
+        other_reports TEXT NOT NULL, field_reports TEXT, vpic_extra TEXT)''')
     rows = []
     for n, line in enumerate(payload.decode('utf-8').splitlines(), 1):
         if not line.strip():
@@ -265,13 +278,13 @@ def build_specs(db, path, meta_path):
                      row.get('ev_type'), row['powertrain'], row.get('test_no'), row['report_url'], row.get('test_type'),
                      json.dumps({k: row[k] for k in SPEC_FIELDS if row.get(k) is not None}, separators=(',', ':')),
                      row.get('source') or 'nhtsa_crash_test', row.get('report_number'), json.dumps(row['fmvss']) if row.get('fmvss') else None,
-                     json.dumps(row.get('other_reports') or []), json.dumps(row['field_reports']) if row.get('field_reports') else None))
+                     json.dumps(row.get('other_reports') or []), json.dumps(row['field_reports']) if row.get('field_reports') else None, extra(row)))
     if not rows:
         raise ValueError('Empty test-vehicle specs dataset')
     try:
         db.executemany('INSERT INTO specs(make_key,model_key,year,make,model,tested_as,vpic_trim,vpic_series,body_class,drive_type,fuel_type,'
-                       'ev_type,powertrain,test_no,report_url,test_type,data,source,report_number,fmvss,other_reports,field_reports) '
-                       'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+                       'ev_type,powertrain,test_no,report_url,test_type,data,source,report_number,fmvss,other_reports,field_reports,vpic_extra) '
+                       'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
     except sqlite3.IntegrityError as err:
         raise ValueError(f'specs: duplicate test_no or report ({err})')
     db.execute('CREATE INDEX specs_key ON specs(make_key, model_key, year)')

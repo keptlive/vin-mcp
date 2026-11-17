@@ -167,16 +167,20 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   vehicle that agree give `confidence: high`; one report gives `normal`; two that disagree are
   excluded. Versions of one model year (4x2 and AWD, two trims) are compared only with themselves:
   two versions with different pressures are two rows, not a disagreement.
-- **Full main set (17 November 2026).** 1,728 of 1,729 queued crash reports processed: 1,248 rows (1,136
-  from crash reports, 112 from compliance reports) for 1,073 make/model/year/powertrain keys. Older data
+- **Complete set (17 November 2026).** 1,728 of 1,729 main-queue crash reports and all 538 extra NCAP side and
+  pole reports processed (one main-queue test could not be fetched): 1,245 rows (1,133 from crash reports, 112
+  from compliance reports) for 1,062 make/model/year/powertrain keys, 2,270 reports used, 331 rows rejected. Older data
   sheets (2005-2012) print the cold pressure in five more labelled forms ("221 kpa FRONT; 207 kpa REAR",
   "Cold Pressure (from tire placard - kPa)* 210 210", a wrapped label, "210 kPa 210 kPa", and a row whose
   table states kPa); 24 of their values were read by hand against the reports, 0 wrong. Left empty on
   purpose: Karco 2010-2011 sheets whose text layer separates the values from their labels (18 reports), and
-  sheets with two cold pressures, "(2 persons)" and "(max)" (13). The extra NCAP side and pole reports are
-  used for capacities and crash results but not yet for tires: with them, 22 model-years would lose every
-  tire row because NHTSA's test vehicles of one version carried different tire sizes (wheel options, or a
-  misprint), which the rule above excludes; how to show those is an open owner decision. psi is kPa / 6.894757 rounded; reports print kPa.
+  sheets with two cold pressures, "(2 persons)" and "(max)" (13). The extra side and pole reports are in:
+  where NHTSA's test vehicles of one version and year carried different tire sizes (wheel options, or a
+  misprint; 95 rows) those rows stay excluded. Keeping them when every report confirms its size was tested by
+  the accuracy test below and dropped: of the 82 vehicles it added, 17 got the right size, 23 a set with it,
+  41 a wrong one. Rejected after the accuracy test's hand check: a passenger-tire placard pressure of 290 kPa
+  or more equal to the tire's own sidewall maximum on both axles, from a single report (a copied maximum: a
+  2012 Elantra printed 300/300 kPa for both; two other 2012 Elantras print 220). psi is kPa / 6.894757 rounded; reports print kPa.
 - **Shipped file.** `data-src/tire-placards.jsonl` (+ `.meta.json`) is the cleaned list.
   `python3 scripts/import-tire-placards.py` validates every row (sizes, ranges, psi/kPa
   agreement, NHTSA report URL, confidence rules) and atomically writes `data/tire-placards.db`;
@@ -193,8 +197,10 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   3. `different_variant`: same model year, but a visible difference, listed;
   4. `nearest_model_year` that also differs in version;
   5. a nearest year whose Transport Canada wheelbase differs from the VIN year's (likely another
-     generation): ranked last and said so.
-  Only the closest kind present is returned. Values are never estimated, blended or averaged:
+     generation) is not used at all (since the accuracy test below; before, it was ranked last). When
+     only such years were tested the block says `reason: "other_generation_only"`.
+  Only the closest kind present is returned; among equally close vehicles the matching rules below keep
+  the ones that match the VIN, or all of them (the set) when nothing separates them. Values are never estimated, blended or averaged:
   each is one tested vehicle's printed value. The generation check (`generation_check`:
   `same_wheelbase`, `different_wheelbase`, `unknown`; `null` for the same year) compares the
   Transport Canada wheelbases (via vPIC `GetCanadianVehicleSpecifications`, the sheet's dimension
@@ -215,9 +221,56 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   Split by the generation check (wheelbase NHTSA measured on both vehicles, within 15 mm): same
   wheelbase 1-2 years apart agreed in 60-83% of pairs (tank 82-83%); different wheelbase in 8-40%. So a
   different-wheelbase year is a weak match, and a 2-year gap with an unknown generation agrees about half
-  the time. The current rule (reach 2, different wheelbase ranked last, every caveat printed) is kept until
-  the owner decides; the measured alternative is in the research notes (reach 1, or 2 only with
-  `same_wheelbase`, never `different_wheelbase`).
+  the time. Settled by the accuracy test below: reach stays 2 years, and a year with a different wheelbase
+  is no longer used.
+- **How a VIN is matched: the accuracy test (17 November 2026, owner request).** Every NHTSA test vehicle
+  in the index (2,382 VINs) played a visitor: its own reports were held out, its own VIN's vPIC decode went
+  through the site's lookup, and what the sheet would show was compared with that vehicle's own printed
+  values (research folder `scripts/loo_eval.mjs`; Transport Canada wheelbases offline, so the generation
+  check is rarer than on the site). Right = equal (tire size ignoring load index; pressure within 1 psi;
+  tank within 1 L; weights within 1%); set = several values shown, the right one among them.
+
+  | field (all vehicles) | before: right / set / wrong / nothing | after: right / set / wrong / nothing |
+  |---|---|---|---|
+  | tire size | 73.2 / 5.7 / 11.3 / 9.8% | 74.9 / 3.5 / 11.6 / 10.0% |
+  | cold pressure, front | 80.7 / 3.1 / 6.5 / 9.8% | 82.0 / 1.5 / 6.6 / 10.0% |
+  | fuel tank | 84.3 / 4.2 / 6.1 / 5.4% | 84.7 / 3.7 / 5.8 / 5.8% |
+  | payload | 69.0 / - / 17.4 / 13.6% | 70.2 / - / 15.6 / 14.2% |
+  | seating | 82.0 / - / 4.1 / 13.9% | 81.9 / - / 3.6 / 14.5% |
+  | GVWR | 67.3 / - / 19.7 / 13.1% | 61.5 / - / 7.0 / 31.5% (another version's GVWR withheld) |
+
+  Rules added (each keeps, among equally close tested vehicles, those that match the VIN, only when some
+  do and some do not; gain = right-share lost when the rule alone is removed): tires: fewest visible
+  differences (+0.3 size, +0.3 pressure), vPIC wheel diameter against the tested tire's rim (+0.3, +0.2),
+  engine displacement and cylinders (+0.5, +0.3), cab type (+0.1, +0.2); capacities: cab (+0.4 payload,
+  +0.3 GVWR, wrong -0.6 / -0.3), engine (wrong -0.2 payload), vPIC GVWR class against the tested vehicle's
+  printed GVWR (+0.1 / +0.2, wrong -0.2 / -0.3); tank: fewest differences, GVWR class. Withheld: GVWR and
+  GAWR of another version (it was right 39-40% of the time). Shown as a set: payload, seating and GVWR
+  when equally close vehicles differ. Tried and dropped: the same features as version differences (they
+  push a same-year vehicle below a nearest-year one: as many losses as gains); doors and plant (no gain);
+  cab and engine for the tank (more wrong single values than right ones). What no rule can fix: in about
+  9% (size) to 15% (GVWR) of cases no tested vehicle within reach had the vehicle's own value.
+
+  Accuracy per kind of match after the rules (share of vehicles shown a value that got the right one; the
+  sheet and the API's `accuracy` quote these):
+
+  | match | tire size | pressures | fuel tank | payload | seating | GVWR |
+  |---|---|---|---|---|---|---|
+  | exact (1,136 vehicles shown tires) | 92% | 96% | 92% | 87% | 98% | 93% |
+  | same year, other version (398) | 74% | 84% | 86% | 68% | 92% | withheld |
+  | other year, same version (272) | 75% | 84% | 87% | 70% | 92% | 71% |
+  | other year, other version (114) | 54% | 70% | 91% (22 vehicles) | 67% | 84% | withheld |
+
+  Reach, settled by the same test: allowing years 2 apart (not just 1) adds 4.9% of vehicles at about 76%
+  right (size; pressures 78%, tank 79%); years 3 apart would add 1.6% at about 13% (pressures 35%, tank
+  about 33%), so `MAX_YEAR_GAP` stays 2. A year
+  whose wheelbase differs is dropped: in NHTSA's repeat tests 1-2 years apart with a different measured
+  wheelbase the tire size agreed in 31% of pairs, pressures 41%, tank 20%, payload 26%, GVWR 6% (same
+  wheelbase: 70, 70, 83, 46, 60%). A hand check of 26 same-version errors found 0 extraction errors and 3
+  report errors, now rejected (above); 5 were a test-harness error (sizes printed with a space before R,
+  fixed before the numbers above); the other 18 are real differences between tested vehicles of one
+  version (option wheels, load ranges, cab and drive). Missing values here are not tested or not indexed. Research notes: `LOO_PLAN.md`,
+  `data/loo/handcheck_loo_verdicts.json`.
 - **Powertrain guard.** vPIC gives gasoline and battery-electric versions one model name (the
   2025 Silverado EV test truck decodes as `Silverado`, with LT tires at 420 kPa). Each row keeps
   its test vehicle's class from vPIC `FuelTypePrimary` + `ElectrificationLevel`
@@ -250,7 +303,9 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   weight with fluids, before dummies and ballast). Built by the research pipeline's Stage A
   extractor; each field records its extraction method, and a field failing a plausibility rule
   (GVWR against the measured weight and twice it, GAWR sum against GVWR, kg/lb agreement, ranges,
-  no tank on a battery-electric vehicle) is left out, never corrected. Hand check: 30 reports
+  no tank on a battery-electric vehicle; since 17 November also a tank under 28 L on a car that is not a
+  plug-in, or outside 0.015-0.09 L per kg of measured weight: two reports printed gallons under a litre
+  heading) is left out, never corrected. Hand check: 30 reports
   stratified by lab, test type and year, 10 more out of sample for the shown fields, and 20
   server-extracted reports (3 wrong values of 779 on the first pass, all fixed and re-checked
   across every report).
@@ -276,7 +331,12 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   electrification (none, hybrid, mild hybrid, plug-in hybrid, battery-electric) as the VIN. The
   sheet shows one vehicle (the best match; with more of the capacity fields first) in "Size and
   weight": fuel tank, payload, seating capacity, GVWR, GAWR, and curb weight as delivered with its
-  front/rear split, in lb and kg, linked to the report.
+  front/rear split, in lb and kg, linked to the report. When equally close tested vehicles print
+  different payload, seating or GVWR values and no matching rule separates them, every value is shown
+  with its vehicle (`values_differ`; "926 lb or 992 lb ... NHTSA's equally close test vehicles differ").
+  GVWR and GAWR come only from a tested vehicle of the same version: from another version they are
+  withheld (`withheld`, with the reason), because another version's GVWR was right in only about 4 of
+  10 cases in the accuracy test.
 - **Fuel tank.** From the closest tested vehicle that lists a tank (it can be another report than
   the capacities, for example when the closest vehicle is a compliance test; the sheet then links
   the tank's own report). Always one tested vehicle's printed usable standard tank, litres converted to US

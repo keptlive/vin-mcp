@@ -75,7 +75,7 @@ test('exact: same make, model, year and version; every same-year variant when th
   } finally { rmSync(dir, {recursive: true, force: true}); }
 });
 
-test('nearest model year: within the reach only, both years on a tie, a different wheelbase ranked last', async () => {
+test('nearest model year: within the reach only, both years on a tie, a different wheelbase never used', async () => {
   const {dir, file} = buildIndex([
     row({model_year: 2019, test_no: 1019, report_url: url(1019), tires: {front: '265/70R17 115T', rear: '265/70R17 115T'}}),
     row({model_year: 2021, test_no: 1021, report_url: url(1021)}),
@@ -89,13 +89,16 @@ test('nearest model year: within the reach only, both years on a tie, a differen
     assert.deepEqual(kinds(r), [[2023, 1023, 'nearest_model_year'], [2021, 1021, 'nearest_model_year']]);
     assert.deepEqual(r.vehicles[0].match, {kind: 'nearest_model_year', tested_model_year: 2023, vin_model_year: 2022, year_gap: 1,
       differences: [{field: 'model_year', tested: 2023, yours: 2022}], generation_check: 'same_wheelbase'});
-    // Another generation (different wheelbase) is ranked last: 2021 wins alone.
+    // Another generation (different wheelbase) is not used: 2021 wins alone.
     dims = tc({2022: [367], 2021: [367], 2023: [370]});
     r = (await lookupTestVehicleData(vin({year: 2022}), {file, dims})).tire_placard;
     assert.deepEqual(kinds(r), [[2021, 1021, 'nearest_model_year']]);
-    // ...but is still used, marked, when nothing else is within reach.
+    // ...not even when nothing else is within reach (leave-one-out: a different wheelbase gave the same tire size in
+    // 31% of NHTSA's repeat tests); the reason says so. Without the drop rule it would be used, marked.
     dims = tc({2025: [370], 2023: [367]});
     r = (await lookupTestVehicleData(vin({year: 2025}), {file, dims})).tire_placard;
+    assert.deepEqual(r.vehicles, []); assert.equal(r.reason, 'other_generation_only'); assert.match(r.note, /different wheelbase/);
+    r = (await lookupTestVehicleData(vin({year: 2025}), {file, dims, rules: {tires: []}})).tire_placard;
     assert.deepEqual(kinds(r), [[2023, 1023, 'nearest_model_year']]); assert.equal(r.vehicles[0].match.generation_check, 'different_wheelbase');
     // No Transport Canada record: unknown, never assumed.
     r = (await lookupTestVehicleData(vin({year: 2024}), {file, dims: tc()})).tire_placard;
@@ -202,7 +205,7 @@ test('capacities and weights: one tested vehicle, both units, the fuel tank labe
     // A hybrid VIN of a year with no tested hybrid nearby: other vehicles may be shown, but no tank.
     s = (await lookupTestVehicleData(vin({year: 2019, evType: 'HEV (Hybrid Electric Vehicle) - Level Unknown'}), {file, dims})).test_vehicle_specs;
     assert.equal(s.vehicles[0].test_no, 1019); assert.equal(s.fuel_tank.shown, false); assert.equal(s.fuel_tank.reason, 'different_electrification');
-    assert.match(s.fuel_tank.note, /no tank size is shown/);
+    assert.match(s.fuel_tank.note, /is a hybrid. Tanks often differ between them, so none is shown/);
     // The gallon-printed tank keeps its printed value.
     s = (await lookupTestVehicleData(vin({year: 2019}), {file, dims})).test_vehicle_specs;
     assert.deepEqual(s.vehicles[0].fuel_tank, {litres: 87.1, gallons: 23, printed: '23 gal'});
@@ -293,5 +296,45 @@ test('an unreadable index is unavailable', async () => {
     const r = await lookupTestVehicleData(vin(), {file, dims: tc()});
     assert.equal(r.tire_placard.available, false); assert.equal(r.tire_placard.reason, 'index_unreadable');
     assert.equal(r.test_vehicle_specs.reason, 'index_unreadable');
+  } finally { rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('matching rules (leave-one-out): a rule that separates equally close vehicles picks, else the set is shown', async () => {
+  const eng = (l, c) => ({displacement_l: l, cylinders: c});
+  const {dir, file} = buildIndex([
+    row({vpic_extra: eng(3.5, 6)}),
+    row({tires: {front: '265/70R17 115T', rear: '265/70R17 115T'}, cold_pressure_kpa: {front: 245, rear: 245}, cold_pressure_psi: {front: 36, rear: 36},
+      test_no: 11491, report_url: url(11491), tested_as: '2021 Ford F-150 4x2 SuperCab', vpic_extra: eng(2.7, 6)}),
+  ], [
+    spec({vpic_extra: {cab: 'Crew/Super Crew/Crew Max'}}),
+    spec({test_no: 11491, report_url: url(11491), vehicle_capacity_weight_kg: 700, gvwr: {value: 3221, unit_printed: 'kg'},
+      tested_as: '2021 Ford F-150 4x2 SuperCab', vpic_extra: {cab: 'Extra/Super/Quad/Double/King/Extended'}}),
+  ]);
+  try {
+    const dims = tc(), tires = async o => (await lookupTestVehicleData(vin(o), {file, dims})).tire_placard;
+    // nothing separates them: both shown (the site lists both value sets)
+    assert.deepEqual(kinds(await tires({})), [[2021, 11490, 'exact'], [2021, 11491, 'exact']]);
+    assert.deepEqual(kinds(await tires({displacement_l: 5, cylinders: 8})), [[2021, 11490, 'exact'], [2021, 11491, 'exact']]);
+    // the VIN's engine (vPIC) picks the tested vehicle with the same engine; its wheel diameter is checked first
+    assert.deepEqual(kinds(await tires({displacement_l: 2.7, cylinders: 6})), [[2021, 11491, 'exact']]);
+    assert.deepEqual(kinds(await tires({displacement_l: 2.7, cylinders: 6, wheel_size_front: 20})), [[2021, 11490, 'exact']]);
+    const exact = await tires({});
+    assert.deepEqual({...exact.accuracy, basis: undefined}, {kind: 'exact', tire_size_right_pct: 92, cold_pressure_right_pct: 96, basis: undefined});
+    // capacities: equally close vehicles differ and nothing separates them -> every value, with its vehicle
+    let s = (await lookupTestVehicleData(vin(), {file, dims})).test_vehicle_specs;
+    assert.deepEqual(s.values_differ.payload.map(x => x.value.kg), [650, 700]);
+    assert.deepEqual(s.values_differ.gvwr.map(x => x.value.kg), [3175, 3221]); assert.equal(s.values_differ.seating, undefined);
+    // the cab (vPIC) separates them -> one vehicle, no set
+    s = (await lookupTestVehicleData(vin({cab: 'Crew/Super Crew/Crew Max'}), {file, dims})).test_vehicle_specs;
+    assert.deepEqual(s.vehicles.map(v => v.test_no), [11490]); assert.equal(s.values_differ, undefined);
+    assert.equal(s.accuracy.gvwr_right_pct, 93); assert.equal(s.vehicles[0].gvwr.kg, 3175);
+    // another version: GVWR and axle ratings withheld (about 4 in 10 right), payload kept and worded with its accuracy
+    s = (await lookupTestVehicleData(vin({trim: 'Raptor', cab: 'Crew/Super Crew/Crew Max'}), {file, dims})).test_vehicle_specs;
+    const v = s.vehicles[0];
+    assert.equal(v.match.kind, 'different_variant'); assert.equal(v.gvwr, undefined); assert.equal(v.gawr_front, undefined);
+    assert.deepEqual(v.withheld.fields, ['gvwr', 'gawr_front', 'gawr_rear']); assert.match(v.withheld.note, /4 of 10/);
+    assert.equal(v.payload_vehicle_capacity_weight.kg, 650);
+    assert.equal(s.accuracy.kind, 'different_variant'); assert.equal(s.accuracy.payload_right_pct, 68); assert.equal(s.accuracy.gvwr_right_pct, undefined);
+    assert.equal(s.fuel_tank.accuracy.right_pct, 86);
   } finally { rmSync(dir, {recursive: true, force: true}); }
 });
