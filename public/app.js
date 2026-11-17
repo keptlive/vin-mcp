@@ -131,6 +131,7 @@ $$('[data-vin]').forEach(el => {
 // ── Render Results ──
 function renderResults(report) {
   renderHero(report);
+  window.CarSheet?.render(report);
   renderOverview(report);
   renderEngine(report);
   renderSafetyRatings(report);
@@ -169,9 +170,14 @@ function renderHero(r) {
 
   const recallCount = r.recalls?.count || 0;
   if (recallCount > 0) {
-    badges.push(`<span class="badge badge-red">${recallCount} Recall Campaign${recallCount > 1 ? 's' : ''}</span>`);
+    badges.push(`<span class="badge badge-red">${recallCount} model-year recall campaign${recallCount > 1 ? 's' : ''}</span>`);
   } else if (r.recalls?.available === false) {
     badges.push(`<span class="badge badge-neutral">Recall lookup unavailable</span>`);
+  } else if (r.recalls?.related_campaigns_found === true) {
+    // Zero under the exact model name is not "no campaigns" when NHTSA files them under a related name.
+    badges.push(`<span class="badge badge-neutral">Campaigns under related model names</span>`);
+  } else if (r.recalls?.related_campaigns_found === null || r.recalls?.related_models?.decoded_name_in_recall_data === false) {
+    badges.push(`<span class="badge badge-neutral">Campaigns may be under another model name</span>`);
   } else {
     badges.push(`<span class="badge badge-green">No model-year campaigns found</span>`);
   }
