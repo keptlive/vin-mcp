@@ -155,3 +155,68 @@ test('the engine card and the car sheet label EPA test-vehicle horsepower; the s
   const withVpic = sheet.html({...report, engine: {...report.engine, hp: 240}}).body;
   assert.doesNotMatch(withVpic, /Rated power/);
 });
+
+// ---- NHTSA final theft data (production and theft, historical) ----
+import {lookupTheftRates} from '../lib/theft-rates.mjs';
+
+function theftDb(file, totals = {}) {
+  const db = new Database(file);
+  db.exec(`CREATE TABLE theft_rates(model_year INTEGER NOT NULL,calendar_year INTEGER NOT NULL,rank INTEGER,manufacturer TEXT NOT NULL,line TEXT NOT NULL,line_compact TEXT NOT NULL,manufacturer_compact TEXT NOT NULL,thefts INTEGER NOT NULL,production INTEGER NOT NULL,rate REAL NOT NULL,rate_check TEXT NOT NULL,lines_in_table INTEGER NOT NULL,document_number TEXT NOT NULL,publication_date TEXT NOT NULL,source_url TEXT);
+    CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT);`);
+  db.prepare('INSERT INTO metadata VALUES(?,?)').run('source', JSON.stringify({model_years: [2003, 2012], printed_totals: totals}));
+  const ins = db.prepare('INSERT INTO theft_rates VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+  const c = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const add = (y, rank, mfr, line, thefts, prod, rate, check = 'ok') => ins.run(y, y, rank, mfr, line, c(line), c(mfr), thefts, prod, rate, check, 5, y === 2003 ? '05-15689' : '2014-27885', '2014-11-25', 'https://www.federalregister.gov/d/x');
+  add(2003, 115, 'HONDA', 'ACCORD', 499, 427660, 1.1668);
+  add(2003, 90, 'HONDA', 'ACURA 3.2 TL', 74, 77849, 0.9506);
+  add(2003, 12, 'GENERAL MOTORS', 'CHEVROLET S10/T10 PICKUP', 218, 159920, 1.3632);
+  add(2003, 50, 'BMW', '3', 88, 58554, 1.5029);
+  add(2003, 51, 'DAIMLERCHRYSLER', 'JEEP GRAND CHEROKEE', 190, 114736, 1.656);
+  add(2003, 52, 'DAIMLERCHRYSLER', 'DODGE INTREPID', 662, 67289, 9.8382);
+  add(2012, 57, 'VOLKSWAGEN', 'PASSAT', 107, 95583, 1.1194);
+  add(2012, 30, 'TOYOTA', 'COROLLA', 304, 197973, 1.4257, 'printed_rate_differs');
+  db.close();
+}
+
+test('theft rates: exact line first, aliases disclosed, other makes and missing model years stay unknown', () => {
+  const file = path.join(temp, 'theft.db');
+  theftDb(file, {'2012': {thefts: 12172, production: 10777418, rate: 1.1294}});
+  const v = (year, make, model) => lookupTheftRates({vehicle: {year, make, model}}, file);
+  const accord = v(2003, 'HONDA', 'Accord');
+  assert.deepEqual([accord.match, accord.vin_specific, accord.lines], ['line_name', false, [{manufacturer: 'HONDA', line: 'ACCORD', production: 427660, thefts: 499, thefts_per_1000_produced: 1.1668, rank: 115, lines_ranked: 5}]]);
+  assert.match(accord.note, /not for this car/);
+  assert.equal(v(2003, 'ACURA', 'TL').lines[0].line, 'ACURA 3.2 TL');
+  const s10 = v(2003, 'CHEVROLET', 'S10');
+  assert.deepEqual([s10.match, s10.lines[0].production], ['closest_line_name', 159920]);
+  assert.match(s10.note, /covers more than one name/);
+  assert.match(v(2003, 'BMW', '325i').match_basis.join(' '), /BMW 325i counted in NHTSA's line "3" \(3 Series\)/);
+  assert.equal(v(2003, 'JEEP', 'Cherokee').reason, 'line_not_in_theft_report'); // Grand Cherokee is another line
+  assert.equal(v(2003, 'CHRYSLER', 'Intrepid').reason, 'line_not_in_theft_report'); // a Dodge line is not a Chrysler one
+  const corolla = v(2012, 'TOYOTA', 'Corolla');
+  assert.deepEqual([corolla.lines[0].rate_check, corolla.all_lines.rate], ['printed_rate_differs', 1.1294]);
+  assert.deepEqual(v(2011, 'HONDA', 'Accord'), {available: false, reason: 'model_year_not_published', model_years_covered: [2003, 2012]});
+  assert.deepEqual(lookupTheftRates({vehicle: {year: 2003, make: 'HONDA', model: 'Accord'}}, path.join(temp, 'none.db')), {available: false, reason: 'dataset_not_indexed'});
+});
+
+test('the production and theft card shows figures for the line, labels closest names and printed-rate flags, and goes when nothing matches', () => {
+  const nodes = new Map();
+  const node = id => ({id, remove() { nodes.delete(this.id); }, insertAdjacentElement(where, el) { nodes.set(el.id, el); el.after = this.id; }});
+  nodes.set('card-plant', node('card-plant'));
+  const document = {querySelector: s => nodes.get(s.replace(/^#/, '')) || null, createElement: () => node(null)};
+  const ctx = {document, console};
+  vm.createContext(ctx);
+  vm.runInContext(readFileSync(new URL('../public/more-sources.js', import.meta.url), 'utf8'), ctx);
+  const sources = vm.runInContext('MoreSources', ctx);
+  const p = {available: true, model_year: 2003, calendar_year: 2003, match: 'closest_line_name', match_basis: ['same model year and make', "NHTSA's line S10/T10 PICKUP covers more than one name"],
+    lines: [{manufacturer: 'GENERAL MOTORS', line: 'CHEVROLET S10/T10 PICKUP', production: 159920, thefts: 218, thefts_per_1000_produced: 1.3632, rank: 12, lines_ranked: 217, rate_check: 'printed_rate_differs'}],
+    source: {document_number: '05-15689', url: 'https://www.federalregister.gov/d/05-15689'}};
+  sources.render({production_theft: p});
+  const section = nodes.get('card-production-theft');
+  assert.equal(section.after, 'card-plant');
+  const text = section.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(text, /Production and theft \(historical\)/);
+  assert.match(text, /Production, model year 2003 159,920 Thefts in 2003 218 Theft rate 1\.3632 per 1,000 produced \(as printed; does not equal thefts ÷ production\) Rank 12 of 217 lines/);
+  assert.match(text, /Closest line name: matched by same model year and make; NHTSA's line S10\/T10 PICKUP covers more than one name\. Figures for the whole vehicle line, not this car/);
+  sources.render({production_theft: {available: false, reason: 'model_year_not_published'}});
+  assert.equal(nodes.has('card-production-theft'), false);
+});

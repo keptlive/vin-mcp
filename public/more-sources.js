@@ -1,6 +1,7 @@
 /* Extra official sources in the full report (loaded before app.js):
  * - recall build-date ranges (NHTSA recall flat file, BGMAN/ENDMAN)
  * - EPA test vehicles (EPA Test Car List): rated horsepower and tested axle ratios in the engine card
+ * - production and theft for the vehicle line, MY1998-2012 (NHTSA final theft data): a card after Manufacturing
  *
  * Rules: only report facts are shown; missing values are left out, never zero; every value
  * that is not specific to this VIN says so; a closest match says it is one.
@@ -45,13 +46,49 @@ const MoreSources = (() => {
     return rows + `<p class="small source-note">${closest}These are the manufacturer's EPA test vehicles for this engine family (EPA Test Car List${years ? ', model year ' + esc(years) : ''}), not necessarily this car's configuration. Matched by: ${esc((t.match_basis || []).join('; '))}.</p>`;
   }
 
+  const int = v => Number(v).toLocaleString('en-US');
+
+  /** Body of the "Production and theft (historical)" card, or '' when the model year or line is not in NHTSA's report. */
+  function theftHtml(r) {
+    const p = r && r.production_theft;
+    if (!p || !p.available || !(p.lines || []).length) return '';
+    const several = p.lines.length > 1;
+    const lines = p.lines.map(l => (several ? `<p class="small"><strong>${esc(l.line)}</strong></p>` : '') + [
+      dataRow('Vehicle line', several ? null : `${l.line} (${l.manufacturer})`),
+      dataRow(`Production, model year ${p.model_year}`, int(l.production)),
+      dataRow(`Thefts in ${p.calendar_year}`, int(l.thefts)),
+      dataRow('Theft rate', `${l.thefts_per_1000_produced} per 1,000 produced${l.rate_check ? ' (as printed; does not equal thefts ÷ production)' : ''}`),
+      dataRow('Rank', present(l.rank) ? `${l.rank} of ${l.lines_ranked} lines (1 = highest rate)` : null),
+    ].join('')).join('');
+    const closest = p.match === 'closest_line_name' ? `Closest line name: matched by ${esc((p.match_basis || []).join('; '))}. ` : '';
+    const src = p.source && p.source.url ? ` <a href="${esc(p.source.url)}" rel="noopener">Federal Register ${esc(p.source.document_number)}</a>.` : '';
+    return lines + `<p class="small source-note">${closest}Figures for the whole vehicle line, not this car: thefts of model year ${esc(p.model_year)} vehicles reported to the FBI's crime information center in ${esc(p.calendar_year)}, and the line's production as reported to the EPA (NHTSA final theft data).${src}</p>`;
+  }
+
+  const CARD_ICON = '<svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15v-4"/><path d="M12 15V8"/><path d="M16 15v-6"/></svg>';
+
+  /** Put (or replace) one extra card after an existing card; a card without content is removed. */
+  function card(id, after, title, body) {
+    const old = document.querySelector('#' + id);
+    if (old) old.remove();
+    const anchor = document.querySelector('#' + after);
+    if (!body || !anchor) return;
+    const section = document.createElement('section');
+    section.className = 'card';
+    section.id = id;
+    section.innerHTML = `<h3 class="card-title">${CARD_ICON} ${esc(title)}</h3><div class="card-body">${body}</div>`;
+    anchor.insertAdjacentElement('afterend', section);
+  }
+
   /** Called by app.js after the report cards are drawn. */
   function render(r) {
     if (typeof document === 'undefined' || !r) return;
-    const engine = document.querySelector('#engine-body');
-    if (engine) engine.innerHTML += engineRowsHtml(r);
+    // Each part on its own: a problem in one extra source never stops the rest of the report.
+    const part = fn => { try { fn(); } catch (err) { console.error('[more-sources]', err); } };
+    part(() => { const engine = document.querySelector('#engine-body'); if (engine) engine.innerHTML += engineRowsHtml(r); });
+    part(() => card('card-production-theft', 'card-plant', 'Production and theft (historical)', theftHtml(r)));
   }
 
-  return { builtHtml, epaHp, engineRowsHtml, render };
+  return { builtHtml, epaHp, engineRowsHtml, theftHtml, render };
 })();
 if (typeof window !== 'undefined') window.MoreSources = MoreSources;
