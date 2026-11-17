@@ -28,6 +28,7 @@ VIN recall status is separate from model-year campaigns. Tesla and Ford provide 
 | NHTSA Complaints | Consumer complaints with crash, fire, injury, and death statistics |
 | NHTSA Safety Ratings | NCAP star ratings for overall, frontal, side, and rollover crash tests |
 | EPA Fuel Economy | City/highway/combined MPG, annual fuel cost, CO2 emissions, EV range and charge time |
+| NHTSA crash-test reports | Door-placard tire size and front/rear cold pressures of the vehicle NHTSA crash-tested, for the exact vPIC make, model and model year (`tire_placard`); NHTSA's test vehicle, not this VIN; the owner's own door placard governs |
 | IMAGIN.studio | Stock vehicle photos from multiple angles |
 
 ## REST API
@@ -55,6 +56,7 @@ Response fields:
 - `complaints` (object): Count, array of complaints, summary with crash/fire/injury/death counts
 - `safety_ratings` (object): NCAP star ratings — overall, frontal driver/passenger, side driver/passenger, rollover
 - `fuel_economy` (object): City/highway/combined MPG, annual fuel cost, CO2 tailpipe g/mi, EV range, charge time
+- `tire_placard` (object): Tire size (with load index and speed symbol) and front/rear recommended cold pressure (psi and kPa) printed in NHTSA crash-test reports for the vehicle NHTSA tested with exactly this vPIC make, model and model year. `scope: "nhtsa_test_vehicle"`, `vin_specific: false`. `vehicles` lists every tested variant with `tested_as`, `tires`, `cold_pressure_psi`, `cold_pressure_kpa`, `report_url`, `test_no` and `confidence` (`high` = two reports agree, `normal` = one report). An empty list means not tested or not indexed, never zero; `available: false` means the index was not checked. No value from another model year or trim is applied and nothing is estimated. The owner's own door placard governs; it can differ by trim and tire size.
 - `photos` (object): URLs for front, rear, side, interior, and detail vehicle photos
 - `raw_nhtsa` (object): Full 140+ field NHTSA decode
 
@@ -187,7 +189,7 @@ npx -y @smithery/cli install @keptlive/vin-mcp --client claude
 ### MCP Tools
 
 #### decode_vin
-Decode a VIN and return a comprehensive vehicle report with specs, recalls, complaints, safety ratings, fuel economy, and photos.
+Decode a VIN and return a comprehensive vehicle report with specs, recalls, complaints, safety ratings, fuel economy, NHTSA test-vehicle tire placard values (`tire_placard`, exact make/model/year, not this VIN's placard), and photos.
 
 Parameters:
 - `vin` (string, required): 17-character Vehicle Identification Number

@@ -118,10 +118,12 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
 
 - **Tire pressures, tire sizes, load index.** FMVSS No. 110 (49 CFR 571.110 S4.3) puts the
   recommended cold pressures and original tire sizes on the Tire and Loading Information
-  placard on the driver's side B-pillar. No federal dataset publishes them per vehicle:
+  placard on the driver's side B-pillar. No federal dataset publishes them per VIN:
   vPIC's 145 variables include only wheel diameter, number of wheels and TPMS type; EPA
   and Canadian specification records have no tire fields. The sheet shows the wheel
   diameter and TPMS type when vPIC has them and leaves write-in fields for the placard.
+  Above those fields it shows the placard values of NHTSA's own crash-test vehicle when one
+  was tested with the exact make, model and model year (next section).
 - **Fuse layout, oil, fluids, tank size, towing.** These are in the copyrighted owner's
   manual. The sheet links to the maker's official manual library and copies nothing.
   Verified with a plain request: Chevrolet, GMC, Buick and Cadillac `manuals-guides`,
@@ -131,3 +133,33 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   on the sheet, labelled as not VIN-specific. Some model names differ from vPIC's
   ("Bolt EV" is "BOLT 4DR HATCHBACK"), so an empty lookup is retried once with the first
   word of the model and the matched record names are printed.
+
+
+## NHTSA test-vehicle tire placard (`tire_placard`, added 17 November 2026)
+
+- **Source.** NHTSA's vehicle crash-test database (`nrd.api.nhtsa.dot.gov`, public, no key)
+  lists every NCAP and FMVSS compliance test with its report PDFs on `nrd-static.nhtsa.dot.gov`.
+  Data Sheet No. 1 of each report copies the test vehicle's Tire and Loading Information
+  placard: recommended tire size front and rear, cold pressure front and rear in kPa, load
+  index and speed symbol. The test vehicle's VIN is printed in the same report.
+- **Build (offline, not at request time).** The research pipeline downloads each report once,
+  extracts the data sheet text, deletes the PDF, and keeps the matched lines as evidence. Each
+  test vehicle's own VIN is decoded with vPIC `DecodeVINValuesBatch` to get the key: vPIC make,
+  model and model year, the same names a decoded VIN gets on this site. Rows are rejected (and
+  listed for review, never fixed by hand) when a size is malformed, a pressure is missing or
+  outside 180-420 kPa (620 for LT tires), the report disagrees with itself, the VIN fails its
+  check digit, or the VIN's model year differs from the report's. Two reports for the same
+  vehicle that agree give `confidence: high`; one report gives `normal`; two that disagree are
+  excluded. psi is kPa / 6.894757 rounded; reports print kPa.
+- **Shipped file.** `data-src/tire-placards.jsonl` (+ `.meta.json`) is the cleaned list.
+  `python3 scripts/import-tire-placards.py` validates every row (sizes, ranges, psi/kPa
+  agreement, NHTSA report URL, confidence rules) and atomically writes `data/tire-placards.db`;
+  one bad row fails the whole import. `lib/tire-placards.mjs` reads it.
+- **Matching.** Exact vPIC make + model + model year, case- and space-insensitive and nothing
+  else: `F150` does not match `F-150`, and no other model year's values are applied. Every
+  tested variant (for example two tire sizes) is listed with its report link.
+- **Meaning.** These are the values of the one vehicle NHTSA tested, not of the decoded VIN.
+  The owner's own door placard governs; it can differ by trim and tire size. No match means
+  not tested or not indexed, never zero. `available: false` means the index was not present.
+- **Refresh.** NHTSA adds tests every model year. Re-running the research pipeline and the
+  importer picks them up; nothing is fetched by the site itself.
