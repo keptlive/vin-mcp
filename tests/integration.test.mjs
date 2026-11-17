@@ -110,6 +110,8 @@ test('grouped tool directory matches registered MCP tools and mutation hints',as
 test('REST endpoints, direct VIN page and educational pages remain available',async()=>{
  for(const endpoint of ['/health','/api/status','/'+vin,'/free-vin-check/','/vin-decoder-api/','/vehicle-safety-recalls/','/vehicle-history-reports/','/app.js','/style.css'])assert.equal((await req(endpoint)).status,200,endpoint);
  for(const part of ['validate','recalls','complaints','safety','fuel'])assert.equal((await req(`/api/vin/${vin}/${part}`)).status,200,part);
+ const recalls=await(await req(`/api/vin/${vin}/recalls`)).json();assert.equal(recalls.count,0);assert.equal(recalls.related_models.available,true);
+ assert.equal(recalls.related_campaigns_found,false);assert.equal(recalls.related_models.label_sources.flat_file_index,'not_installed');
  const photo=await fetch(base+`/api/vin/${vin}/photo`,{redirect:'manual'});assert.equal(photo.status,302);
 });
 test('bad JSON and malformed batches return JSON errors',async()=>{
@@ -130,7 +132,7 @@ test('remote MCP initializes, lists all twenty-two tools, validates, decodes and
  r=await client.callTool({name:'update_output_preferences',arguments:{user_token:token,show_engine:true}});assert.equal(r.isError,undefined);
  r=await client.callTool({name:'get_output_preferences',arguments:{user_token:token}});assert.equal(JSON.parse(r.content[0].text).show_engine,1);
  r=await client.callTool({name:'list_saved_vins',arguments:{user_token:token}});assert.equal(JSON.parse(r.content[0].text).length,1);
- r=await client.callTool({name:'lookup_recalls',arguments:{make:'Honda',model:'Accord',year:2003}});assert.equal(JSON.parse(r.content[0].text).vin_specific,false);
+ r=await client.callTool({name:'lookup_recalls',arguments:{make:'Honda',model:'Accord',year:2003}});assert.equal(JSON.parse(r.content[0].text).vin_specific,false);assert.equal(JSON.parse(r.content[0].text).related_models.vin_specific,false);
  r=await client.callTool({name:'batch_decode',arguments:{vins:[]}});assert.equal(r.isError,true);
  }finally{await transport.terminateSession();await client.close();}
 });

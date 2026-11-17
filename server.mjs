@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { validateVin, normalizeVin } from './lib/validate.mjs';
-import { decodeVin as nhtsaDecode, batchDecode, getRecalls, getComplaints, getSafetyRatings } from './lib/nhtsa.mjs';
+import { decodeVin as nhtsaDecode, batchDecode, getComplaints, getSafetyRatings } from './lib/nhtsa.mjs';
 import { getFuelEconomy } from './lib/epa.mjs';
 import { getPhotoUrl } from './lib/photo.mjs';
 import { vinCache } from './lib/cache.mjs';
@@ -21,7 +21,7 @@ import { scenario } from './lib/scenario.mjs';
 import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
 import { vinRecallStatus } from './lib/recall-status.mjs';
-import { fullReport, baseReport, restReport, compareVehicles } from './lib/reports.mjs';
+import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls } from './lib/reports.mjs';
 import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
 import { readFile } from 'node:fs/promises';
 import { createToolRegistry } from './lib/mcp/index.mjs';
@@ -470,7 +470,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
       const decoded = await nhtsaDecode(normalizeVin(req.params.vin));
       if (!decoded) return res.status(400).json({ error: 'Could not decode VIN' });
       const { make, model, year } = decoded.vehicle;
-      res.json(await getRecalls(make, model, year) || { count: 0, recalls: [] });
+      res.json(await modelYearRecalls(make, model, year) || { count: 0, recalls: [] });
     } catch (err) { safeError(res, err); }
   });
 

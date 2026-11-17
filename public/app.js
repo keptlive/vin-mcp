@@ -173,6 +173,11 @@ function renderHero(r) {
     badges.push(`<span class="badge badge-red">${recallCount} model-year recall campaign${recallCount > 1 ? 's' : ''}</span>`);
   } else if (r.recalls?.available === false) {
     badges.push(`<span class="badge badge-neutral">Recall lookup unavailable</span>`);
+  } else if (r.recalls?.related_campaigns_found === true) {
+    // Zero under the exact model name is not "no campaigns" when NHTSA files them under a related name.
+    badges.push(`<span class="badge badge-neutral">Campaigns under related model names</span>`);
+  } else if (r.recalls?.related_campaigns_found === null || r.recalls?.related_models?.decoded_name_in_recall_data === false) {
+    badges.push(`<span class="badge badge-neutral">Campaigns may be under another model name</span>`);
   } else {
     badges.push(`<span class="badge badge-green">No model-year campaigns found</span>`);
   }
@@ -353,10 +358,16 @@ function renderCampaigns(r) {
     $('#recalls-body').innerHTML = '<div class="empty-state">Recall lookup is temporarily unavailable. Please try again.</div>';
     return;
   }
+  const related = relatedCampaignsHTML(rec);
   if (count === 0) {
+    const nameUnused = rec?.related_models?.decoded_name_in_recall_data === false;
     badge.textContent = '0';
-    badge.className = 'count-badge count-green';
-    $('#recalls-body').innerHTML = '<div class="empty-state">No campaigns found for this make, model and year. Check your VIN at NHTSA for unrepaired recalls.</div>';
+    // Green only when related model names were checked, carry nothing more, and NHTSA uses this model name.
+    badge.className = rec?.related_campaigns_found === true || rec?.related_campaigns_found === null || nameUnused ? 'count-badge' : 'count-badge count-green';
+    $('#recalls-body').innerHTML = (rec?.related_campaigns_found === true
+      ? '<div class="empty-state">No campaigns are filed under this exact make, model and year. NHTSA lists campaigns under related model names below. Check your VIN at NHTSA for unrepaired recalls.</div>'
+      : nameUnused ? '<div class="empty-state">No campaigns are filed under this exact make, model and year. NHTSA has never filed a recall under this model name, so campaigns for this vehicle may be listed under another name. Check your VIN at NHTSA for unrepaired recalls.</div>'
+      : '<div class="empty-state">No campaigns found for this make, model and year. Check your VIN at NHTSA for unrepaired recalls.</div>') + related;
     return;
   }
 
@@ -388,7 +399,32 @@ function renderCampaigns(r) {
          </div>`).join('')}</div>`
     : '';
 
-  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected. <a href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener">Check VIN-specific repair status at NHTSA</a>.</p>' + items + showMore;
+  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected. <a href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener">Check VIN-specific repair status at NHTSA</a>.</p>' + items + showMore + related;
+}
+
+// Campaigns NHTSA files under other model names (CR-V HYBRID for a CR-V, F150 for F-150).
+// Shown apart from the exact list and never added to its count.
+const RELATED_MATCH_TEXT = { longer_name: 'longer model name', spelling: 'different spelling', parenthetical: 'name without the bracketed part', family_name: 'model within the family', make_name: 'name with or without the make', shorter_name: 'shorter model name', trailing_name: 'last part of the model name' };
+function relatedCampaignsHTML(rec) {
+  const rel = rec?.related_models;
+  if (rec?.related_campaigns_found === null) return '<p class="empty-state">Related NHTSA model names could not be checked, so campaigns filed under another model name may be missing.</p>';
+  const flatOnly = rel?.available && rel.flat_file_only?.count ? rel.flat_file_only : null;
+  if (!rel?.available || (!rel.count && !flatOnly)) return '';
+  const groups = rel.models.map(m => `
+    <div class="recall-item">
+      <div class="recall-component">NHTSA model name: ${esc(m.nhtsa_model)}${RELATED_MATCH_TEXT[m.match] ? ` (${esc(RELATED_MATCH_TEXT[m.match])})` : ''}</div>
+      ${m.recalls.map(recall => `<div class="recall-details">
+        <div><span class="recall-detail-label">${esc(recall.component || 'Unknown Component')}</span></div>
+        <div class="recall-summary">${esc(recall.summary || '')}</div>
+        ${recall.campaign_number ? `<div><span class="recall-detail-label">Campaign:</span> ${esc(recall.campaign_number)}</div>` : ''}
+        ${recall.report_received_date || recall.report_date ? `<div><span class="recall-detail-label">Reported to NHTSA:</span> ${esc(recall.report_received_date || recall.report_date)}</div>` : ''}
+      </div>`).join('')}
+    </div>`).join('');
+  const flatList = flatOnly ? `<div class="recall-item"><div class="recall-component">Listed in NHTSA's recall file but not returned by NHTSA's live lookup · ${esc(flatOnly.count)}</div><div class="recall-details">${flatOnly.campaigns.map(c => `<div><span class="recall-detail-label">Campaign:</span> ${esc(c.campaign_number)} (filed as ${esc(c.nhtsa_model)})</div>`).join('')}</div></div>` : '';
+  const total = (rel.count || 0) + (flatOnly?.count || 0);
+  const unchecked = rel.unchecked_labels?.length ? `<p class="empty-state">${esc(rel.unchecked_labels.length)} more related model name${rel.unchecked_labels.length === 1 ? ' was' : 's were'} not checked.</p>` : '';
+  return `<h3>Related model names · ${esc(total)} campaign${total === 1 ? '' : 's'}</h3>
+    <p class="empty-state">These may or may not apply to this vehicle. NHTSA files them for the same make and year under another model name, such as a hybrid or body-style name. They are not counted above. Check your VIN with the manufacturer or NHTSA.</p>${groups}${flatList}${unchecked}`;
 }
 
 window.toggleRecalls = function(btn) {
