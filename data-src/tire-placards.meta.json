@@ -1,0 +1,14 @@
+{
+ "status": "partial: 102 of 1729 queued report downloads done (download paused); most covered vehicles are model years 2024-2026",
+ "generated_at": "2026-11-17T04:51:34+00:00",
+ "source": "NHTSA vehicle crash-test database (nrd.api.nhtsa.dot.gov) report PDFs (nrd-static.nhtsa.dot.gov): data sheet No. 1, vehicle tire information (placard). Keys from vPIC DecodeVINValuesBatch of each test vehicle's own VIN.",
+ "rows": 94,
+ "reports_used": 98,
+ "reports_parsed": 103,
+ "rejected_rows": 5,
+ "confidence": {
+  "normal": 90,
+  "high": 4
+ },
+ "rules": "Exact vPIC make + model + model year only; values as printed (kPa), psi = kPa / 6.894757 rounded; no carry-over between model years; high = two reports agree, normal = one report; disagreements are excluded."
+}

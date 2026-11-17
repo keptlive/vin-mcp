@@ -57,6 +57,14 @@ class TirePlacardImportTest(unittest.TestCase):
             self.assertEqual(target.read_bytes(), before)
             self.assertEqual(list(root.glob('tire-placards-build-*')), [])
 
+    def test_tire_size_forms_as_printed(self):
+        # Forms the NHTSA data sheets print: plain metric, P-metric with a space, ZR, LT with dual load index,
+        # and the HL (high load) prefix with the XL marker (VW ID.Buzz 2025).
+        for good in ('275/60R20 115T', 'P225/45 R18 95Y', 'P245/40ZR20 95Y', 'LT265/70R18 124/121S', '235/80R17LT', 'HL 235/50R20 XL 107T'):
+            self.assertTrue(importer.SIZE.match(good), good)
+        for bad in ('235/50R20 XXL', 'XL 235/50R20', '235/5R20', '235/50 20', 'HL'):
+            self.assertFalse(importer.SIZE.match(bad), bad)
+
     def test_key_matches_runtime_rule(self):
         self.assertEqual(importer.key('  mercedes-benz '), 'MERCEDES-BENZ')
         self.assertEqual(importer.key('Model  3'), 'MODEL 3')

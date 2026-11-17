@@ -19,7 +19,7 @@ SOURCE_META = ROOT / 'data-src/tire-placards.meta.json'
 TARGET = ROOT / 'data/tire-placards.db'
 KPA_PER_PSI = 6.894757
 REPORT_HOST = 'https://nrd-static.nhtsa.dot.gov/'
-SIZE = re.compile(r'^(LT|P|T)?\s?\d{3}/\d{2}\s?(ZR|RF|R)\s?\d{2}(\.\d)?(\s?LT)?(\s\d{2,3}(/\d{2,3})?\s?\(?[A-Z]{0,2}\)?)?$')
+SIZE = re.compile(r'^(LT|P|T|HL)?\s?\d{3}/\d{2}\s?(ZR|RF|R)\s?\d{2}(\.\d)?(\s?(LT|XL))?(\s\d{2,3}(/\d{2,3})?\s?\(?[A-Z]{0,2}\)?)?$')
 
 
 def key(text):
@@ -104,7 +104,7 @@ def build(source, target, meta_path=None):
         metadata = {'source': 'NHTSA vehicle crash-test reports (NCAP and FMVSS compliance data sheets), nrd-static.nhtsa.dot.gov',
                     'dataset_file': str(Path(source).name), 'sha256': hashlib.sha256(payload).hexdigest(), 'rows': len(rows),
                     'keys': len({r[:3] for r in rows}), 'dataset_generated_at': meta_in.get('generated_at'),
-                    'reports_used': meta_in.get('reports_used'), 'indexed_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+                    'reports_used': meta_in.get('reports_used'), 'dataset_status': meta_in.get('status'), 'indexed_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
         db.execute('INSERT INTO metadata VALUES(?,?)', ('source', json.dumps(metadata)))
         db.commit()
         if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
