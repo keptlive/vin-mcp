@@ -130,17 +130,21 @@ $$('[data-vin]').forEach(el => {
 
 // ── Render Results ──
 function renderResults(report) {
+  report = window.OwnerDetails?.applyToReport(report) || report; // the owner's stated transmission (public/owner-details.js)
   renderHero(report);
   window.CarSheet?.render(report);
   renderOverview(report);
   renderEngine(report);
+  renderDecodeChecks(report); // checks on the official decode (public/decode-checks.js)
   renderSafetyRatings(report);
+  window.TestVehicle?.render(report); // FMVSS 135 brake test block (public/test-vehicle.js)
   renderFuel(report);
   renderRecalls(report);
   renderComplaints(report);
   renderSafetyEquipment(report);
   renderPlant(report);
   renderRaw(report);
+  window.MoreSources?.render(report); // extra official sources (public/more-sources.js)
   if (typeof window !== 'undefined') window.VinWorkspace?.reportUpdated(report);
 }
 
@@ -244,21 +248,35 @@ function renderOverview(r) {
 function renderEngine(r) {
   const e = r.engine || {};
   const t = r.transmission || {};
+  // third item: the decode-check field (lib/decode-checks.mjs) whose corrected, doubtful or filled value is marked
   const rows = [
     ['Engine', e.type],
-    ['Cylinders', e.cylinders],
-    ['Displacement', e.displacement_l ? `${Number(e.displacement_l).toFixed(1)}L` : null],
+    ['Cylinders', e.cylinders, 'cylinders'],
+    ['Displacement', e.displacement_l ? `${Number(e.displacement_l).toFixed(1)}L` : null, 'engine_size'],
     ['Horsepower', e.hp ? `${e.hp} HP` : null],
-    ['Fuel Type', e.fuel_type],
+    ['Fuel Type', e.fuel_type, e.ev_type ? null : 'powertrain'],
     ['Fuel Injection', e.fuel_injection],
     ['Turbo', e.turbo],
-    ['Transmission', t.type],
-    ['Speeds', t.speeds],
-    ['Drive Type', t.drive_type],
-    ['EV Type', e.ev_type],
+    ['Transmission', t.type, 'transmission'],
+    ['Speeds', t.speeds, 'speeds'],
+    ['Drive Type', t.drive_type, 'drive'],
+    ['EV Type', e.ev_type, e.ev_type ? 'powertrain' : null],
     ['Battery', e.battery_kwh ? `${e.battery_kwh} kWh` : null],
   ];
-  $('#engine-body').innerHTML = rows.map(([l, v]) => dataRow(l, v)).join('');
+  $('#engine-body').innerHTML = rows.map(([l, v, f]) => checkedRow(r, l, v, f)).join('');
+}
+
+/** A data row whose value the decode checks corrected, doubted or filled: marked, the official value kept visible. */
+function checkedRow(r, label, value, field) {
+  const dc = window.DecodeChecks, c = field && dc ? dc.check(r, field) : null;
+  if (!c || !['corrected', 'doubtful', 'filled'].includes(c.status)) return dataRow(label, value);
+  return `<div class="data-row"><span class="data-label">${esc(label)}</span><span class="data-value">${dc.valueHtml(r, field, value)}</span></div>`;
+}
+
+// ── Decode checks card ──
+function renderDecodeChecks(r) {
+  const body = $('#decode-checks-body');
+  if (body) body.innerHTML = window.DecodeChecks ? window.DecodeChecks.cardHtml(r) : '';
 }
 
 // ── Safety Ratings Card ──
@@ -298,13 +316,43 @@ function renderSafetyRatings(r) {
 }
 
 // ── Fuel Economy Card ──
+// The transmission assumption or the owner's choice, and the switch, lead the card (public/owner-details.js).
 function renderFuel(r) {
+  const tc = r.fuel_economy?.transmission_choice; // its label leads the card, so the summary below does not repeat it
+  renderFuelBody(tc && r.fuel_economy.summary ? {...r, fuel_economy: {...r.fuel_economy, summary: String(r.fuel_economy.summary).replace(tc.label + ': ', '')}} : r);
+  const control = window.OwnerDetails?.controlHtml(r.fuel_economy, r.vin);
+  if (control) $('#fuel-body').insertAdjacentHTML('afterbegin', control);
+}
+function rerenderOwnerView(focusChoice) {
+  if (!currentReport) return;
+  const view = window.OwnerDetails?.applyToReport(currentReport) || currentReport;
+  renderFuel(view); window.CarSheet?.render(view); window.VinWorkspace?.reportUpdated(view);
+  if (focusChoice) $('#fuel-body [data-owner-transmission]')?.focus();
+}
+$('#fuel-body').addEventListener('click', async e => {
+  const b = e.target.closest('[data-owner-transmission],[data-owner-save]');
+  if (!b || !currentReport || !window.OwnerDetails) return;
+  if (b.hasAttribute('data-owner-save')) { editVehicleLabel(currentReport.vin); return; }
+  const token = authToken, t = b.dataset.ownerTransmission; b.disabled = true;
+  try {
+    const kept = await OwnerDetails.set(currentReport.vin, {transmission: t}, {request: accountRequest});
+    if (token !== authToken) return;
+    rerenderOwnerView(true);
+    toast(`${t === 'manual' ? 'Manual' : 'Automatic'} transmission ${kept === 'account' ? 'saved with this vehicle' : kept === 'session' ? 'kept for this visit' : 'saved in this browser'}`);
+  } catch (err) { b.disabled = false; toast('Your choice could not be saved. ' + err.message, 'error'); }
+});
+function renderFuelBody(r) {
   const f = r.fuel_economy;
   if (!f || !f.available) {
+    // Several EPA configurations fit: their range and each one (public/more-sources.js).
+    const several = window.MoreSources?.fuelSeveralHtml?.(f);
+    if (several) { $('#fuel-body').innerHTML = several; return; }
     const message = f?.reason === 'ambiguous_variant' ? 'Multiple EPA variants match. Fuel economy cannot be assigned confidently to this VIN.'
       : f?.reason === 'no_matching_variant' ? 'No EPA variant matches the decoded engine and transmission.'
-      : f?.reason === 'upstream_error' ? 'EPA lookup is temporarily unavailable. Please try again.' : 'No fuel economy data available';
-    $('#fuel-body').innerHTML = `<div class="empty-state">${message}</div>`;
+      : f?.reason === 'upstream_error' ? 'EPA lookup is temporarily unavailable. Please try again.'
+      : f?.reason === 'heavy_duty_not_rated' ? 'EPA fuel economy ratings do not cover heavy-duty pickups and vans (gross vehicle weight rating over 8,500 lb).' : 'No fuel economy data available';
+    const checked = f?.match_basis?.length && f.reason !== 'heavy_duty_not_rated' ? `<p class="small source-note">Checked: ${esc(f.match_basis.join('; '))}.</p>` : '';
+    $('#fuel-body').innerHTML = `<div class="empty-state">${message}</div>${checked}`;
     return;
   }
 
@@ -319,16 +367,17 @@ function renderFuel(r) {
   const details = [
     ['Fuel Type', f.fuel_type],
     ['Annual Fuel Cost', f.annual_fuel_cost ? `$${f.annual_fuel_cost}` : null],
-    ['CO2 (g/mile)', f.co2_grams_per_mile],
+    ['CO2 (g/mile)', f.co2_grams_per_mile == null ? null : Math.round(f.co2_grams_per_mile)], // the vehicle table carries EPA's unrounded figure (403.9545...)
     ['CO2 (tailpipe)', f.co2_tailpipe],
     ['Fuel Grade', f.fuel_grade],
     ['EV Range', f.ev_range ? `${f.ev_range} mi` : null],
+    ['Total range (gas + electric)', f.total_range ? `${f.total_range} mi` : null],
     ['Charge Time (240V)', f.ev_charge_time_240v ? `${f.ev_charge_time_240v} hr` : null],
     ['EPA Variant', f.matched_variant],
     ['kWh/100mi', f.kwh_per_100mi],
   ];
 
-  $('#fuel-body').innerHTML = mpgRow + details.map(([l, v]) => dataRow(l, v)).join('');
+  $('#fuel-body').innerHTML = mpgRow + details.map(([l, v]) => dataRow(l, v)).join('') + (window.MoreSources?.fuelMatchNote?.(f) || '');
 }
 
 // ── Recalls Card ──
@@ -384,6 +433,7 @@ function renderCampaigns(r) {
         ${recall.remedy ? `<div><span class="recall-detail-label">Remedy:</span> ${esc(recall.remedy)}</div>` : ''}
         ${recall.campaign_number ? `<div><span class="recall-detail-label">Campaign:</span> ${esc(recall.campaign_number)}</div>` : ''}
         ${recall.report_received_date || recall.report_date ? `<div><span class="recall-detail-label">Reported to NHTSA:</span> ${esc(recall.report_received_date || recall.report_date)}</div>` : ''}
+        ${window.MoreSources?.builtHtml(recall) || ''}
         ${recall.park_it ? `<div><span class="recall-detail-label">NHTSA advisory:</span> Park it: do not drive until repaired</div>` : ''}
         ${recall.park_outside ? `<div><span class="recall-detail-label">NHTSA advisory:</span> Park outside and away from structures</div>` : ''}
       </div>
@@ -396,6 +446,7 @@ function renderCampaigns(r) {
          <div class="recall-item">
            <div class="recall-component">${esc(recall.component || 'Unknown Component')}</div>
            <div class="recall-summary">${esc(recall.summary || '')}</div>
+           ${window.MoreSources?.builtHtml(recall) || ''}
          </div>`).join('')}</div>`
     : '';
 
@@ -418,9 +469,10 @@ function relatedCampaignsHTML(rec) {
         <div class="recall-summary">${esc(recall.summary || '')}</div>
         ${recall.campaign_number ? `<div><span class="recall-detail-label">Campaign:</span> ${esc(recall.campaign_number)}</div>` : ''}
         ${recall.report_received_date || recall.report_date ? `<div><span class="recall-detail-label">Reported to NHTSA:</span> ${esc(recall.report_received_date || recall.report_date)}</div>` : ''}
+        ${window.MoreSources?.builtHtml(recall) || ''}
       </div>`).join('')}
     </div>`).join('');
-  const flatList = flatOnly ? `<div class="recall-item"><div class="recall-component">Listed in NHTSA's recall file but not returned by NHTSA's live lookup · ${esc(flatOnly.count)}</div><div class="recall-details">${flatOnly.campaigns.map(c => `<div><span class="recall-detail-label">Campaign:</span> ${esc(c.campaign_number)} (filed as ${esc(c.nhtsa_model)})</div>`).join('')}</div></div>` : '';
+  const flatList = flatOnly ? `<div class="recall-item"><div class="recall-component">Listed in NHTSA's recall file but not returned by NHTSA's live lookup · ${esc(flatOnly.count)}</div><div class="recall-details">${flatOnly.campaigns.map(c => `<div><span class="recall-detail-label">Campaign:</span> ${esc(c.campaign_number)} (filed as ${esc(c.nhtsa_model)})</div>${window.MoreSources?.builtHtml(c) || ''}`).join('')}</div></div>` : '';
   const total = (rel.count || 0) + (flatOnly?.count || 0);
   const unchecked = rel.unchecked_labels?.length ? `<p class="empty-state">${esc(rel.unchecked_labels.length)} more related model name${rel.unchecked_labels.length === 1 ? ' was' : 's were'} not checked.</p>` : '';
   return `<h3>Related model names · ${esc(total)} campaign${total === 1 ? '' : 's'}</h3>
@@ -731,7 +783,7 @@ function openHistory() { window.VinWorkspace?.navigate('saved'); renderHistory()
 function closeHistory() { /* Recent vehicles are an inline workspace view. */ }
 $('#history-toggle').addEventListener('click', openHistory);
 $('#history-close').addEventListener('click', () => window.VinWorkspace?.navigate('report'));
-$('#clear-history').addEventListener('click', () => { localStorage.removeItem(HISTORY_KEY); renderHistory(); });
+$('#clear-history').addEventListener('click', () => { localStorage.removeItem(HISTORY_KEY); window.OwnerDetails?.clear('browser'); renderHistory(); rerenderOwnerView(); });
 
 function checkUrlVin() {
   const match = window.location.pathname.match(new RegExp('^/([A-HJ-NPR-Z0-9]{17})$', 'i'));
@@ -868,6 +920,7 @@ $('#register-form').addEventListener('submit', e => authenticate(e, true));
 $('#logout-btn').addEventListener('click', () => {
   authRevision++; authToken = null; currentUser = null; userPrefs = null; savedVinsList = [];
   localStorage.removeItem('vin-auth-token');
+  window.OwnerDetails?.setAccount([], false); window.OwnerDetails?.clear('session'); rerenderOwnerView();
   $('#saved-status').textContent = '';
   updateAuthUI(); applyPreferences(); toast('Signed out');
   $('#login-btn').focus();
@@ -884,6 +937,7 @@ $('#delete-form').addEventListener('submit', async e => {
     await accountRequest('/api/auth/account', {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#delete-password').value})});
     authRevision++; authToken = null; currentUser = null; userPrefs = null; savedVinsList = [];
     localStorage.removeItem('vin-auth-token');
+    window.OwnerDetails?.setAccount([], false); window.OwnerDetails?.clear('session'); rerenderOwnerView();
     $('#delete-password').value = ''; $('#saved-status').textContent = '';
     closeDialog('#delete-modal'); updateAuthUI(); applyPreferences(); toast('Account deleted');
     $('#login-btn').focus();
@@ -897,6 +951,7 @@ async function loadSavedVins() {
     const data = await accountRequest('/api/user/vins');
     if (token !== authToken) return;
     savedVinsList = data; $('#saved-status').textContent = ''; renderSavedVins();
+    window.OwnerDetails?.setAccount(data, true); rerenderOwnerView();
   } catch (err) { if (token === authToken) $('#saved-status').textContent = 'Saved vehicles could not be loaded. ' + err.message; }
 }
 function updateSaveButton(vin) {
@@ -914,6 +969,11 @@ function editVehicleLabel(vin) {
   $('#label-vin').textContent = vin;
   $('#vehicle-label').value = existing?.label || '';
   $('#label-error').hidden = true;
+  // A transmission the owner stated before saving goes with the vehicle; the dialog says so.
+  const details = !existing && window.OwnerDetails?.get(vin);
+  labelTarget.owner_details = details || null;
+  $('#label-details').textContent = details ? `Your choice, ${details.transmission} transmission, is saved with it.` : '';
+  $('#label-details').hidden = !details;
   openDialog('#label-modal', '#vehicle-label');
 }
 $('#save-vin-btn').addEventListener('click', () => { if (currentReport) editVehicleLabel(currentReport.vin); });
@@ -923,7 +983,7 @@ $('#label-form').addEventListener('submit', async e => {
   const token = authToken, target = {...labelTarget}, label = $('#vehicle-label').value.trim(), button = $('#label-submit');
   button.disabled = true; $('#label-error').hidden = true;
   try {
-    await accountRequest(target.id ? '/api/user/vins/' + target.id : '/api/user/vins', {method:target.id ? 'PUT' : 'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vin:target.vin,label})});
+    await accountRequest(target.id ? '/api/user/vins/' + target.id : '/api/user/vins', {method:target.id ? 'PUT' : 'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vin:target.vin,label,...(!target.id && target.owner_details ? {owner_details:target.owner_details} : {})})});
     if (token !== authToken) return;
     await loadSavedVins(); updateSaveButton(currentReport?.vin); closeDialog('#label-modal'); toast(target.id ? 'Label updated' : 'Vehicle saved');
   } catch (err) { $('#label-error').textContent = err.message; $('#label-error').hidden = false; }

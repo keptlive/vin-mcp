@@ -44,7 +44,7 @@ function workspace(overrides={}){
  const context={document,location,Intl,URL,URLSearchParams,Date,console,setTimeout,Blob,
   VinClient:class{constructor(){return api;}},
   FormData:class{constructor(form){this.form=form;}*[Symbol.iterator](){for(const [name,field] of Object.entries(this.form.fields))yield [name,field.value];}},
-  addEventListener:(name,fn)=>events.set(name,fn),window:{print(){printCalls++;}}
+  addEventListener:(name,fn)=>events.set(name,fn),window:{print(){printCalls++;},...overrides.__window}
  };
  vm.createContext(context);
  vm.runInContext(readFileSync(new URL('../public/research/research.js',import.meta.url),'utf8').replace(/^import .*\n/,''),context);
@@ -84,6 +84,26 @@ test('changing comparison VINs blocks printing and discards an older response',a
  assert.match(w.get('#compare-result').innerHTML,/Current vehicle/);assert.doesNotMatch(w.get('#compare-result').innerHTML,/Stale vehicle/);
  w.get('#print-view').onclick();assert.equal(w.printCalls(),1);
  input.value+=' changed';w.beforePrint();assert.equal(w.get('#compare-result').innerHTML,'');
+});
+
+test('comparison: a range of EPA configurations is shown as a range; the transmission assumption or the owner\'s choice is marked',async()=>{
+ // public/owner-details.js with this browser's stored choice (signed out): manual for the first VIN
+ const store=new Map([['vin-owner-details',JSON.stringify({'3N1CN7AP0GL800001':{transmission:'manual'}})]]);
+ const win={localStorage:{getItem:k=>store.get(k)??null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)},sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}}};
+ vm.runInContext(readFileSync(new URL('../public/owner-details.js',import.meta.url),'utf8'),vm.createContext({window:win}));
+ const choice=(vin,auto,manual)=>({vin,vehicle:{model:'Fixture'},fuel_economy:{...auto,summary:'Assuming an automatic transmission (the VIN does not say): x',match_basis:[],assumed:{transmission:'automatic'},
+  transmission_choice:{chosen:'automatic',basis:'assumed',label:'Assuming an automatic transmission (the VIN does not say)',options:['automatic','manual']},alternatives:[{for_transmission:'manual',...manual,summary:'y',match_basis:[]}]}});
+ const reports=[choice('3N1CN7AP0GL800001',{available:true,match:'exact',combined_mpg:34},{available:true,match:'exact',combined_mpg:30}),
+  choice('3N1CN7AP0GL800002',{available:false,match:'multiple_configurations',mpg_range:{unit:'mpg',combined:{min:31,max:33}}},{available:true,match:'exact',combined_mpg:29}),
+  {vin:'1HGCM82633A004352',vehicle:{model:'Plain'},fuel_economy:{available:false,match:'multiple_configurations',mpg_range:{unit:'mpg',combined:{min:22,max:25}}}}];
+ const w=workspace({compare:async()=>({note:'n',results:reports.map(report=>({vin:report.vin,report}))}),__window:{print(){},OwnerDetails:win.OwnerDetails}});
+ for(const s of w.sections)s.hidden=s.id!=='compare';
+ w.get('#vins').value=reports.map(r=>r.vin).join(' ');
+ await w.get('#compare-form').onsubmit({preventDefault(){},submitter:w.get('#compare-form button')});
+ const row=w.get('#compare-result').innerHTML.split('</tr>').find(r=>/Combined MPG/.test(r));
+ assert.match(row,/30 MPG \(manual, as you said\)/);
+ assert.match(row,/31-33 MPG \(range of EPA configurations\) \(automatic assumed; the VIN does not say\)/);
+ assert.match(row,/22-25 MPG \(range of EPA configurations\)<\/td>/);
 });
 
 for(const evidence of ['communications','investigations'])test('a late '+evidence+' response cannot replace a newer evidence search',async()=>{

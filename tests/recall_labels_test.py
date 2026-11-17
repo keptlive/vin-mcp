@@ -4,9 +4,10 @@ spec = importlib.util.spec_from_file_location('importer', pathlib.Path(__file__)
 importer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(importer)
 
-def row(record, campaign, make, model, year, rcdate='20240401'):
+def row(record, campaign, make, model, year, rcdate='20240401', begin='', end='', units=''):
     r = [''] * 29
     r[0], r[1], r[2], r[3], r[4], r[15] = record, campaign, make, model, year, rcdate
+    r[8], r[9], r[11] = begin, end, units
     return '\t'.join(r)
 
 class RecallLabelImportTest(unittest.TestCase):
@@ -35,6 +36,37 @@ class RecallLabelImportTest(unittest.TestCase):
             with self.assertRaises(ValueError): importer.build({'FLAT_RCL_POST_2010.zip': post}, target)
             self.assertEqual(target.read_bytes(), before)
             self.assertEqual(list(root.glob('recall-labels-build-*')), [])
+
+    def test_build_dates_are_validated_kept_per_campaign_row_and_never_guessed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory); target = root/'recall-labels.db'; post = root/'FLAT_RCL_POST_2010.zip'
+            with zipfile.ZipFile(post, 'w') as z:
+                z.writestr('FLAT_RCL_POST_2010.txt', '\n'.join([
+                    row('1', '11V562000', 'SUBARU', 'OUTBACK', '2012', begin='20111017', end='20111123', units='32685'),
+                    row('2', '11V562000', 'SUBARU', 'LEGACY', '2012', begin='20111017', end='20111123', units='32685'),
+                    row('3', '12V001000', 'FORD', 'F-150', '2012', begin='20110105', end='20110301'),
+                    row('4', '12V001000', 'FORD', 'F150', '2012', begin='20110201', end='20110415'),  # same label once compacted
+                    row('5', '12V002000', 'FORD', 'F-150', '2012', begin='20120230', end='20120301'),  # 30 February
+                    row('6', '12V003000', 'FORD', 'F-150', '2012', begin='20120401', end='20120301'),  # begin after end
+                    row('7', '12V004000', 'FORD', 'F-150', '2012', begin='20120401'),                  # no end date filed
+                    row('8', '12V005000', 'FORD', 'F-150', '2012', units='0'), '']))
+            receipt = importer.build({'FLAT_RCL_POST_2010.zip': post}, target)
+            self.assertEqual(receipt['campaign_rows'], 7); self.assertEqual(receipt['campaign_rows_with_build_dates'], 5)
+            self.assertEqual(receipt['build_date_values']['reversed'], 1); self.assertEqual(receipt['build_date_values']['invalid'], 1)
+            with sqlite3.connect(target) as db:
+                q = lambda c, m: db.execute('SELECT built_from, built_to, distinct_ranges FROM campaign_builds WHERE campaign=? AND model_compact=?', (c, m)).fetchone()
+                self.assertEqual(q('11V562000', 'OUTBACK'), ('2011-10-17', '2011-11-23', 1))
+                self.assertEqual(q('12V001000', 'F150'), ('2011-01-05', '2011-04-15', 2))
+                self.assertEqual(q('12V002000', 'F150'), (None, '2012-03-01', 1))
+                self.assertIsNone(q('12V003000', 'F150')); self.assertIsNone(q('12V005000', 'F150'))
+                self.assertEqual(q('12V004000', 'F150'), ('2012-04-01', None, 1))
+                self.assertEqual(dict(db.execute('SELECT campaign, units_affected FROM campaign_units').fetchall()), {'11V562000': 32685})
+
+    def test_build_date_rule(self):
+        self.assertEqual(importer.build_date('20111017'), ('2011-10-17', 'ok'))
+        self.assertEqual(importer.build_date(' '), (None, 'blank'))
+        for bad in ('2011101', '20111317', '19000101', '2011-10-17', '30000101'):
+            self.assertEqual(importer.build_date(bad), (None, 'invalid'), bad)
 
     def test_compact_matches_runtime_rule(self):
         self.assertEqual(importer.compact('Mustang Mach-E'), 'MUSTANGMACHE')

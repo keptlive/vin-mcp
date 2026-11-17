@@ -1,0 +1,18 @@
+{
+ "status": "partial: crash-report downloads 1728 of 1729 (main queue) and 538 of 538 (extra NCAP side and pole tests) processed; tests not processed are not indexed. Compliance report text complete (scanned reports without a text layer are skipped, not OCRed)",
+ "generated_at": "2026-11-17T16:13:45+00:00",
+ "source": "NHTSA vehicle crash-test database (nrd.api.nhtsa.dot.gov) report PDFs (nrd-static.nhtsa.dot.gov): data sheet No. 1, vehicle tire information (placard); NHTSA Office of Vehicle Safety Compliance test reports for FMVSS 110, 138 and 537 (static.nhtsa.gov/odi/ctr): the placard block. Keys from vPIC DecodeVINValuesBatch of each test vehicle's own VIN.",
+ "sources": {
+  "nhtsa_crash_test": 1131,
+  "nhtsa_compliance_test": 111
+ },
+ "rows": 1242,
+ "reports_used": 2279,
+ "reports_parsed": 2600,
+ "rejected_rows": 321,
+ "confidence": {
+  "high": 589,
+  "normal": 653
+ },
+ "rules": "Rows are keyed by the vPIC make, model and model year of each test vehicle's own VIN. The site shows the closest match (exact, nearest model year within 2, or same year different version), states the match per vehicle, and never uses a test vehicle whose known powertrain class (battery-electric or not, from vPIC) differs from the VIN's; values as printed (kPa), psi = kPa / 6.894757 rounded, never estimated or averaged; high = two reports agree (the same psi), normal = one report; disagreements are excluded. A misprint with a clear mechanical cause (psi under a kPa heading, the tire's sidewall maximum in a pressure row, a digit glitch in a size) is corrected only when an independent check confirms the corrected value (the same report prints it elsewhere, or another report of the same test vehicle or of the same generation and version does); each correction keeps what was printed (field corrections); unconfirmed misprints stay excluded."
+}

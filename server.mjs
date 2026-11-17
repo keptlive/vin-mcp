@@ -22,7 +22,11 @@ import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
 import { vinRecallStatus } from './lib/recall-status.mjs';
 import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls } from './lib/reports.mjs';
+import { normalizeTransmission, applyOwnerDetails } from './lib/transmission-choice.mjs';
+import { validateOwnerDetails, parseOwnerDetails, serializeOwnerDetails, OwnerDetailsError } from './lib/owner-details.mjs';
 import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
+import { validateCorrection, insertCorrection, listCorrections, CorrectionError, THANKS } from './lib/placard-corrections.mjs';
+import { validateDecodeCorrection, insertDecodeCorrection, listDecodeCorrections, DecodeCorrectionError, DECODE_THANKS } from './lib/decode-corrections.mjs';
 import { readFile } from 'node:fs/promises';
 import { createToolRegistry } from './lib/mcp/index.mjs';
 import { VERSION } from './lib/version.mjs';
@@ -450,8 +454,38 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   app.post('/api/research/scenario',rateGuard(30),researchHandler(req=>scenario(req.body)));
   app.post('/api/research/compare',rateGuard(5),researchHandler(req=>compareVehicles(req.body?.vins)));
 
+  // "Doesn't match your door placard?" (car sheet): stored for review only; never shown, never applied.
+  app.post('/api/placard-corrections', rateGuard(5), async (req, res) => {
+    let input;
+    try { input = validateCorrection(req.body); }
+    catch (err) { return err instanceof CorrectionError ? res.status(400).json({ error: err.message }) : safeError(res, err); }
+    try {
+      const report = await fullReport(input.vin);  // cached when the sheet was just loaded; a failed decode is stored with no vehicle
+      insertCorrection(db, input, report);
+      res.status(201).json({ ok: true, message: THANKS });
+    } catch (err) { safeError(res, err); }
+  });
+
+  // ?transmission=automatic|manual: the caller states what the VIN does not (fuel economy only; the cached report is unchanged)
+  const transmissionParam = (req, res) => {
+    try { return { ok: true, value: normalizeTransmission(req.query.transmission) }; }
+    catch { res.status(400).json({ error: 'transmission must be "automatic" or "manual"' }); return { ok: false }; }
+  };
+  // "Report a decode error" (web report, car sheet): stored for review only; never shown, never applied.
+  app.post('/api/decode-corrections', rateGuard(5), async (req, res) => {
+    let input;
+    try { input = validateDecodeCorrection(req.body); }
+    catch (err) { return err instanceof DecodeCorrectionError ? res.status(400).json({ error: err.message }) : safeError(res, err); }
+    try {
+      const report = await fullReport(input.vin);
+      insertDecodeCorrection(db, input, report);
+      res.status(201).json({ ok: true, message: DECODE_THANKS });
+    } catch (err) { safeError(res, err); }
+  });
+
   app.get('/api/vin/:vin', rateGuard(30), async (req, res) => {
-    try { res.json(restReport(await fullReport(req.params.vin), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
+    const t = transmissionParam(req, res); if (!t.ok) return;
+    try { res.json(restReport(applyOwnerDetails(await fullReport(req.params.vin), { transmission: t.value }, { by: 'request' }), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
   });
 
   app.get('/api/vin/:vin/validate', rateGuard(60), (req, res) => {
@@ -493,11 +527,12 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   });
 
   app.get('/api/vin/:vin/fuel', rateGuard(30), async (req, res) => {
+    const t = transmissionParam(req, res); if (!t.ok) return;
     try {
       const decoded = await nhtsaDecode(normalizeVin(req.params.vin));
       if (!decoded) return res.status(400).json({ error: 'Could not decode VIN' });
       const { make, model, year } = decoded.vehicle;
-      res.json(await getFuelEconomy(year, make, model, decoded) || { available: false });
+      res.json(await getFuelEconomy(year, make, model, decoded, { transmission: t.value }) || { available: false });
     } catch (err) { safeError(res, err); }
   });
 
@@ -597,7 +632,8 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   // ---- Saved VINs ----
 
   app.get('/api/user/vins', userAuth, (req, res) => {
-    res.json(db.prepare('SELECT id, vin, label, year, make, model, created_at FROM saved_vins WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id));
+    res.json(db.prepare('SELECT id, vin, label, year, make, model, created_at, owner_details FROM saved_vins WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id)
+      .map(r => ({ ...r, owner_details: parseOwnerDetails(r.owner_details) })));
   });
 
   app.post('/api/user/vins', userAuth, rateGuard(30), async (req, res) => {
@@ -605,13 +641,15 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     let { label } = req.body;
     if (typeof vin !== 'string' || !validateVin(vin).valid) return res.status(400).json({ error: 'Provide a valid VIN (format and checksum)' });
     if (label) label = String(label).slice(0, 200);
+    let details;
+    try { details = validateOwnerDetails(req.body.owner_details); } catch (e) { if (e instanceof OwnerDetailsError) return res.status(400).json({ error: e.message }); throw e; }
     const normalized = normalizeVin(vin);
     const decoded = await nhtsaDecode(normalized);
     try {
-      const result = db.prepare('INSERT INTO saved_vins (user_id, vin, label, year, make, model) VALUES (?, ?, ?, ?, ?, ?)').run(
-        req.user.id, normalized, label || null, decoded?.vehicle?.year || null, decoded?.vehicle?.make || null, decoded?.vehicle?.model || null
+      const result = db.prepare('INSERT INTO saved_vins (user_id, vin, label, year, make, model, owner_details) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+        req.user.id, normalized, label || null, decoded?.vehicle?.year || null, decoded?.vehicle?.make || null, decoded?.vehicle?.model || null, serializeOwnerDetails(details)
       );
-      res.status(201).json({ id: result.lastInsertRowid, vin: normalized, label: label || null, year: decoded?.vehicle?.year, make: decoded?.vehicle?.make, model: decoded?.vehicle?.model });
+      res.status(201).json({ id: result.lastInsertRowid, vin: normalized, label: label || null, year: decoded?.vehicle?.year, make: decoded?.vehicle?.make, model: decoded?.vehicle?.model, owner_details: details });
     } catch (e) {
       if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'VIN already saved' });
       safeError(res, e);
@@ -624,6 +662,15 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     const result = db.prepare('UPDATE saved_vins SET label = ? WHERE id = ? AND user_id = ?').run(label || null, req.params.id, req.user.id);
     if (!result.changes) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
+  });
+
+  // Owner-stated details (transmission) for one saved vehicle; {transmission: null} clears it.
+  app.put('/api/user/vins/:id/details', userAuth, rateGuard(30), (req, res) => {
+    let details;
+    try { details = validateOwnerDetails(req.body?.owner_details ?? req.body); } catch (e) { if (e instanceof OwnerDetailsError) return res.status(400).json({ error: e.message }); return safeError(res, e); }
+    const result = db.prepare('UPDATE saved_vins SET owner_details = ? WHERE id = ? AND user_id = ?').run(serializeOwnerDetails(details), req.params.id, req.user.id);
+    if (!result.changes) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true, owner_details: details });
   });
 
   app.delete('/api/user/vins/:id', userAuth, (req, res) => {
@@ -697,6 +744,15 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   });
 
   // Security events
+  // Placard and fuel tank corrections sent from the car sheet, newest first (?limit=1..1000, default 100).
+  app.get('/api/admin/placard-corrections', adminAuth, (req, res) => {
+    try { res.json(listCorrections(db, req.query.limit)); } catch (err) { safeError(res, err); }
+  });
+  // Decode-error reports, newest first (?limit=1..1000, default 100).
+  app.get('/api/admin/decode-corrections', adminAuth, (req, res) => {
+    try { res.json(listDecodeCorrections(db, req.query.limit)); } catch (err) { safeError(res, err); }
+  });
+
   app.get('/api/admin/security', adminAuth, (req, res) => {
     const hours = Math.min(parseInt(req.query.hours) || 24, 168);
     const since = new Date(Date.now() - hours * 3600000).toISOString().replace('T', ' ').slice(0, 19);

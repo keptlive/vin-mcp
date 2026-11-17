@@ -45,9 +45,9 @@ globalThis.fetch=async (input,opts)=>{
  const u=String(input);
  if(u.includes('vpic.nhtsa.dot.gov')){
   const vin=u.includes('DecodeVINValuesBatch')?'1HGCM82633A004352':decodeURIComponent(u.split('/').at(-1).split('?')[0]);
-  const four=vin.endsWith('353');
-  const model=vin.endsWith('354')?'Recovery Accord':vin.endsWith('355')?'MCP Recovery Accord':'Accord';
-  return json({Results:[{VIN:vin,ModelYear:'2003',Make:vin.startsWith('1D3')?'DODGE':vin.startsWith('4T1')?'TOYOTA':vin.startsWith('5YJ')?'TESLA':'HONDA',Model:model,EngineCylinders:four?'4':'6',DisplacementL:four?'2.4':'2.998832712',TransmissionStyle:'Automatic',TransmissionSpeeds:'5',RearVisibilitySystem:'Standard',CIB:'Standard'}]});
+  const shift=vin.endsWith('356'),four=vin.endsWith('353')||shift; // ...356: EPA lists an automatic and a manual; the decode gives no transmission
+  const model=vin.endsWith('354')?'Recovery Accord':vin.endsWith('355')?'MCP Recovery Accord':shift?'Shift Accord':'Accord';
+  return json({Results:[{VIN:vin,ModelYear:'2003',Make:vin.startsWith('1D3')?'DODGE':vin.startsWith('4T1')?'TOYOTA':vin.startsWith('5YJ')?'TESLA':'HONDA',Model:model,EngineCylinders:four?'4':'6',DisplacementL:four?'2.4':'2.998832712',TransmissionStyle:shift?'':'Automatic',TransmissionSpeeds:shift?'':'5',RearVisibilitySystem:'Standard',CIB:'Standard'}]});
  }
  if(u.includes('api.nhtsa.gov/recalls'))return json({results:[]});
  if(u.includes('api.nhtsa.gov/products/vehicle/models'))return json({results:[]});
@@ -56,7 +56,9 @@ globalThis.fetch=async (input,opts)=>{
  if(u.includes('fueleconomy.gov')){
   const url=new URL(u),model=url.searchParams.get('model');
   if(u.includes('menu/options')&&model?.includes('Recovery'))return json({menuItem:{text:'Auto 5-spd, 6 cyl, 3.0 L',value:model.startsWith('MCP')?'90002':'90001'}});
+  if(u.includes('menu/options')&&model==='Shift Accord')return json({menuItem:[{text:'Auto 5-spd, 4 cyl, 2.4 L',value:'91001'},{text:'Man 5-spd, 4 cyl, 2.4 L',value:'91002'}]});
   const id=url.pathname.split('/').at(-1);
+  if(['91001','91002'].includes(id))return json({id:Number(id),year:2003,make:'Honda',model:'Shift Accord',cylinders:4,displ:2.4,trany:id==='91001'?'Automatic 5-spd':'Manual 5-spd',city08:id==='91001'?22:24,highway08:id==='91001'?30:33,comb08:id==='91001'?25:27,fuelType:'Regular'});
   if(['90001','90002'].includes(id)){
    const attempts=detailAttempts.get(id)||0;detailAttempts.set(id,attempts+1);
    if(attempts===0)return json({id});

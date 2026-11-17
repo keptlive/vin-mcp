@@ -35,6 +35,9 @@ test('missing source values are left out rather than shown as zero', () => {
   assert.equal('NHTSA complaints for this model year' in facts, false);
   assert.equal('EPA fuel economy' in facts, false);
   assert.equal('NHTSA overall safety rating' in facts, false);
+  // One combined figure for every EPA configuration the VIN fits: city and highway only when they agree too.
+  const same = Object.fromEntries(vinFacts({...report, fuel_economy: {available: true, match: 'same_rating', combined_mpg: 18, city_mpg: null, highway_mpg: 21, unit: 'mpg', configuration_count: 2}}).facts);
+  assert.equal(same['EPA fuel economy'], '18 mpg combined, the same for both EPA configurations this VIN fits');
 });
 
 test('an exact-name zero is not stated bare when related NHTSA names carry campaigns or the name is unused', () => {
