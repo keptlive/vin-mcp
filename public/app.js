@@ -135,6 +135,7 @@ function renderResults(report) {
   window.CarSheet?.render(report);
   renderOverview(report);
   renderEngine(report);
+  renderDecodeChecks(report); // checks on the official decode (public/decode-checks.js)
   renderSafetyRatings(report);
   window.TestVehicle?.render(report); // FMVSS 135 brake test block (public/test-vehicle.js)
   renderFuel(report);
@@ -247,21 +248,35 @@ function renderOverview(r) {
 function renderEngine(r) {
   const e = r.engine || {};
   const t = r.transmission || {};
+  // third item: the decode-check field (lib/decode-checks.mjs) whose corrected, doubtful or filled value is marked
   const rows = [
     ['Engine', e.type],
-    ['Cylinders', e.cylinders],
-    ['Displacement', e.displacement_l ? `${Number(e.displacement_l).toFixed(1)}L` : null],
+    ['Cylinders', e.cylinders, 'cylinders'],
+    ['Displacement', e.displacement_l ? `${Number(e.displacement_l).toFixed(1)}L` : null, 'engine_size'],
     ['Horsepower', e.hp ? `${e.hp} HP` : null],
-    ['Fuel Type', e.fuel_type],
+    ['Fuel Type', e.fuel_type, e.ev_type ? null : 'powertrain'],
     ['Fuel Injection', e.fuel_injection],
     ['Turbo', e.turbo],
-    ['Transmission', t.type],
-    ['Speeds', t.speeds],
-    ['Drive Type', t.drive_type],
-    ['EV Type', e.ev_type],
+    ['Transmission', t.type, 'transmission'],
+    ['Speeds', t.speeds, 'speeds'],
+    ['Drive Type', t.drive_type, 'drive'],
+    ['EV Type', e.ev_type, e.ev_type ? 'powertrain' : null],
     ['Battery', e.battery_kwh ? `${e.battery_kwh} kWh` : null],
   ];
-  $('#engine-body').innerHTML = rows.map(([l, v]) => dataRow(l, v)).join('');
+  $('#engine-body').innerHTML = rows.map(([l, v, f]) => checkedRow(r, l, v, f)).join('');
+}
+
+/** A data row whose value the decode checks corrected, doubted or filled: marked, the official value kept visible. */
+function checkedRow(r, label, value, field) {
+  const dc = window.DecodeChecks, c = field && dc ? dc.check(r, field) : null;
+  if (!c || !['corrected', 'doubtful', 'filled'].includes(c.status)) return dataRow(label, value);
+  return `<div class="data-row"><span class="data-label">${esc(label)}</span><span class="data-value">${dc.valueHtml(r, field, value)}</span></div>`;
+}
+
+// ── Decode checks card ──
+function renderDecodeChecks(r) {
+  const body = $('#decode-checks-body');
+  if (body) body.innerHTML = window.DecodeChecks ? window.DecodeChecks.cardHtml(r) : '';
 }
 
 // ── Safety Ratings Card ──

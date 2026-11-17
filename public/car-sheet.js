@@ -65,6 +65,30 @@ const CarSheet = (() => {
   // Long slash lists from vPIC ("Hatchback/Liftback/Notchback") may wrap after each slash.
   const row = (label, value) => (present(value) ? `<div class="sheet-row"><dt>${esc(label)}</dt><dd>${esc(value).replace(/\//g, '/<wbr>')}</dd></div>` : '');
   const rowHtml = (label, html) => `<div class="sheet-row"><dt>${esc(label)}</dt><dd>${html}</dd></div>`;
+  // Decode checks (public/decode-checks.js): a corrected, doubtful or filled value is marked; vPIC's stays visible.
+  const DC = () => (typeof DecodeChecks !== 'undefined' ? DecodeChecks : null);
+  const checked = (r, label, value, field) => {
+    const dc = DC(), c = dc && dc.check(r, field);
+    return c && ['corrected', 'doubtful', 'filled'].includes(c.status) ? rowHtml(label, dc.valueHtml(r, field, present(value) ? value : null)) : row(label, value);
+  };
+  // A row made of several fields: officialText from vPIC's values, checkedText from the checked ones.
+  const marked = (r, label, officialText, checkedText, ...fields) => {
+    const html = DC() ? DC().combinedHtml(r, fields, present(officialText) ? officialText : null, present(checkedText) ? checkedText : null) : null;
+    return html ? rowHtml(label, html) : row(label, officialText);
+  };
+  // The engine and transmission blocks with corrected or filled values put in, for the checked row text.
+  const checkedEngine = (r, e) => {
+    const dc = DC(); if (!dc) return e;
+    const size = dc.checkedValue(r, 'engine_size'), cyl = dc.checkedValue(r, 'cylinders');
+    return { ...e, ...(size !== null ? { displacement_l: size || null } : {}), ...(cyl !== null ? { cylinders: cyl || null } : {}) };
+  };
+  const TRANS_WORD = { auto: 'Automatic', manual: 'Manual', cvt: 'CVT', am: 'Dual-clutch (DCT)', single: 'Single-speed' };
+  const checkedTrans = (r, t) => {
+    const dc = DC(); if (!dc) return t;
+    const kind = dc.checkedValue(r, 'transmission'), speeds = dc.checkedValue(r, 'speeds');
+    return { ...t, ...(kind !== null ? { type: TRANS_WORD[kind] || t.type } : {}), ...(speeds !== null ? { speeds } : {}) };
+  };
+  const transText = t => [num(t.speeds) && `${t.speeds}-speed`, present(t.type) && String(t.type).toLowerCase()].filter(Boolean).join(' ');
   const section = (id, title, inner, extra = '') => `<section class="sheet-section sheet-${id}" aria-labelledby="sheet-h-${id}"><h3 id="sheet-h-${id}">${esc(title)}</h3>${inner}${extra}</section>`;
   const list = rows => { const html = rows.join(''); return html ? `<dl class="sheet-list">${html}</dl>` : ''; };
   const unknownNote = '<p class="sheet-note">Not in the public records for this VIN.</p>';
@@ -83,7 +107,7 @@ const CarSheet = (() => {
     const bed = num(raw.BedLengthIN) ? `${fmt(raw.BedLengthIN, 1)} in${present(raw.BedType) ? ', ' + raw.BedType : ''}` : null;
     const rows = [
       row('Year', v.year), row('Make', makeName(v.make)), row('Model', v.model), row('Trim', v.trim),
-      row('Body', v.body_class), row('Cab', raw.BodyCabType), row('Bed', bed), row('Doors', num(v.doors)), row('Seats', seats),
+      row('Body', v.body_class), row('Cab', raw.BodyCabType), row('Bed', bed), row('Doors', num(v.doors)), checked(r, 'Seats', seats, 'seats'),
       // The regulatory class repeats the body style: screen only on paper when the body is known (one-page print).
       row('Vehicle type', present(v.vehicle_type) ? sentence(v.vehicle_type) : null).replace('<div class="sheet-row">', present(v.body_class) ? '<div class="sheet-row sheet-screen-only">' : '<div class="sheet-row">'),
       row('Manufacturer', present(raw.Manufacturer) ? titleCase(raw.Manufacturer) : null),
@@ -129,9 +153,9 @@ const CarSheet = (() => {
     // vPIC often has no horsepower: then the EPA test vehicles' rated figure, labelled (public/more-sources.js).
     const epaHp = !num(e.hp) && typeof MoreSources !== 'undefined' ? MoreSources.epaHp(r) : null;
     const rows = [
-      row(isEv ? 'Motor' : 'Engine', engine || null), row('Engine code', code), row('Fuel', fuel ? fuel + grade : null),
+      marked(r, isEv ? 'Motor' : 'Engine', engine || null, engineText(checkedEngine(r, e), raw) || null, 'engine_size', 'cylinders'), row('Engine code', code), row('Fuel', fuel ? fuel + grade : null),
       epaHp ? rowHtml('Rated power', ratedPower(epaHp, MoreSources.epaHpCaveat(r))) : '',
-      row('Transmission', trans || null), row('Drive', t.drive_type), row('Electrification', e.ev_type),
+      marked(r, 'Transmission', trans || null, transText(checkedTrans(r, t)) || null, 'transmission', 'speeds'), checked(r, 'Drive', t.drive_type, 'drive'), checked(r, 'Electrification', e.ev_type, 'powertrain'),
       row('Battery', battery), row('Charging', charger || null),
       row('EPA fuel economy', mpg), row(f.total_range ? 'EPA electric range' : 'EPA range', f.available && num(f.ev_range) ? `${f.ev_range} mi` : null),
     ];
@@ -142,7 +166,7 @@ const CarSheet = (() => {
       : mpg && f.match === 'same_rating' ? `<p class="sheet-note">${paperSummary(summary)}.</p>`
       : mpg && f.match === 'closest' ? `<p class="sheet-note">Closest EPA configuration, not an exact match<span class="sheet-screen-only">: ${esc(f.matched_variant || 'see full report')}</span>.</p>`
       : mpg ? `<p class="sheet-note sheet-screen-only">EPA figures are for the matched test configuration: ${esc(f.matched_variant || 'see full report')}.</p>` : '');
-    return section('power', 'Engine and drive', (list(rows) || unknownNote) + note);
+    return section('power', 'Engine and drive', (list(rows) || unknownNote) + note + decodeNote(r));
   }
   /** "Assuming an automatic transmission (the VIN does not say)" or the owner's choice; the other side's figure on screen. */
   function choiceNote(f) {
@@ -386,6 +410,16 @@ const CarSheet = (() => {
       + `${v.withheld && present(v.withheld.note) ? `<p class="sheet-note tested-withheld sheet-screen-only">${esc(v.withheld.note)}</p>` : ''}</div>`;
   }
 
+  /** One line under Engine and drive when a decoded value was corrected, doubted or filled; then the report control. */
+  function decodeNote(r) {
+    const dc = DC(), fields = dc ? dc.fields(r) : [];
+    if (!dc) return '';
+    const n = s => fields.filter(f => f.status === s).length;
+    const parts = [n('corrected') && `${n('corrected')} corrected`, n('doubtful') && `${n('doubtful')} doubtful`, n('filled') && `${n('filled')} filled in`].filter(Boolean);
+    const line = parts.length ? `<p class="sheet-note dc-sheet-note sheet-screen-only">Decode checks: ${esc(parts.join(', '))}, official decode kept; details in the full report.</p>` : '';
+    return line + dc.formHtml(r);
+  }
+
   /** "Doesn't match your door placard?": a correction for review; screen only, never printed or shown to others. */
   function correctionControl(r) {
     const vin = String(r.vin || '');
@@ -471,7 +505,10 @@ const CarSheet = (() => {
     const crash = [testedPlacards(r.tire_placard).length && 'tire placard', testedSpecs(r.test_vehicle_specs) && 'capacities and weights'].filter(Boolean);
     const sources = ['NHTSA vPIC (maker-submitted VIN data)', 'NHTSA recalls, complaints and crash ratings', crash.length && `NHTSA test reports (test-vehicle ${crash.join(', ')})`, r.fuel_economy && r.fuel_economy.available && 'EPA FuelEconomy.gov', 'Transport Canada via NHTSA vPIC (dimensions)', maker].filter(Boolean);
     const qr = typeof VinQr !== 'undefined' ? VinQr.svg(url, `QR code linking to ${url}`) : '';
-    return `<div class="sheet-foot-text"><p><strong>Sources:</strong> ${esc(sources.join('; '))}.${assembled ? ` Data gathered ${esc(assembled)}.` : ''}</p><p>Decoded from the VIN and public records; options, repairs and later changes are not shown. Check the placard, the manual and the official recall links.</p><p class="sheet-live">Live report: <a href="${url}">${url}</a></p></div>${qr ? `<div class="sheet-qr">${qr}</div>` : ''}`;
+    // On paper a value filled where the official decode is blank carries a dagger instead of a "Filled in" tag.
+    const filled = typeof DecodeChecks !== 'undefined' && DecodeChecks.fields(r).some(f => f.status === 'filled');
+    const dagger = filled ? '<span class="dc-print-only"> · † filled in where the official decode is blank (NHTSA test vehicles, EPA)</span>' : '';
+    return `<div class="sheet-foot-text"><p><strong>Sources:</strong> ${esc(sources.join('; '))}.${assembled ? ` Data gathered ${esc(assembled)}.` : ''}</p><p>Decoded from the VIN and public records; options, repairs and later changes are not shown. Check the placard, the manual and the official recall links.</p><p class="sheet-live">Live report: <a href="${url}">${url}</a>${dagger}</p></div>${qr ? `<div class="sheet-qr">${qr}</div>` : ''}`;
   }
 
   /** Sheet HTML for a report: {body, foot}. Pure; used by render() and the tests. */

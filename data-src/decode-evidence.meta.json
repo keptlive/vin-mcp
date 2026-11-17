@@ -1,0 +1,20 @@
+{
+ "generated_at": "2026-11-17T16:10:37+00:00",
+ "source": "NHTSA crash-test and compliance-test reports (nrd-static.nhtsa.dot.gov, static.nhtsa.gov/odi/ctr): the vehicle data sheet (final drive, engine displacement, cylinders, transmission type and speeds, seating capacity, certification-label GVWR, measured weight as delivered) and the test title; compared with vPIC DecodeVINValuesBatch of each test vehicle's own VIN (decode audit 2026-11-17).",
+ "rows": 2418,
+ "patterns": 1643,
+ "patterns_with_2plus": 543,
+ "withheld_values": 52,
+ "excluded_patterns": 0,
+ "values": {
+  "cylinders": 2197,
+  "drive": 1791,
+  "engine_size": 1791,
+  "gvwr_class": 1919,
+  "powertrain": 289,
+  "seats": 1732,
+  "speeds": 1241,
+  "transmission": 1887
+ },
+ "rules": "Pattern = VIN positions 1-8, 10 (model year) and 11 (plant). Values as the lab recorded them; a value the audit found to be a lab misprint or a parser misread is withheld with the reason; a value whose dispute the audit could not settle is kept and marked disputed (the site never corrects on a disputed value alone)."
+}
