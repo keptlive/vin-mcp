@@ -193,8 +193,8 @@ test('GVWR varies with options inside a pattern: one differing test vehicle is a
   assert.notEqual(g.status, 'corrected'); assert.notEqual(g.status, 'doubtful');
 });
 
-test('precedence: owner > manufacturer VIN record > NHTSA test-vehicle pattern > vPIC > assumption', () => {
-  assert.deepEqual(PRECEDENCE, ['owner', 'manufacturer_vin_record', 'nhtsa_test_vehicle_pattern', 'vpic_decode', 'assumption']);
+test('precedence: owner > manufacturer VIN record > mcp.vin rule fix > NHTSA test-vehicle pattern > vPIC > assumption', () => {
+  assert.deepEqual(PRECEDENCE, ['owner', 'manufacturer_vin_record', 'mcp_vin_rule_fix', 'nhtsa_test_vehicle_pattern', 'vpic_decode', 'assumption']);
   const mfr = manufacturerDescription('vw', REPLY.vwAtlas, {provider: 'Volkswagen U.S. VIN Recall Lookup', retrieved_at: '2026-11-17T10:00:00Z'});
   // the manufacturer's record alone corrects vPIC
   let r = checkDecode(decoded(), {vin: VIN, evidence: evidence([]), epa: null, manufacturer: mfr});

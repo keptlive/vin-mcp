@@ -5,7 +5,7 @@ provider. Hosting, maintenance and upstream availability remain operational cons
 
 | Source | Use | Scope |
 | --- | --- | --- |
-| [NHTSA vPIC](https://vpic.nhtsa.dot.gov/api/) | VIN decoding, manufacturer-submitted attributes and Canadian specifications | US-oriented coverage; Canadian dimensions describe model variants. |
+| [NHTSA vPIC](https://vpic.nhtsa.dot.gov/api/) | VIN decoding (NHTSA's decoder run locally on NHTSA's monthly vPIC database, with reviewed rule fixes; the live API as fallback), manufacturer-submitted attributes and Canadian specifications | US-oriented coverage; Canadian dimensions describe model variants. |
 | [FuelEconomy.gov](https://www.fueleconomy.gov/feg/ws/) | Explicit EPA test configurations, emissions, price assumptions and voluntary owner MPG | Configuration-level data; owner reports are not a representative fleet sample. |
 | [NHTSA datasets](https://www.nhtsa.gov/nhtsa-datasets-and-apis) | Manufacturer communications and defect investigations | Dated local snapshots; model-year associations do not establish VIN applicability or repair completion. |
 | [Federal Reserve G.19](https://www.federalreserve.gov/releases/g19/20261007/) | New-car loan benchmark context | August 2026 observations from the October 7 release; manually refreshed, not a lender offer. |
@@ -516,11 +516,134 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
 - **Not shown.** Crash results (injury measures, crush, post-test observations) are extracted into
   a research dataset only; NCAP star ratings are not in these reports and are not derived.
 
+## VIN decoding: NHTSA's decoder, run locally (added 18 November 2026)
+
+VINs are decoded by mcp.vin's own copy of NHTSA's vPIC decoder instead of NHTSA's live API, so decoding does not
+depend on vpic.nhtsa.dot.gov and the rules can be corrected where they are wrong. Code: `lib/vpic-local.mjs` (the
+interpreter), `lib/nhtsa.mjs` (local first, live fallback), `scripts/import-vpic.py` (the dataset),
+`data-src/vpic-rule-fixes.jsonl` (rule fixes), `docs/vpic-rule-fixes.md` (what they change).
+
+- **Data.** NHTSA publishes its whole vPIC database every month ("Standalone vPIC database",
+  `https://vpic.nhtsa.dot.gov/downloads/vPICList_lite_YYYY_MM.plain.zip`, PostgreSQL edition: table data plus
+  NHTSA's decode functions). `scripts/import-vpic.py` reads the dump without a database server and writes
+  `data/vpic.db`: only the decode tables (patterns and schemas per WMI and model-year range, elements and their lookup
+  lists, make/model, engine-model patterns, unit conversions, vehicle-spec patterns, defaults, check-digit
+  exceptions, error codes, and the 8.8 million-row valid-character table folded to one string per WMI and year).
+  Release 2026_11: 96.5 MB (17.8 MB as `.xz`), built in about 5 minutes. The file is not in git; it is built on the
+  storage server and copied to the web server (deploy steps below). NHTSA's decode functions are fingerprinted:
+  when a release changes any of them the build stops until the interpreter has been reviewed against the new code.
+- **Interpreter.** `lib/vpic-local.mjs` reproduces `spvindecode`, `spvindecode_core` and `spvindecode_errorcode`
+  step by step (model-year passes, pattern ranking, engine-model patterns, conversions, vehicle-spec patterns,
+  defaults, error codes 1-14 and 400, check digit) and returns the live API's `DecodeVinValues` shape (the same 154
+  keys). It is pure lookup: no network. About 4 ms per VIN on a phone, 2 ms on the storage server.
+- **Parity with NHTSA.** With NHTSA's own rules (the `pristine` view) the interpreter gives exactly what NHTSA's
+  decode function gives: on the PostgreSQL edition of release 2026_11, every element of every decode agreed for all
+  25,073 VINs compared (see "Parity" below). Against the live API (4,073 cached answers, no new calls):
+  3,449 agree on all 154 keys; every other difference is the live API's data, not the algorithm: names whose case or
+  spelling differ with the same ids, a plant name, the valid-character cache on 4 VINs (the PostgreSQL edition agrees
+  with us), and the order of multi-valued notes (the live API's order follows no column).
+- **Fallback to the live API** (`decode_source.fallback_reason`): the dataset is missing or unreadable, the local
+  decode failed, the WMI is not in the release (`wmi_unknown`: a manufacturer registered since), nothing decoded the
+  model (`no_model`: patterns submitted since), or the model year is later than the release's year
+  (`model_year_newer_than_release`: 2027+ for release 2026_11). The last one is measured: patterns of a model year
+  still being submitted change most between releases; in release 2026_11, 9.9% of the patterns of schemas starting
+  with model year 2027 (93% for 2028) changed in the 30 days before the dump, against 2.8% for 2026 and under 1% for
+  2025 and older. If the live API then fails, the local decode is returned with `live_api: "failed"`. Batch decodes
+  send only the VINs that need it in one live request and match answers by VIN. `VPIC_LOCAL_DB=off` turns the local
+  decoder off (tests); a path replaces `data/vpic.db`.
+- **Provenance.** Every decode carries `decode_source`: `source` (`mcp_vin_vpic_local` or `nhtsa_vpic_api`),
+  `vpic_release` (`2026_11`, or `live`), `rules` (`nhtsa_with_mcp_vin_rule_fixes` or `nhtsa`), the number of rule
+  fixes in the dataset, whether one changed this VIN, and the fallback reason. The report's
+  `provenance.specifications` names the decoder and release.
+
+### Rule fixes (owner decision 18 November 2026)
+
+Where NHTSA's rules are wrong, mcp.vin fixes the rules themselves, not the decode output: a fix is an edit of NHTSA's
+own rule rows (change a pattern's value, narrow its VIN keys, remove a wrong row, add a narrower row on NHTSA's own
+keys), so the interpreter stays a plain interpreter and the fixed rules decode every VIN they cover, not only the
+VINs that were checked.
+
+- **The changeset.** `data-src/vpic-rule-fixes.jsonl`: one reviewed entry per fix with the release it was written
+  against, each original NHTSA row exactly (table, id, schema, keys, element, value), the edit, any NHTSA row the fix
+  relies on (`premise`), the kind of fix (`wrong_value`, `narrower_key`, `wrong_row`, `missing_rule`), the decode
+  errors it corrects, the reason, the NHTSA lab reports, and regression `checks` (NHTSA test VINs with the official
+  and the fixed value of every field the fix changes). Where a VIN pattern does not encode a field, the fix removes
+  NHTSA's value rather than asserting another (none of the current 26 needed that: in every case the VIN positions,
+  or NHTSA's own neighbouring rows, separate the versions).
+- **Build.** `scripts/import-vpic.py` applies the changeset to a fresh copy of each release. An entry is applied only
+  when every row it names is still exactly as written (and its new rows do not collide with NHTSA's); otherwise
+  nothing of it is applied and the build reports it (`RULE FIX NEEDS REVIEW`, exit status 4, `needs_review` in
+  `rule_fix_entry`). Each applied edit is recorded with the original row in `rule_fix`.
+- **NHTSA's rules stay available.** The interpreter can decode on NHTSA's pristine rules (`rules: 'pristine'`, the
+  recorded edits undone in memory). Parity is always proven on the pristine view, and it is the same as a file built
+  without fixes (25,073 VINs compared, 0 differences).
+- **What a reader sees.** When a fix changes a value for a VIN, the decode is decoded twice and every differing field
+  is listed in `vpic_rule_fixes.changed` (`field`, `official_value`, `value`, `fix_ids`) with the fixes' reasons and
+  evidence. The report's `vehicle`, `engine` and `transmission` carry the fixed value; `raw_nhtsa` stays NHTSA's
+  official decode; `decode_checks` marks the field `corrected` with basis `mcp_vin_rule_fix` ("mcp.vin rule fix")
+  and keeps NHTSA's value as `original`. Live-API decodes (fallbacks) get no rule fixes and say so
+  (`sources.rule_fixes.status: "not_applied"`).
+- **The current fixes.** 26 fixes, 34 row edits, written for the 33 confirmed errors of the decode audit of 17
+  November 2026 whose field is not seats or GVWR (drive 9, transmission speeds 11, cylinders 4, engine size 2,
+  electrification 3, transmission type 1, body 3): see `docs/vpic-rule-fixes.md` (generated by
+  `scripts/vpic-rule-diff.mjs`), which doubles as the error report for NHTSA. Every changed value was checked
+  against the 2,418 NHTSA test vehicles: the fixes change 44 of them, and every changed value agrees with the
+  vehicle's lab record where the record states it. On a sample of 25,073 VINs (synthesised from the release's
+  patterns, plus cached decodes) they change 67 VINs.
+- **Monthly refresh check.** `scripts/check-vpic-rule-fixes.mjs` decodes each fix's test VINs: `ok`,
+  `needs_review` (NHTSA changed a row the fix names), `official_changed` (NHTSA's rules no longer give the value the
+  fix was written against: NHTSA may have fixed it) or `fix_not_effective`.
+
+### Monthly refresh
+
+Run on the storage server (it holds PostgreSQL for the parity check; the phone is not used), detached:
+
+    setsid nohup scripts/vpic-refresh.sh 2026_12 /root/vpic-local > /root/vpic-local/refresh-2026_12.log 2>&1 &
+
+It downloads the release, builds `vpic.db` with the rule fixes, checks the fixes, restores the dump into PostgreSQL
+and compares our interpreter (NHTSA's rules) with `spvindecode` on 20,000 VINs synthesised from the release's
+patterns plus the NHTSA test vehicles when `data/decode-evidence.db` is present (25 VINs per statement: larger
+statements run out of PostgreSQL lock memory; failed VINs are retried alone and listed if they never run clean). The
+run fails if the comparison covered fewer VINs than PostgreSQL decoded. It then writes the readable rule diff and
+`vpic.db.xz`, and ends with `SUMMARY.txt` and `DONE` (or `FAILED`). Review the summary: parity must be complete, and every fix
+not `ok` needs a decision (rewrite it against the new rows, or drop it when NHTSA fixed the error). Then, with the
+owner's go: copy `vpic.db.xz` to the web server, `xz -d` it next to the old file and rename it to `data/vpic.db`
+(the server reopens the file within a minute when it changes; no restart needed), and commit the regenerated
+`docs/vpic-rule-fixes.md`. There is no cron job.
+
+### Parity
+
+Measured on release 2026_11 on 18 November 2026 (`scripts/vpic-parity.mjs`). The interpreter has two flavours of the
+few places where NHTSA's two editions differ: `semantics: 'mssql'` (the default, used by the site) behaves like the
+live API, which runs on SQL Server (NULLs sort last in descending orderings, decimal arithmetic truncates like SQL
+Server's decimal type), and `semantics: 'pg'` behaves like the PostgreSQL edition. The decode rules are the same.
+
+- **NHTSA's PostgreSQL edition (`spvindecode`, NHTSA's own decode function), `pg` semantics, NHTSA's rules.**
+  25,073 VINs: 20,000 synthesised from the release's patterns (WMI, model keys, model-year code, plant, serial; 95%
+  with a correct check digit), 4,073 VINs from cached live decodes, and about 1,000 mutated copies of those to reach
+  the error codes. Every element of every decode agrees: 25,073 of 25,073, both for a file built without fixes and
+  for the fixed file read on NHTSA's rules (`rules: 'pristine'`); 0 local failures. In the first pass PostgreSQL itself
+  could not decode 6,528 VINs ("out of shared memory": 200 VINs in one statement fill its lock table); all of them ran
+  clean at 25 VINs per statement, so none is left out. The refresh's own check (2,096 VINs) agreed on all.
+- **The live API, `mssql` semantics** (4,073 cached answers, no new calls). 3,449 agree on all 154 keys. Every
+  difference on the other 624 is the live database or presentation, not the algorithm:
+  - the same lookup value with a name in different case or spelling: 440 field values (fuel injection type 163,
+    battery type 115, model 85, entertainment system 39, and 38 in 11 other fields);
+  - the order of multi-valued text: 184 (notes 114, other restraint info 42, other engine info 28); the live API's
+    order follows no column, and the values are the same;
+  - a plant name that differs between the cached live answers and the release: 28 (26 Jeep VINs read "Toledo
+    Assembly Complex-North" live and "Toledo North Assembly" in the release, 2 differ in case);
+  - the error code of 4 VINs, from the live API's valid-character cache: 3 get error 4 here and 0 live, 1 gets 0
+    here and 3 live. NHTSA's PostgreSQL edition of the same release agrees with us on all 4.
+- **Speed.** About 4.4 ms per VIN on the phone and 2 to 5 ms on the storage server (depending on load), against
+  several hundred ms for a live API call.
+
 ## Decode checks (`decode_checks`, added 17 November 2026)
 
 The VIN decode (NHTSA vPIC) describes a VIN *pattern*, not the vehicle, and is sometimes wrong. `decode_checks`
-checks it field by field and never overwrites it: the report's `vehicle`, `engine` and `transmission` blocks stay
-vPIC's; the checks sit beside them, and the matchers (fuel economy, EPA test cars, parts content, NHTSA test-vehicle
+checks it field by field and never hides NHTSA's value: the report's `vehicle`, `engine` and `transmission` blocks are
+the decode (NHTSA's rules plus mcp.vin's reviewed rule fixes, above), `raw_nhtsa` and each field's `original` are
+NHTSA's official values; the checks sit beside them, and the matchers (fuel economy, EPA test cars, parts content, NHTSA test-vehicle
 tires and capacities) use the checked values. Code: `lib/decode-checks.mjs`, `lib/decode-epa.mjs`,
 `lib/manufacturer-description.mjs`, `lib/decode-report.mjs`.
 
@@ -536,7 +659,8 @@ tires and capacities) use the checked values. Code: `lib/decode-checks.mjs`, `li
   transmission type 63%, speeds 72%, seats 67% of these vehicles. In the same audit the lab record was wrong about
   as often as vPIC on some fields (13 cylinder misprints), which is why no single lab value corrects anything.
 - **Evidence, strongest first** (`precedence`): `owner` (values the reader states; reserved for the owner
-  choices), `manufacturer_vin_record` (the manufacturer's description of this VIN), `nhtsa_test_vehicle_pattern`
+  choices), `manufacturer_vin_record` (the manufacturer's description of this VIN), `mcp_vin_rule_fix` (a reviewed
+  fix of NHTSA's rule for this VIN pattern, above: `corrected`, with NHTSA's value kept), `nhtsa_test_vehicle_pattern`
   (NHTSA lab records of test vehicles with the same VIN pattern), `vpic_decode`, `assumption` (EPA lists only one
   value for the model year).
 - **Manufacturer's description of the VIN.** Some makers' VIN recall lookups name the vehicle in the reply the

@@ -107,7 +107,7 @@ const CarSheet = (() => {
     const bed = num(raw.BedLengthIN) ? `${fmt(raw.BedLengthIN, 1)} in${present(raw.BedType) ? ', ' + raw.BedType : ''}` : null;
     const rows = [
       row('Year', v.year), row('Make', makeName(v.make)), row('Model', v.model), row('Trim', v.trim),
-      row('Body', v.body_class), row('Cab', raw.BodyCabType), row('Bed', bed), row('Doors', num(v.doors)), checked(r, 'Seats', seats, 'seats'),
+      checked(r, 'Body', v.body_class, 'body'), row('Cab', raw.BodyCabType), row('Bed', bed), row('Doors', num(v.doors)), checked(r, 'Seats', seats, 'seats'),
       // The regulatory class repeats the body style: screen only on paper when the body is known (one-page print).
       row('Vehicle type', present(v.vehicle_type) ? sentence(v.vehicle_type) : null).replace('<div class="sheet-row">', present(v.body_class) ? '<div class="sheet-row sheet-screen-only">' : '<div class="sheet-row">'),
       row('Manufacturer', present(raw.Manufacturer) ? titleCase(raw.Manufacturer) : null),
