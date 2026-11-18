@@ -1,0 +1,10 @@
+{
+ "generated_at": "2026-11-18T20:14:48+00:00",
+ "source": "NHTSA vehicle crash-test database (nrd.api.nhtsa.dot.gov get-multimedia-files) photo listings; photos from nrd-static.nhtsa.dot.gov (photos/vehdb and vehdb/<test>/photos), chosen by file name (scripts/nhtsa_photo_select.py), resized to WebP (fit 960x720 and 320x240, no metadata) by scripts/build-nhtsa-photos.py. Keys from the vPIC decode of each test vehicle's VIN (data-src/test-vehicle-specs.jsonl, tire-placards.jsonl).",
+ "tests": 1840,
+ "photos": 7308,
+ "image_bytes": 511565022,
+ "left_out_by_build": 230,
+ "pre_test_tests": 1840,
+ "crash_view_tests": 1819
+}
