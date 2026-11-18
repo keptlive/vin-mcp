@@ -61,3 +61,5 @@ figure.hero-photos{margin:0}.hero-photos[hidden]{display:none!important}.car-she
 .car-sheet .photo-thumbs .photo-thumb img{display:block;width:60px;height:45px;object-fit:cover;border:0;border-radius:3px;background:none}
 .photo-thumb.active{outline:2px solid var(--accent);outline-offset:1px}
 @media(max-width:560px){.car-sheet .photo-main{max-height:none}.car-sheet .photo-thumbs .photo-thumb img{width:52px;height:39px}.photo-caption{font-size:11px}}
+.recall-check{margin-top:14px}.recall-check-lead{margin:4px 0 10px}.recall-check-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}.button-link.secondary{background:#fff;color:var(--accent)}.recall-paste code{font-size:12px;overflow-wrap:anywhere}.recall-copy{min-height:30px;padding:4px 10px;font-size:11px;background:#fff;color:var(--accent);border-color:var(--border);margin-left:6px}.rc-print{display:none}
+@media print{.rc-screen{display:none!important}p.rc-print,div.rc-print{display:block!important}span.rc-print{display:inline!important}}
