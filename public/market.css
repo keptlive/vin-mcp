@@ -19,7 +19,8 @@
   #results:not([data-tab=tires]) #tires-quick{display:none}
   #results[data-tab=tires] #car-sheet>.sheet-head,#results[data-tab=tires] #car-sheet>.sheet-foot,#results[data-tab=tires] .sheet-body>.sheet-section:not(.sheet-tires){display:none}
   #results[data-tab=tires] .sheet-body{display:block}
-  #results[data-tab=tires] .sheet-tires>h3{display:none}
+  /* the figures above already show a single tested vehicle's values: the list returns under Details */
+  #results[data-tab=tires] .sheet-tires:not(.is-open) .placard-tests:has(>.placard-test:only-child){display:none}
   #results[data-tab=tires] .car-sheet{margin-top:16px}
   #results:not([data-tab=price]) #market-panel{display:none}
   #results[data-tab=sheet] .cards-grid,#results[data-tab=price] .cards-grid,#results[data-tab=tires] .cards-grid{display:none}

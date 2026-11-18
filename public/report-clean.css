@@ -1,0 +1,83 @@
+/* Clean view of the VIN report (public/report-clean.js): values first, explanations under "Details".
+   Every rule is screen only. Print keeps the full text exactly as the generators write it. */
+@media screen{
+  /* ── the switch ── */
+  .clean-toggle{flex:none;margin-left:auto;min-height:26px;padding:2px 10px;border:1px solid #cfdcd3;border-radius:999px;background:#fff;color:var(--accent);font:600 11px/1.4 var(--font);letter-spacing:0;text-transform:none}
+  .clean-toggle:hover{background:#edf4ee;border-color:var(--accent);color:var(--accent)}
+  .clean-toggle[aria-expanded=true]{background:var(--accent-glow);border-color:#bbcfc2}
+  .count-badge+.clean-toggle{margin-left:8px}
+
+  /* ── car sheet: sections ── */
+  .sheet-section>h3{display:flex;align-items:center;gap:8px;min-height:26px;margin-bottom:6px}
+  .sheet-section[data-clean-box]:not(.is-open) :is(.sheet-note,.sheet-source,.sheet-url,.placard-match,.write-ins):not(.placard-fix *,.decode-fix *){display:none}
+  .sheet-section .placard-fix>summary,.sheet-section .decode-fix>summary{font-size:12px}
+  #sheet-foot[data-clean-box]{display:block;padding:10px 22px}
+  #sheet-foot[data-clean-box]:not(.is-open)>:not(.clean-toggle){display:none}
+  #sheet-foot[data-clean-box].is-open{display:flex;flex-wrap:wrap}
+  #sheet-foot[data-clean-box].is-open>.clean-toggle{flex-basis:auto;margin:0 0 6px;order:-1}
+  #sheet-foot>.clean-toggle{margin-left:0}
+
+  /* ── hero: the title, the VIN and what matters ── */
+  .car-sheet .sheet-prepared,.car-sheet .badge-extra{display:none}
+  .car-sheet .photo-note{font-size:0;margin:6px 0 0}
+  .car-sheet .photo-note::before{content:'Representative photo';font-size:10px}
+
+  /* ── cards: short values share a row; notes fold under Details ── */
+  .card-body.cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));column-gap:18px;align-items:start}
+  .card-body.cells>*{grid-column:1/-1}
+  .card-body.cells>.data-row{grid-column:auto;display:block;padding:7px 0;border-bottom:0}
+  .card-body.cells>.data-row.wide{grid-column:1/-1}
+  .card-body.cells>.data-row>.data-label{display:block;max-width:none;font-size:11px;line-height:1.4;color:var(--text-muted)}
+  .card-body.cells>.data-row>.data-value{display:block;max-width:none;text-align:left;font-size:13.5px;line-height:1.45;font-weight:600;color:var(--text);overflow-wrap:anywhere}
+  .card[data-clean-box]:not(.is-open) :is(.source-note,.dc-note):not(.decode-fix *){display:none}
+  .card-title{min-height:50px}
+  /* a decode with nothing to check it against says so on every row: that list belongs to All, not Specs */
+  #results[data-tab=specs] #card-decode-checks:not(:has(.dc-item:not(.dc-item-unverified))){display:none}
+
+  /* ── recalls: this VIN's result, then one line per campaign ── */
+  #recalls-body .recall-item>h3{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 6px}
+  #recalls-body .recall-item>p{font-size:13px;line-height:1.55;margin:0 0 6px}
+  #recalls-body .recall-item[data-clean-box]:not(.is-open) .clean-extra{display:none}
+  #recalls-body>h3,#recalls-body .clean-related>h3{display:flex;align-items:center;gap:8px;font-size:14px;margin:16px 0 2px}
+  #recalls-body p.empty-state{padding:0;margin:0 0 4px;text-align:left;font-size:12px;line-height:1.5}
+  .recall-item.clean-fold{padding:0}
+  .recall-item.clean-fold>.recall-component{display:grid;grid-template-columns:minmax(0,1fr) 16px;gap:1px 10px;align-items:center;margin:0;padding:11px 0;cursor:pointer;font-size:12.5px;line-height:1.4;border-radius:4px}
+  .recall-item.clean-fold>.recall-component::after{content:'';grid-column:2;grid-row:1/3;width:7px;height:7px;border-right:2px solid var(--text-muted);border-bottom:2px solid var(--text-muted);transform:rotate(45deg);justify-self:center;margin-top:-4px}
+  .recall-item.clean-fold.is-open>.recall-component::after{transform:rotate(-135deg);margin-top:3px}
+  .recall-meta{grid-column:1;font-size:11px;font-weight:500;color:var(--text-muted);font-variant-numeric:tabular-nums}
+  .recall-item.clean-fold:not(.is-open)>:is(.recall-summary,.recall-details){display:none}
+  .recall-item.clean-fold.is-open>.recall-details{padding-bottom:12px}
+  .clean-related:not(.is-open)>.clean-related-body{display:none}
+  .clean-related{border-top:1px solid var(--border);margin-top:6px}
+
+  /* ── complaints: two lines each, tap for the rest ── */
+  .complaint-item{padding:11px 0;cursor:pointer}
+  .complaint-item:not(.is-open) .complaint-summary{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+  .complaint-component{font-size:12.5px;margin-bottom:3px}
+}
+
+/* ── phones: the sheet's short values two to a row; the lookup form shrinks once a report is open ── */
+@media screen and (max-width:700px){
+  .sheet-list{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px}
+  .sheet-list>.sheet-row{display:block;padding:7px 0;border-bottom:0}
+  .sheet-list>.sheet-row.wide{grid-column:1/-1}
+  .sheet-row dt{font-size:11px;line-height:1.4;color:var(--text-muted)}
+  .sheet-row dd{font-size:13.5px;line-height:1.45;font-weight:600}
+  .sheet-section{padding:14px 16px 12px}
+  .equip-grid{grid-template-columns:1fr 1fr;gap:2px 12px}
+  .equip-item{align-items:flex-start;line-height:1.35}
+  .complaint-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:10px 6px}
+  .complaint-stat-value{font-size:19px}
+  .complaint-stat-label{font-size:9px}
+
+  #hero.compact{padding-bottom:14px}
+  #hero.compact .eyebrow,#hero.compact h1{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  #hero.compact .input-row{flex-direction:row;gap:8px}
+  #hero.compact #vin-input{flex:1 1 auto;min-width:0}
+  #hero.compact #decode-btn{flex:none;padding-inline:14px}
+  #hero.compact .form-status{margin-top:8px;font-size:11px}
+  main:has(>#report:not([hidden])) #vehicle-context{display:none}
+  .car-sheet .photo-thumbs{display:none}
+  .car-sheet .photo-main{max-height:130px}
+  .car-sheet .report-actions{gap:6px;margin-top:12px}
+}

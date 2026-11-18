@@ -35,7 +35,7 @@ const TiresTab = (() => {
     if (!box) return;
     const sheet = typeof window !== 'undefined' && window.CarSheet;
     const html = sheet ? quickHtml(sheet.testedPlacards(report?.tire_placard)) : '';
-    box.innerHTML = `<p class="eyebrow">TIRES</p>${html || '<p class="tires-basis">No tire values from an NHTSA test vehicle for this car. The sizes and pressures are on the placard on the driver’s door pillar.</p>'}`;
+    box.innerHTML = `${html || '<p class="tires-basis">No tire values from an NHTSA test vehicle for this car. The sizes and pressures are on the placard on the driver’s door pillar.</p>'}`;
   }
 
   return { basisText, quickHtml, render };

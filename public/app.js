@@ -106,7 +106,7 @@ form.addEventListener('submit', async (e) => {
     // Compact hero
     hero.classList.add('compact');
     results.hidden = false;
-    $('#decode-status').textContent = 'Report ready. Review source coverage in each section.';
+    $('#decode-status').textContent = 'Report ready.';
     if (!location.hash || location.hash === '#report') {
       history.replaceState(null, '', '/' + encodeURIComponent(vin) + location.search + '#report');
       results.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
