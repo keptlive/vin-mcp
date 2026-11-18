@@ -187,6 +187,25 @@ Tesla Service's [official VIN recall search](https://service.tesla.com/en-US/vin
 
 `GET /api/vin/{vin}/recall-status`, `VinClient.recallStatus(vin)` and MCP `vin_recall_status` expose this data. VIN reports and printable comparisons include the summary. Tesla and Ford supply open/completed states. Subaru supplies completed and incomplete safety recalls, with emissions campaigns listed separately. Volkswagen, Audi and Land Rover report open recalls, and completed ones only where their lookup returns them. Acura is covered through the Honda lookup. (Added 2026-11-16 in `lib/more-manufacturer-recalls.mjs`; open records have been seen live for Volkswagen and Audi; completed records for those two, and any Land Rover or Jaguar record, have only been read from the makers' page code. Jaguar shares Land Rover's lookup. BMW's lookup did not answer plain requests and is not used.) GM supplies open/completed or administratively closed records, and explicit repair dates where supplied. Honda supplies active safety recalls; Nissan supplies positive open safety recalls and Mopar supplies VIN-matched open recall/campaign records, with the limitations below. Toyota, Lexus, Scion, Hyundai and Kia require interactive verification; other manufacturers return unknown with an official lookup link. Unknown response statuses never count as zero open recalls; recall dates never become repair completion dates. Results are not a complete service history or a guarantee of safety. Successful results are cached for up to 15 minutes; failures are retried. Public manufacturer interfaces are undocumented for third-party integration and can change.
 
+#### When the maker answers slowly: `pending`
+
+A report does not wait the whole time for a slow maker. The lookup starts as soon as the VIN is decoded, beside NHTSA's calls, and the report waits for it up to a budget counted from that start: 2 s for the website and `GET /api/vin/{vin}` (`RECALL_WAIT_MS.report` in `lib/reports.mjs`), 6 s for MCP `decode_vin` (`RECALL_WAIT_MS.mcp`). Comparisons wait for the full answer (they are printed and exported). A maker still answering after the budget gives:
+
+```json
+"recall_status": {"vin": "1FMCU0G61LUA27504", "scope": "vin", "vin_specific": true, "available": false,
+  "pending": true, "reason": "lookup_in_progress", "maker": "Ford", "waited_ms": 2000,
+  "open_count": null, "completed_count": null, "recalls": [],
+  "source": {"provider": "Ford Owner Support VIN Recalls", "reference_url": "https://www.ford.com/support/recalls-details/..."},
+  "verification_url": "https://www.ford.com/support/recalls-details/...",
+  "status_url": "/api/vin/1FMCU0G61LUA27504/recall-status", "note": "..."}
+```
+
+Pending is unknown, never "no open recalls" (`available: false`, counts null). The lookup keeps running in the background and fills the 15-minute cache; one lookup per VIN runs at a time and every request for that VIN shares it (`createRecallStatusLookup`). `GET status_url`, MCP `vin_recall_status` and `GET /api/vin/{vin}?recall_wait=full` (MCP: `recall_wait: "full"`) wait for that same lookup. A background lookup that fails is caught: nothing is cached and the next request asks the maker again. In MCP output a pending status also carries `next_step: {tool: "vin_recall_status", arguments: {vin}}`. `decode_checks.sources.manufacturer_record.status` is `pending` meanwhile; the checks that use the maker's description of the VIN run when the status arrives.
+
+The website shows "Checking with Ford…" in the recall card, the car sheet's recall row and the decode-checks source line, then requests the report again with `?recall_wait=full` and redraws only the blocks that changed (the status block, the car sheet's recall section and footer, and the decode checks, fuel economy and test-vehicle blocks only if the maker's record changed a checked value), keeping typed text, open forms, focus, the transmission choice and the scroll position (`public/keep-state.js`). Printed while pending, the car sheet's row reads "Unknown: Ford had not answered when this sheet was printed" and the recall card "Not loaded: Ford had not answered when this page was printed"; printing does not wait. If the second request fails twice, the status reads as not loaded (unknown).
+
+Why Ford is slow (measured 2026-11-18 from the web server, 4 requests): Ford's CDN (Akamai) holds each request about 9-10 s before answering (`server-timing` edge duration 9,000-10,002 ms; origin about 120 ms), even for a no-VIN page, a cached redirect and a reused connection, so the delay is per request and a client cannot shorten it. The VIN page is also about 1.3 MB, with the recall data about 81% of the way through. Reports for other makes took 0.4-2 s in all before this change.
+
 ### Ford: open/completed recalls and separate programs
 
 The [official Ford VIN page](https://www.ford.com/support/recalls/) serves its VIN-specific status in the same public page used by the browser. The adapter parses the serialized data as JSON; it never executes downloaded JavaScript. Both the page VIN and the returned vehicle VIN must match. The success flag, validation flag, arrays and declared record counts must agree. `O` means open and `C` means completed; other values remain unknown. Safety/environmental recall records and customer-satisfaction programs are separate. Coverage begins January 1, 2004. No repair date is supplied, so `repair_completed_at` remains null. The same official checker accepts Ford, Lincoln and Mercury; upstream confirmation still controls availability.
@@ -674,7 +693,8 @@ tires and capacities) use the checked values. Code: `lib/decode-checks.mjs`, `li
   disagree leave the field unset; "e-tron", "PZEV", "FED", a lone "A" and Subaru's "2.5X" are never read as
   powertrain, transmission or drive. The VIN page is drawn before the maker replies and never waits for it
   (`sources.manufacturer_record.status: "not_checked"`); the REST report, MCP `decode_vin` and comparisons
-  re-run the checks with it (`used`, `not_available` or `not_supported`). In a gentle sample of 16 NHTSA test
+  re-run the checks with it (`used`, `not_available` or `not_supported`), or say `pending` when the maker had not
+  answered within the report's wait (see "When the maker answers slowly" above; the website then fills them in). In a gentle sample of 16 NHTSA test
   vehicles the description agreed with vPIC on every stated field except drive on both 2018 Atlases (vPIC AWD,
   Volkswagen "FWD", both test reports FWD), and named "MULTITRONIC" (a CVT) where vPIC said "Automatic".
 - **NHTSA test-vehicle evidence.** `data-src/decode-evidence.jsonl` (built offline by the audit, imported with

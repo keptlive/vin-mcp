@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
+import {VinClient} from '../public/client.mjs';
 
 const pending = {vin: '1FTEX1EP4FFD06976', scope: 'vin', vin_specific: true, available: false, pending: true, reason: 'lookup_in_progress', maker: 'Ford',
   waited_ms: 2000, source: {provider: 'Ford Owner Support VIN Recalls', reference_url: 'https://www.ford.com/support/recalls-details/1FTEX1EP4FFD06976/'},
@@ -126,4 +127,12 @@ test('web report: a follow-up for a VIN no longer shown changes nothing', async 
   await follow;
   assert.ok(!els.has('#recall-status-block'), 'nothing was redrawn');
   assert.ok(!els.has('#decode-status'));
+});
+
+test('VinClient.decode asks for the full wait only when told to', async () => {
+  const seen = [];
+  const client = new VinClient({baseUrl: 'http://localhost:3298', fetchImpl: async url => { seen.push(url); return new Response('{}'); }});
+  await client.decode('1FTEX1EP4FFD06976');
+  await client.decode('1FTEX1EP4FFD06976', {recallWait: 'full'});
+  assert.deepEqual(seen, ['http://localhost:3298/api/vin/1FTEX1EP4FFD06976', 'http://localhost:3298/api/vin/1FTEX1EP4FFD06976?recall_wait=full']);
 });
