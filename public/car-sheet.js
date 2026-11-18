@@ -451,10 +451,11 @@ const CarSheet = (() => {
     // mcp.vin does not check this VIN's repairs (it never asks a manufacturer): on screen, links to the maker's own
     // recall page and NHTSA's; on paper, "Not checked by mcp.vin" and where to check (lib/recall-links.mjs).
     const vin = String(r.vin || '').toUpperCase();
-    const nhtsa = (s && s.nhtsa_lookup_url) || 'https://www.nhtsa.gov/recalls' + (/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) ? '?vin=' + vin : '');
-    const maker = s && s.maker && s.manufacturer_lookup_url ? s.maker : null;
+    const https = u => typeof u === 'string' && /^https:\/\//.test(u);
+    const nhtsa = s && https(s.nhtsa_lookup_url) ? s.nhtsa_lookup_url : 'https://www.nhtsa.gov/recalls' + (/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) ? '?vin=' + vin : '');
+    const maker = s && s.maker && https(s.manufacturer_lookup_url) ? s.maker : null;
     const own = maker ? `${maker}${/s$/i.test(maker) ? '’' : '’s'}` : '';
-    const short = url => { try { const u = new URL(url); return (u.hostname.replace(/^www\./, '') + u.pathname).replace(/\/$/, ''); } catch { return ''; } };
+    const short = url => /^https?:\/\//.test(url || '') ? String(url).replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/$/, '') : '';
     const where = [maker && short(s.manufacturer_page_url || s.manufacturer_lookup_url), 'nhtsa.gov/recalls'].filter(Boolean).join(' or ');
     const status = `<span class="sheet-screen-only">Not checked by mcp.vin. ${maker ? `<a href="${esc(s.manufacturer_lookup_url)}" target="_blank" rel="noopener">Check this VIN on ${esc(own)} recall page</a>${s.vin_prefilled ? '' : ' (enter the VIN there)'} · ` : ''}<a href="${esc(nhtsa)}" target="_blank" rel="noopener">Check on NHTSA</a>`
       + `<span class="sheet-source">mcp.vin shows the model year’s campaigns; only the maker or NHTSA can say whether this car’s repairs are done.</span></span>`

@@ -25,7 +25,10 @@ const base = () => ({
   safety_ratings: {rated: false},
   fuel_economy: {available: false, reason: 'no_matching_variant'},
   provenance: {assembled_at: '2026-11-16T22:42:11.046Z'},
-  recall_status: {available: true, open_count: 0, completed_count: 6, unknown_count: 0, service_campaign_count: 2, verification_url: 'https://experience.gm.com/ownercenter/recalls?vin=1G1FW6S06H4188545', source: {provider: 'GM Recall and Warranty Center', retrieved_at: '2026-11-16T22:42:12Z'}},
+  // The link block (lib/recall-links.mjs): mcp.vin does not check this VIN's recall repairs.
+  recall_status: {vin: '1G1FW6S06H4188545', available: false, reason: 'manufacturer_link_only', checked_by_mcp_vin: false, maker: 'GM',
+    manufacturer_lookup_url: 'https://experience.gm.com/ownercenter/recalls', manufacturer_page_url: 'https://experience.gm.com/ownercenter/recalls', vin_prefilled: false,
+    nhtsa_lookup_url: 'https://www.nhtsa.gov/recalls?vin=1G1FW6S06H4188545', nhtsa_vin_prefilled: null, open_count: null, completed_count: null, recalls: []},
 });
 const text = html => html.replace(/<wbr>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
@@ -49,7 +52,7 @@ test('the sheet shows public facts and leaves unknown values out, never zero', (
   const down = {...base(), recalls: {available: false, count: null}, complaints: {available: false, count: null}, recall_status: {available: false, reason: 'upstream_unavailable'}};
   const d = text(sheet.html(down).body);
   assert.equal((d.match(/Unknown \(lookup unavailable\)/g) || []).length, 2);
-  assert.match(d, /This VIN’s recall status Unknown\. Not available for this vehicle here\./);
+  assert.match(d, /This VIN’s recall repairs Not checked by mcp\.vin\. Check on NHTSA/);
   assert.doesNotMatch(d, /\b0 open\b|\b0 for the\b|\b0 for this model year\b/);
 });
 
@@ -234,29 +237,28 @@ test('owner’s manual links go only to the maker’s official library', () => {
   assert.match(sheet.html(base()).body, /<a href="https:\/\/www\.chevrolet\.com\/support\/vehicle\/manuals-guides" target="_blank" rel="noopener">Chevrolet owner’s manuals<\/a>/);
 });
 
-test('VIN recall status names its maker source; model-year campaigns are not repair status', () => {
+test('VIN recall repairs: not checked by mcp.vin, links to the maker and NHTSA; model-year campaigns are not repair status', () => {
   const {sheet} = load();
   const out = text(sheet.html(base()).body);
-  assert.match(out, /0 open · 6 completed or closed · 2 other maker programs Reported by GM Recall and Warranty Center, checked 16 Nov 2026, 22:42 UTC\./);
+  assert.match(out, /This VIN’s recall repairs Not checked by mcp\.vin\. Check this VIN on GM’s recall page \(enter the VIN there\) · Check on NHTSA mcp\.vin shows the model year’s campaigns; only the maker or NHTSA can say whether this car’s repairs are done\. Not checked by mcp\.vin\. Check at experience\.gm\.com\/ownercenter\/recalls or nhtsa\.gov\/recalls\./);
   assert.match(out, /Model-year recall campaigns 4 for the 2017 Chevrolet Bolt EV NHTSA campaigns for the make, model and year\. Not this car’s repair status\./);
   assert.match(out, /Owner complaints to NHTSA 47 for this model year Reports, not confirmed defects\./);
-  // Open recalls are emphasized; an active-only source does not claim completed history.
-  const ford = sheet.html({...base(), recall_status: {available: true, open_count: 2, completed_count: 1, service_campaign_count: 1, source: {provider: 'Ford Owner Support VIN Recalls', retrieved_at: '2026-11-16T22:42:00Z'}}}).body;
-  assert.match(ford, /<span class="sheet-alert">2 open · 1 completed or closed · 1 other maker program<\/span>/);
-  const honda = text(sheet.html({...base(), recall_status: {available: true, open_count: 0, completed_count: null, coverage: {completed_history: false}, source: {provider: 'Honda MyGarage VIN Recall Search'}}}).body);
-  assert.match(honda, /0 open · completed history not supplied by this source Reported by Honda MyGarage VIN Recall Search\./);
-  const mopar = text(sheet.html({...base(), recall_status: {available: true, open_count: null, open_record_count: 1, completed_count: null, source: {provider: 'Mopar fleet lookup'}}}).body);
-  assert.match(mopar, /1 open recall or campaign records · unknown completed or closed/);
-  const toyota = text(sheet.html({...base(), recall_status: {available: false, reason: 'interactive_verification_required', verification_url: 'https://www.toyota.com/recall/'}}).body);
-  assert.match(toyota, /Unknown\. The maker’s check needs a person to verify\. Check this VIN with the official source www\.toyota\.com /);
+  assert.doesNotMatch(out, /\bopen\b|completed or closed|Reported by/);
+  // Ford's page takes the VIN from the link: no "enter the VIN there".
+  const ford = sheet.html({...base(), recall_status: {...base().recall_status, maker: 'Ford', manufacturer_lookup_url: 'https://www.ford.com/support/recalls-details/1G1FW6S06H4188545/', manufacturer_page_url: 'https://www.ford.com/support/recalls/', vin_prefilled: true}}).body;
+  assert.match(ford, /<a href="https:\/\/www\.ford\.com\/support\/recalls-details\/1G1FW6S06H4188545\/" target="_blank" rel="noopener">Check this VIN on Ford’s recall page<\/a> · /);
+  assert.match(text(ford), /Check at ford\.com\/support\/recalls or nhtsa\.gov\/recalls\./);
+  // An old-style or missing block still says not checked and links NHTSA (never a status).
+  for (const old of [{available: true, open_count: 2, completed_count: 1, source: {provider: 'Ford Owner Support VIN Recalls'}}, undefined])
+    assert.match(text(sheet.html({...base(), recall_status: old}).body), /This VIN’s recall repairs Not checked by mcp\.vin\. Check on NHTSA .* Check at nhtsa\.gov\/recalls\./);
   const related = text(sheet.html({...base(), recalls: {available: true, count: 3, recalls: [], related_models: {available: true, count: 2}}}).body);
   assert.match(related, /3 for the 2017 Chevrolet Bolt EV \(plus 2 filed under related model names; they may not apply\)/);
 });
 
 test('values from upstream sources are escaped', () => {
   const {sheet} = load();
-  const out = sheet.html({...base(), vehicle: {...base().vehicle, trim: '<img src=x onerror=alert(1)>'}, recall_status: {available: true, open_count: 1, source: {provider: '<script>x</script>'}}});
-  assert.doesNotMatch(out.body + out.foot, /<img src=x|<script>/);
+  const out = sheet.html({...base(), vehicle: {...base().vehicle, trim: '<img src=x onerror=alert(1)>'}, recall_status: {...base().recall_status, maker: '<script>x</script>', manufacturer_lookup_url: 'javascript:alert(1)'}});
+  assert.doesNotMatch(out.body + out.foot, /<img src=x|<script>|javascript:/);
   assert.match(out.body, /&lt;img src=x onerror=alert\(1\)&gt;/);
 });
 
@@ -378,7 +380,7 @@ test('on paper: at most two tested vehicles and no tank-size list, so the sheet 
   assert.equal((body.match(/<li class="placard-test"/g) || []).length, 2);
   assert.equal((body.match(/<li class="placard-test sheet-screen-only"/g) || []).length, 1);
   assert.match(body, /<p class="sheet-note sheet-print-only">1 more NHTSA test vehicle with other values: see the live report\.<\/p>/);
-  assert.doesNotMatch(sheet.html({...base(), tire_placard: placard(vs.slice(0, 2))}).body, /sheet-print-only/);
+  assert.doesNotMatch(sheet.html({...base(), tire_placard: placard(vs.slice(0, 2))}).body, /<p class="sheet-note sheet-print-only">/);
   const out = sheet.html({...gas(), test_vehicle_specs: specs(specsVehicle(), {model_tank_sizes: [{litres: 54.09, gallons: 14.3, model_years: [2023]}, {litres: 62, gallons: 16.4, model_years: [2016]}]})}).body;
   assert.match(out, /<span class="sheet-screen-only"> NHTSA’s tested Tucson vehicles list more than one tank: 14\.3 gal \(2023\); 16\.4 gal \(2016\)\.<\/span>/);
   const css = readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');

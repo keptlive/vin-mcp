@@ -366,19 +366,20 @@ const possessive = name => /s$/i.test(name) ? `${name}’` : `${name}’s`;
 function recallStatusHtml(r) {
   const s = r.recall_status || {};
   const vin = String(r.vin || '');
-  const nhtsa = s.nhtsa_lookup_url || nhtsaRecallUrl(vin);
-  const maker = s.maker && s.manufacturer_lookup_url
+  const https = u => typeof u === 'string' && /^https:\/\//.test(u);
+  const nhtsa = https(s.nhtsa_lookup_url) ? s.nhtsa_lookup_url : nhtsaRecallUrl(vin);
+  const maker = s.maker && https(s.manufacturer_lookup_url)
     ? `<a class="button-link recall-check-btn" href="${esc(s.manufacturer_lookup_url)}" target="_blank" rel="noopener">Check this VIN on ${esc(possessive(s.maker))} recall page</a>` : '';
-  const paste = s.maker && s.manufacturer_lookup_url && !s.vin_prefilled
+  const paste = maker && !s.vin_prefilled
     ? `<p class="small recall-paste rc-screen">${esc(possessive(s.maker))} page does not take the VIN from a link: enter <code>${esc(vin)}</code> there. <button type="button" class="recall-copy" data-copy="${esc(vin)}">Copy VIN</button></p>` : '';
   return `<h3>This VIN’s recall repairs</h3>`
     + `<p class="recall-check-lead">mcp.vin shows the model year’s campaigns above. Only the maker or NHTSA can say whether this exact car’s repairs are done.</p>`
     + `<div class="recall-check-actions rc-screen">${maker}<a class="button-link recall-check-btn${maker ? ' secondary' : ''}" href="${esc(nhtsa)}" target="_blank" rel="noopener">Check on NHTSA</a></div>${paste}`
-    + `<p class="rc-print recall-check-print">Not checked by mcp.vin. Check this VIN at ${esc(shortUrl(s.manufacturer_page_url))}${s.manufacturer_page_url ? ' or ' : ''}nhtsa.gov/recalls.</p>`;
+    + `<p class="rc-print recall-check-print">Not checked by mcp.vin. Check this VIN at ${maker ? esc(shortUrl(s.manufacturer_page_url || s.manufacturer_lookup_url)) + ' or ' : ''}nhtsa.gov/recalls.</p>`;
 }
 // A link as printed: host and path, no scheme, "www." or query ("ford.com/support/recalls").
 function shortUrl(url) {
-  try { const u = new URL(url); return (u.hostname.replace(/^www\./, '') + u.pathname).replace(/\/$/, ''); } catch { return ''; }
+  return /^https?:\/\//.test(url || '') ? String(url).replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/$/, '') : '';
 }
 // The "Copy VIN" button next to a maker page that does not take the VIN from a link.
 document.addEventListener('click', e => {

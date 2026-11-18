@@ -187,12 +187,18 @@ test('printing a different workspace section remains available without a cost ca
  w.get('#print-view').onclick();assert.equal(w.printCalls(),1);assert.match(w.get('#print-meta').textContent,/coverage/);
 });
 
-test('comparison and printable summary label manufacturer handoffs accurately and keep Nissan history unknown',async()=>{
+test('comparison: no VIN recall status, a "not checked" row and links to each maker and NHTSA; printable',async()=>{
  const vins=['1N4AL3APXFN868842','KM8K53AG0MU098173','5XXGR4A60FG353263','4T1BF1FK0CU123456'];
- const w=workspace({compare:async()=>({note:'Fixture scope.',results:vins.map((vin,i)=>({report:{vehicle:{make:['Nissan','Hyundai','Kia','Toyota'][i]},recall_status:i===0?{available:true,open_count:1,completed_count:null,source:{provider:'Nissan U.S. VIN Recall Search',retrieved_at:'2026-10-24T12:00:00Z'}}:{available:false,open_count:null,completed_count:null,reason:'interactive_verification_required'}}}))})});
+ const makers=[['Nissan','https://www.nissanusa.com/owners/recalls-vin.html',false],['Hyundai','https://autoservice.hyundaiusa.com/campaignhome?vin='+vins[1],true],[null,null,null],['Toyota','https://www.toyota.com/recall/',false]];
+ const w=workspace({compare:async()=>({note:'Fixture scope.',results:vins.map((vin,i)=>({report:{vehicle:{make:['Nissan','Hyundai','Kia','Toyota'][i]},recall_status:{vin,available:false,reason:'manufacturer_link_only',maker:makers[i][0],manufacturer_lookup_url:makers[i][1],vin_prefilled:makers[i][2],nhtsa_lookup_url:'https://www.nhtsa.gov/recalls?vin='+vin,open_count:null,completed_count:null,recalls:[]}}}))})});
  for(const s of w.sections)s.hidden=s.id!=='compare';w.get('#vins').value=vins.join('\n');
  await w.get('#compare-form').onsubmit({preventDefault(){},submitter:{disabled:false}});
- const html=w.get('#compare-result').innerHTML;assert.match(html,/Nissan U.S. VIN Recall Search/);assert.equal((html.match(/Official interactive verification/g)||[]).length,3);assert.doesNotMatch(html,/Toyota interactive verification/);
- assert.match(html,/<th scope="row">Manufacturer-reported completed\/closed recalls<\/th>(<td>Unknown<\/td>){4}/);assert.match(html,/Nissan supplies positive VIN-matched open safety recalls/);assert.match(html,/Toyota, Hyundai and Kia require interactive official verification/);
+ const html=w.get('#compare-result').innerHTML;
+ assert.match(html,/<th scope="row">This VIN’s recall repairs<\/th><td>Not checked by mcp\.vin: check with Nissan or NHTSA<\/td><td>Not checked by mcp\.vin: check with Hyundai or NHTSA<\/td><td>Not checked by mcp\.vin: check with NHTSA<\/td>/);
+ assert.doesNotMatch(html,/Manufacturer-reported|open recalls|completed\/closed|interactive verification/);
+ assert.match(html,/mcp\.vin does not check any VIN’s recall repairs/);
+ assert.match(html,/<a href="https:\/\/www\.nissanusa\.com\/owners\/recalls-vin\.html" target="_blank" rel="noopener">Nissan’s recall page<\/a> \(enter the VIN there\)/);
+ assert.match(html,/Hyundai’s recall page<\/a> · /);
+ assert.equal((html.match(/>NHTSA<\/a>/g)||[]).length,4);
  w.get('#print-view').onclick();assert.equal(w.printCalls(),1);assert.match(w.get('#print-meta').textContent,/compare/);
 });
