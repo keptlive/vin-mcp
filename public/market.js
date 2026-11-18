@@ -164,13 +164,14 @@ const Market = (() => {
         <div class="market-sort" role="group" aria-label="Sort cars">${d.zip ? chip('near', 'Nearest') : ''}${chip('price', 'Lowest price')}${chip('miles', 'Fewest miles')}</div></div>
       <ul class="market-list">${shown.map(l => listingHtml(l, d.this_car?.vin)).join('')}</ul>
       ${all.length > FIRST && !st.all ? `<button type="button" class="secondary market-more">Show all ${all.length}${more}</button>` : ''}
-      <p class="market-foot">Links open the dealer’s own page. Prices and availability can change there first.</p>`;
+`;
   }
 
   function methodHtml(d) {
     return `<details class="market-method"><summary>How these numbers are worked out</summary>
       <p><strong>Dealer price</strong> is the middle asking price of comparable cars on dealer websites; the range holds the middle half. ${d.per_10k_miles_pct != null ? `Among these cars, each 10,000 miles changes the price by about ${Math.abs(d.per_10k_miles_pct)}%.` : ''}</p>
       ${d.mode === 'used' ? `<p><strong>Private sale</strong> (91% of dealer price) and <strong>trade-in</strong> (82%, range 75–85%) are rules of thumb applied to that price, not offers and not measured sales.</p>` : ''}
+      <p>Each car links to the dealer’s own page; prices and availability can change there first.</p>
       <p>These are asking prices, not sale prices. Comparable cars: same model year, make and model${d.trim ? `, ${esc(d.trim)} trim` : ''}; the search starts within 50 miles and widens until it finds 20.</p>
       <p>Coverage is partial: about 1.5 million cars from some 9,600 US dealer websites, thinner for some brands and regions. Condition, options and history are not considered.</p></details>`;
   }
