@@ -38,7 +38,7 @@ test('Nissan 404, blocked, malformed and empty responses stay unknown and retry'
 test('Toyota, Hyundai and Kia route to their official interactive verification without protected requests',async()=>{
  let calls=0;const lookup=createRecallStatusLookup(async()=>{calls++;throw Error('Protected flow must not be called');});
  for(const [input,url,make] of [['4T1BF1FK0CU123456','https://www.toyota.com/recall/','Toyota'],['KM8K53AG0MU098173',HYUNDAI_LOOKUP,'Hyundai'],['5XXGR4A60FG353263',KIA_LOOKUP,'Kia']]){
-  const vin=input.slice(0,8)+validateVin(input).checksum.expected+input.slice(9),r=await lookup(vin,'TESLA');assert.equal(r.reason,'interactive_verification_required');assert.equal(r.open_count,null);assert.equal(r.completed_count,null);assert.equal(r.verification_url,url);assert.match(r.note,new RegExp(make));
+  const vin=input.slice(0,8)+validateVin(input).checksum.expected+input.slice(9),r=await lookup(vin,'TESLA');assert.equal(r.reason,'interactive_verification_required');assert.equal(r.open_count,null);assert.equal(r.completed_count,null);assert.equal(r.verification_url,make==='Hyundai'?url+'?vin='+vin:url);assert.match(r.note,new RegExp(make));   // Hyundai's page takes the VIN from its address; Toyota's and Kia's do not
  }assert.equal(calls,0);
 });
 test('Ford reads split page data without executing scripts; recalls and service programs stay separate',()=>{

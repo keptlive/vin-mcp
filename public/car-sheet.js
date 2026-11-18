@@ -464,7 +464,7 @@ const CarSheet = (() => {
       const why = s && s.reason === 'interactive_verification_required' ? 'The maker’s check needs a person to verify.' : 'Not available for this vehicle here.';
       status = `Unknown. ${esc(why)}`;
     }
-    const verify = (s && s.verification_url) || 'https://www.nhtsa.gov/recalls';
+    const verify = (s && s.verification_url) || 'https://www.nhtsa.gov/recalls' + (/^[A-HJ-NPR-Z0-9]{17}$/i.test(r.vin || '') ? '?vin=' + String(r.vin).toUpperCase() : '');
     status += ` <a href="${esc(verify)}" target="_blank" rel="noopener">Check this VIN with the official source</a><span class="sheet-url">${esc(site(verify))}</span>`;
     const campaigns = !rec || rec.available === false || typeof rec.count !== 'number' ? 'Unknown (lookup unavailable)'
       : `${fmt(rec.count)} for the ${name}`;
