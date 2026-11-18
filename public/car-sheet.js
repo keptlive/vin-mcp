@@ -624,6 +624,7 @@ const CarSheet = (() => {
     });
     // Jump to the full report without changing the URL hash, which names the workspace view.
     document.querySelector('#full-report-link')?.addEventListener('click', event => {
+      if (window.ReportTabs) { event.preventDefault(); window.ReportTabs.select('all', { scroll: true }); return; }
       const heading = document.querySelector('#full-report');
       if (!heading) return;
       event.preventDefault();
