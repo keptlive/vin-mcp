@@ -237,11 +237,11 @@ function renderOverview(r) {
     ['Make', v.make],
     ['Model', v.model],
     ['Trim', v.trim],
-    ['Body Class', v.body_class],
+    ['Body Class', v.body_class, 'body'],
     ['Doors', v.doors],
     ['Vehicle Type', v.vehicle_type],
   ];
-  $('#overview-body').innerHTML = rows.map(([l, v]) => dataRow(l, v)).join('');
+  $('#overview-body').innerHTML = rows.map(([l, v, f]) => checkedRow(r, l, v, f)).join('');
 }
 
 // ── Engine Card ──
@@ -636,13 +636,17 @@ function renderRaw(r) {
     return;
   }
 
-  const entries = Object.entries(raw).filter(([, v]) => v && v !== '' && v !== 'Not Applicable');
+  // raw_nhtsa is NHTSA's official decode; a value an mcp.vin rule fix changed is listed with the fixed value beside it.
+  const fixedBy = new Map(((r.vpic_rule_fixes && r.vpic_rule_fixes.changed) || []).map(c => [c.field, c]));
+  const entries = Object.entries(raw).filter(([k, v]) => (v && v !== '' && v !== 'Not Applicable') || fixedBy.has(k));
   entries.sort((a, b) => a[0].localeCompare(b[0]));
 
   const filterInput = `<input class="raw-filter" placeholder="Filter fields..." oninput="filterRaw(this.value)">`;
-  const tableRows = entries.map(([k, v]) =>
-    `<tr class="raw-row"><td>${esc(k)}</td><td>${esc(String(v))}</td></tr>`
-  ).join('');
+  const tableRows = entries.map(([k, v]) => {
+    const fx = fixedBy.get(k);
+    const note = fx ? ` <span class="dc-detail dc-detail-corrected">mcp.vin rule fix (${esc((fx.fix_ids || []).join(', '))}): ${esc(fx.value || 'blank')}</span>` : '';
+    return `<tr class="raw-row"><td>${esc(k)}</td><td>${esc(String(v || (fx ? 'blank' : '')))}${note}</td></tr>`;
+  }).join('');
 
   $('#raw-body').innerHTML = `${filterInput}<table class="raw-table"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${tableRows}</tbody></table>`;
 }
