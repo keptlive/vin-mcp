@@ -19,11 +19,13 @@ does not list stay as printed.
 usage: python3 scripts/import-aala.py [--years 2020-2027]   (needs pdfminer.six, e.g. a venv)
 Builds data/aala.db atomically from PDFs cached in operations/free-data/aala/ (downloads missing ones)."""
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import datetime, hashlib, json, os, re, sqlite3, statistics, sys, time
 
 ROOT = Path(__file__).resolve().parent.parent
-UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+# Honest client name (no browser imitation): if a source refuses it, stop and report, never disguise the request.
+UA = 'mcp.vin-importer/1.0 (+https://mcp.vin)'
 BASE = 'https://www.nhtsa.gov/sites/nhtsa.gov/files/'
 # Newest edition of each model year's alphabetical report found on nhtsa.gov (the listing page itself
 # refuses scripted requests, so the file links are kept here). Update when NHTSA posts a newer edition.
@@ -320,8 +322,13 @@ def main():
         path = cache / FILES[year].split('/')[-1].replace('%20', ' ')
         if not path.exists():
             time.sleep(3)
-            with urlopen(Request(url, headers={'User-Agent': UA}), timeout=120) as r:
-                payload = r.read(10_000_001)
+            try:
+                with urlopen(Request(url, headers={'User-Agent': UA}), timeout=120) as r:
+                    payload = r.read(10_000_001)
+            except HTTPError as e:
+                # 2026-11-18: www.nhtsa.gov (Akamai) answered this client name with 403. Not worked around: download
+                # the PDF in a browser into operations/free-data/aala/ (this script then reads the cached file).
+                sys.exit(f'{url}: HTTP {e.code}. nhtsa.gov refused the request; save the file to {path} by hand and rerun.')
             if len(payload) > 10_000_000 or not payload.startswith(b'%PDF'):
                 raise ValueError('Not a PDF or too large: ' + url)
             path.write_bytes(payload)
