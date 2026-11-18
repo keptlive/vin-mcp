@@ -1,0 +1,124 @@
+/* Report tabs and the Price tab (public/report-tabs.js, public/market.js). Uses the workspace tokens in style.css. */
+
+/* ── Tabs: #results[data-tab] picks the view on screen. Print is untouched: it shows the full report. ── */
+.report-nav{position:sticky;top:0;z-index:20;margin:20px 0 0;background:var(--bg);padding-top:6px}
+.report-nav-title{margin:0;padding:6px 2px 0;font-size:13px;font-weight:650;color:var(--text);letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.report-tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);-webkit-overflow-scrolling:touch}
+.report-tabs::-webkit-scrollbar{display:none}
+.report-tabs button{flex:0 0 auto;min-height:46px;padding:10px 14px;border:0;border-bottom:3px solid transparent;border-radius:0;background:none;color:var(--text-dim);font-size:14px;font-weight:600;white-space:nowrap;margin-bottom:-1px}
+.report-tabs button:hover{background:none;color:var(--text);border-color:#c5d3c9}
+.report-tabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent)}
+.report-tabs button:focus-visible{outline-offset:-3px}
+.tab-figure{font-size:11px;font-weight:650;padding:2px 7px;border-radius:999px;background:var(--accent-glow);color:var(--accent);font-variant-numeric:tabular-nums}
+#tab-safety-figure{background:var(--red-dim);color:var(--red)}
+.market{margin:20px 0 36px}
+@media screen{
+  #results[data-tab=sheet] .report-nav-title{display:none}
+  #results:not([data-tab=sheet]) #car-sheet{display:none}
+  #results:not([data-tab=price]) #market-panel{display:none}
+  #results[data-tab=sheet] .cards-grid,#results[data-tab=price] .cards-grid{display:none}
+  #results .car-sheet{margin-top:20px}
+  #results .cards-grid{margin-top:20px}
+  #results[data-tab=safety] .cards-grid>.card:not(#card-recalls,#card-safety-ratings,#card-complaints,#card-safety-equip){display:none}
+  #results[data-tab=safety] .cards-grid>.card{grid-column:1/-1}
+  #results[data-tab=safety] #card-recalls{order:-1}
+  #results[data-tab=specs] .cards-grid>.card:is(#card-recalls,#card-safety-ratings,#card-complaints,#card-safety-equip,#card-raw){display:none}
+}
+@media print{.report-nav,#market-panel{display:none!important}}
+
+/* ── Price tab ── */
+.market-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+.market-head .eyebrow{margin-bottom:4px}
+.market-title{margin:0;font-size:22px;letter-spacing:-.5px}
+.market-form{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;margin:0}
+.market-form label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--text-dim)}
+.market-form input{width:104px;min-height:40px;padding:8px 10px;border:1px solid #bbcfc2;border-radius:6px;background:#fff;color:var(--text);font-size:14px;font-variant-numeric:tabular-nums}
+.market-form input::placeholder{color:#8b9a94}
+.market-form button{min-height:40px;padding:8px 14px}
+.market-form-error{flex-basis:100%;margin:2px 0 0;font-size:12px;color:var(--red)}
+
+.market-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.market-tiles-one{grid-template-columns:1fr}
+.market-tile{background:#fff;padding:16px 16px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.market-tile span{font-size:11px;font-weight:650;letter-spacing:.2px;color:var(--text-dim)}
+.market-tile b{font-size:clamp(20px,5.6vw,30px);line-height:1.15;font-weight:700;letter-spacing:-.8px;color:var(--text);font-variant-numeric:tabular-nums}
+.market-tile small{font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.market-tile-main{background:var(--accent);}
+.market-tile-main span,.market-tile-main small{color:#cfe5da}
+.market-tile-main b{color:#fff}
+.market-basis{margin:10px 2px 0;font-size:12px;color:var(--text-muted)}
+.market-notes{margin:6px 2px 0;font-size:12px;color:var(--orange)}
+
+.market-thiscar{display:grid;grid-template-columns:1fr auto;gap:2px 16px;align-items:center;margin-top:18px;padding:14px 16px;border:1px solid #bbcfc2;border-left:4px solid var(--accent);border-radius:8px;background:#fff;color:var(--text);text-decoration:none}
+.market-thiscar:hover{border-color:var(--accent);background:#fbfdfb}
+.market-thiscar-tag{grid-column:1/-1;font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--accent)}
+.market-thiscar-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.market-thiscar-main b{font-size:20px;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.market-thiscar-main em{font-style:normal;font-size:12px;font-weight:600;color:var(--text-dim)}
+.market-thiscar-where{grid-column:1;font-size:12px;color:var(--text-muted)}
+.market-go{grid-column:2;grid-row:2/4;font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap}
+
+.market-chart{margin:22px 0 0;padding:16px 16px 10px;background:#fff;border:1px solid var(--border);border-radius:8px}
+.market-chart figcaption{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;font-weight:650;color:var(--text);margin-bottom:6px}
+.market-chart figcaption span{font-size:11px;font-weight:500;color:var(--text-muted)}
+.market-chart-box{position:relative}
+.market-chart svg{display:block;width:100%;height:auto;overflow:visible}
+.mk-grid{stroke:#e9eee9;stroke-width:1}
+.mk-axis{stroke:#c9d4cc;stroke-width:1}
+.mk-tick{font:500 11px var(--font);fill:#63746e;font-variant-numeric:tabular-nums}
+.mk-band{fill:#216251;opacity:.09}
+.mk-band-at{opacity:.2}
+.mk-dot{fill:#3d8a73;fill-opacity:.62;stroke:#fff;stroke-width:1.5}
+.mk-dot:hover{fill-opacity:1}
+.mk-guide{stroke:#172f2b;stroke-width:1;stroke-dasharray:2 4;opacity:.45}
+.mk-estimate{fill:#fff;stroke:#172f2b;stroke-width:2}
+.mk-car{fill:#172f2b;stroke:#fff;stroke-width:2}
+.mk-label{font:650 12px var(--font);fill:#172f2b;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+.market-tip{position:absolute;transform:translate(-50%,-100%);padding:5px 9px;border-radius:6px;background:var(--text);color:#fff;font-size:12px;font-weight:600;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+
+.market-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:26px 0 10px}
+.market-list-head h3{margin:0;font-size:17px;letter-spacing:-.3px}
+.market-sort{display:flex;gap:6px;flex-wrap:wrap}
+.market-chip{min-height:34px;padding:6px 12px;border-radius:999px;border:1px solid #bbcfc2;background:#fff;color:var(--text-dim);font-size:12px;font-weight:600}
+.market-chip:hover{background:#edf4ee;border-color:var(--accent);color:var(--accent)}
+.market-chip[aria-pressed=true]{background:var(--text);border-color:var(--text);color:#fff}
+.market-list{list-style:none;margin:0;padding:0;background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.market-item{position:relative;border-bottom:1px solid #edf0eb}
+.market-item:last-child{border-bottom:0}
+.market-item-own{background:#f3f8f4}
+.market-item-link{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 14px;padding:13px 16px;color:var(--text);text-decoration:none}
+.market-item-link:hover{background:#f7faf7}
+.market-item-price{font-size:17px;font-weight:700;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.market-item-miles{font-size:13px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.market-item-what{font-size:12px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.market-item-dist{font-size:12px;color:var(--text-muted);text-align:right;white-space:nowrap}
+.market-item-where{grid-column:1/-1;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:64px}
+.market-item-report{position:absolute;right:12px;bottom:8px;padding:4px 6px;font-size:12px;font-weight:600}
+.market-more{width:100%;margin-top:10px}
+.market-foot{margin:10px 2px 0;font-size:11px;color:var(--text-muted)}
+
+.market-method{margin-top:22px;border-top:1px solid var(--border);padding-top:4px}
+.market-method summary{cursor:pointer;padding:10px 2px;font-size:13px;font-weight:600;color:var(--accent)}
+.market-method p{font-size:12px;line-height:1.6;margin:0 2px 10px;max-width:720px}
+
+.market-empty{padding:28px 20px;background:#fff;border:1px solid var(--border);border-radius:8px;text-align:center;margin-top:16px}
+.market-empty h3{margin-bottom:6px}
+.market-empty p{font-size:13px;margin-bottom:14px}
+.market-skeleton{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--border)}
+.market-skeleton span{height:92px;background:linear-gradient(90deg,#fff 0%,#f1f5f1 50%,#fff 100%);background-size:200% 100%;animation:market-shimmer 1.2s linear infinite}
+@keyframes market-shimmer{to{background-position:-200% 0}}
+@media(prefers-reduced-motion:reduce){.market-skeleton span{animation:none}}
+
+@media(max-width:560px){
+  .report-nav{margin:14px -16px 0;padding:6px 16px 0}
+  .report-tabs{margin:0 -16px;padding:0 10px}
+  .report-tabs button{padding:10px 10px;font-size:13.5px}
+  .market-head{align-items:stretch;flex-direction:column;gap:12px}
+  .market-form label{flex:1 1 0}
+  .market-form input{width:100%}
+  .market-tile{padding:13px 10px 12px}
+  .market-tile small{font-size:10px}
+  .market-chart{padding:14px 10px 8px}
+  .market-thiscar{grid-template-columns:1fr}
+  .market-go{grid-column:1;grid-row:auto;margin-top:4px}
+}

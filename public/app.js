@@ -146,6 +146,8 @@ function renderResults(report) {
   renderRaw(report);
   window.MoreSources?.render(report); // extra official sources (public/more-sources.js)
   if (typeof window !== 'undefined') window.VinWorkspace?.reportUpdated(report);
+  window.ReportTabs?.reportUpdated(report); // tab bar over the report (public/report-tabs.js)
+  window.Market?.render(report); // Price tab: local asking prices and cars for sale (public/market.js)
 }
 
 // ── Hero ──

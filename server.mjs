@@ -20,6 +20,7 @@ import { rateBenchmarks } from './lib/rate-benchmarks.mjs';
 import { scenario } from './lib/scenario.mjs';
 import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
+import { market } from './lib/market.mjs';
 import { vinRecallStatus } from './lib/recall-status.mjs';
 import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls } from './lib/reports.mjs';
 import { normalizeTransmission, applyOwnerDetails } from './lib/transmission-choice.mjs';
@@ -453,6 +454,8 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   app.get('/api/research/communications',rateGuard(30),researchHandler(req=>communications(req.query)));
   app.post('/api/research/scenario',rateGuard(30),researchHandler(req=>scenario(req.body)));
   app.post('/api/research/compare',rateGuard(5),researchHandler(req=>compareVehicles(req.body?.vins)));
+  // Local asking prices and cars for sale. POST so the ZIP code and mileage stay out of every request log.
+  app.post('/api/market',rateGuard(30),researchHandler(req=>market(req.body)));
 
   // "Doesn't match your door placard?" (car sheet): stored for review only; never shown, never applied.
   app.post('/api/placard-corrections', rateGuard(5), async (req, res) => {
