@@ -22,7 +22,7 @@ Enter a 17-character VIN and get a comprehensive vehicle report by aggregating s
 | **NHTSA Complaints** | Consumer complaints with crash, fire, injury, and death statistics |
 | **NHTSA Safety Ratings** | NCAP star ratings for overall, frontal, side, and rollover crash tests |
 | **EPA Fuel Economy** | City/highway/combined MPG, annual fuel cost, CO2 emissions, EV range and charge time |
-| **IMAGIN.studio** | Stock vehicle photos from multiple angles |
+| **NHTSA Vehicle Crash Test Database** | Photos of a vehicle NHTSA tested (same make, model, body style and generation): before the test and after NHTSA's crash tests. Never the decoded vehicle and never stock photos; mcp.vin serves resized copies itself |
 
 Additionally, VIN validation (checksum, WMI country/manufacturer decode, model year) is computed locally with zero API calls.
 
@@ -101,7 +101,7 @@ Account tools require the user's website login token. Public lookup tools requir
 
 | Tool | Description | Input |
 |------|-------------|-------|
-| `decode_vin` | Full VIN decode with specs, recalls, complaints, safety ratings, fuel economy, and photos | `{ vin: string }` |
+| `decode_vin` | Full VIN decode with specs, recalls, complaints, safety ratings, fuel economy, and NHTSA test-vehicle photos | `{ vin: string }` |
 | `validate_vin` | Quick local validation -- checksum, WMI country/manufacturer, model year. No external API calls | `{ vin: string }` |
 | `lookup_recalls` | Look up recalls by VIN or by make/model/year | `{ vin?: string, make?: string, model?: string, year?: number }` |
 | `batch_decode` | Decode up to 50 VINs in a single request via NHTSA batch API | `{ vins: string[] }` |
@@ -121,7 +121,7 @@ All endpoints are available at `https://mcp.vin` or on your self-hosted instance
 | `GET` | `/api/vin/:vin/complaints` | Consumer complaints only |
 | `GET` | `/api/vin/:vin/safety` | NCAP safety ratings only |
 | `GET` | `/api/vin/:vin/fuel` | EPA fuel economy only |
-| `GET` | `/api/vin/:vin/photo` | Redirects to vehicle photo URL |
+| `GET` | `/api/vin/:vin/photo` | Redirects (302) to the first photo of NHTSA's test car, before the test; 404 when no tested vehicle matches |
 | `POST` | `/api/batch` | Batch decode (body: `{ "vins": ["VIN1", "VIN2", ...] }`, max 50) |
 
 Rate limits: 30 requests/minute per IP for most endpoints, 60/minute for validation and photos, 5/minute for batch.
@@ -133,6 +133,37 @@ curl https://mcp.vin/api/vin/1HGCM82633A004352
 ```
 
 Direct VIN URLs also work -- visit `https://mcp.vin/1HGCM82633A004352` to see the web report.
+
+### Photos (`photos` in a report)
+
+Photos come only from NHTSA's vehicle crash-test database: the test lab's own photos of a vehicle NHTSA bought and
+tested. They are never the decoded vehicle and there are no stock photos. The vehicle is the closest NHTSA test vehicle
+(same matching as `test_vehicle_specs`: exact model year first, then the nearest year of the same generation, or the
+same year in another trim), and never one with a different body style, cab or door count. `photos` is `null` when
+nothing matches. Otherwise:
+
+```json
+"photos": {
+  "scope": "nhtsa_test_vehicle", "vin_specific": false, "note": "...",
+  "items": [
+    { "url": "https://mcp.vin/nhtsa-photos/10060/v10060P001-960.webp", "width": 960, "height": 640,
+      "thumbnail_url": "https://mcp.vin/nhtsa-photos/10060/v10060P001-320.webp", "thumbnail_width": 320, "thumbnail_height": 213,
+      "phase": "pre_test", "view": "front_34_right", "label": "Before the test: right front three-quarter view",
+      "tested_as": "2017 Honda CR-V AWD LX", "model_year": 2017, "test_no": 10060, "test_kind": "frontal",
+      "test_label": "NHTSA frontal crash test 10060", "test_description": "The car was driven into a rigid barrier at 56 km/h (35 mph).",
+      "match": { "kind": "exact", "year_gap": 0, "differences": [] },
+      "nhtsa_test_url": "https://nrd-static.nhtsa.dot.gov/reports/vehdb/...pdf",
+      "nhtsa_photo_url": "https://nrd-static.nhtsa.dot.gov/photos/vehdb/...jpg", "original_file_name": "..." }
+  ],
+  "source": { "provider": "NHTSA vehicle crash-test database ...", "indexed_at": "..." }
+}
+```
+
+`items` lists up to three views of the test car before the test (`phase` `pre_test`), then up to three crash views,
+one per NHTSA test of that model year (`post_test`: the car after that test), each with its own
+test car (`tested_as`, `test_no`) and match. `nhtsa_test_url` is NHTSA's report for that test. Images are WebP, fit in
+960 x 720 (thumbnails 320 x 240), with no metadata. Self-hosted servers show photos only when `data/nhtsa-photos/` and
+the photo index are deployed (see `scripts/build-nhtsa-photos.py`); without them `photos` is `null`.
 
 ---
 

@@ -194,40 +194,8 @@ function renderHero(r) {
 
   $('#hero-badges').innerHTML = badges.join('');
 
-  // Photos
-  const photos = r.photos;
-  const mainImg = $('#photo-main');
-  const thumbsEl = $('#photo-thumbs');
-
-  if (photos) {
-    const urls = typeof photos === 'object' && !Array.isArray(photos)
-      ? Object.values(photos)
-      : Array.isArray(photos) ? photos : [photos];
-
-    if (urls.length > 0) {
-      mainImg.style.display = '';
-      mainImg.src = urls[0];
-      mainImg.alt = title;
-      thumbsEl.innerHTML = urls.map((url, i) =>
-        `<img src="${esc(url)}" alt="View ${i+1}" tabindex="0" role="button" aria-label="Show vehicle view ${i+1}" class="${i === 0 ? 'active' : ''}" data-url="${esc(url)}">`
-      ).join('');
-
-      $$('img', thumbsEl).forEach(img => {
-        img.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); img.click(); } });
-        img.addEventListener('click', () => {
-          mainImg.src = img.dataset.url;
-          $$('img', thumbsEl).forEach(t => t.classList.remove('active'));
-          img.classList.add('active');
-        });
-      });
-    } else {
-      mainImg.style.display = 'none';
-      thumbsEl.innerHTML = '';
-    }
-  } else {
-    mainImg.style.display = 'none';
-    thumbsEl.innerHTML = '';
-  }
+  // Photos of NHTSA's test car (public/test-photos.js); no photo area when there are none
+  window.TestPhotos?.render(r);
 }
 
 // ── Overview Card ──

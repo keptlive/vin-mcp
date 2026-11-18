@@ -2,7 +2,7 @@
 > Full docs: https://mcp.vin/llms-full.txt
 
 ## About
-mcp.vin combines free public vehicle data from NHTSA, EPA and manufacturer sources, with representative stock photos. Public lookups require no API key. The unified workspace and MCP server use the same source adapters.
+mcp.vin combines free public vehicle data from NHTSA, EPA and manufacturer sources, with NHTSA's own photos of the vehicles it crash-tested (no stock photos). Public lookups require no API key. The unified workspace and MCP server use the same source adapters.
 
 ## Features
 - VIN validation and decode (NHTSA)
@@ -10,7 +10,7 @@ mcp.vin combines free public vehicle data from NHTSA, EPA and manufacturer sourc
 - Recall notices
 - Consumer complaints
 - EPA fuel economy data
-- Vehicle photos
+- Photos of NHTSA's test vehicle for the make, model, body style and generation: before the test and after NHTSA's crash tests (not the decoded vehicle)
 - VIN-specific manufacturer recall status where verified; unknown repair history remains unknown
 - Vehicle configuration research, comparison, safety records and ownership calculations
 - Saved vehicles and preferences with a website account
@@ -22,7 +22,7 @@ mcp.vin combines free public vehicle data from NHTSA, EPA and manufacturer sourc
 - GET https://mcp.vin/api/vin/:vin/complaints — Complaints only
 - GET https://mcp.vin/api/vin/:vin/safety — Safety ratings
 - GET https://mcp.vin/api/vin/:vin/fuel — Fuel economy
-- GET https://mcp.vin/api/vin/:vin/photo — Vehicle photo
+- GET https://mcp.vin/api/vin/:vin/photo — Redirect to the first photo of NHTSA's test vehicle (404 when none matches)
 - POST https://mcp.vin/api/batch — Decode multiple VINs ({"vins":[...]}, up to 50)
 - GET https://mcp.vin/api/tools — Authoritative directory of all 22 MCP tools, grouped by task
 - GET https://mcp.vin/api/research/capabilities — Supported features and explicit gaps
