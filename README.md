@@ -144,18 +144,23 @@ nothing matches. Otherwise:
 
 ```json
 "photos": {
-  "scope": "nhtsa_test_vehicle", "vin_specific": false, "note": "...",
+  "scope": "nhtsa_test_vehicle", "vin_specific": false, "note": "Photos of a vehicle NHTSA bought and tested, ...",
   "items": [
-    { "url": "https://mcp.vin/nhtsa-photos/10060/v10060P001-960.webp", "width": 960, "height": 640,
-      "thumbnail_url": "https://mcp.vin/nhtsa-photos/10060/v10060P001-320.webp", "thumbnail_width": 320, "thumbnail_height": 213,
+    { "url": "https://mcp.vin/nhtsa-photos/14086/v14086P014-960.webp", "width": 960, "height": 640,
+      "thumbnail_url": "https://mcp.vin/nhtsa-photos/14086/v14086P014-320.webp", "thumbnail_width": 320, "thumbnail_height": 213,
       "phase": "pre_test", "view": "front_34_right", "label": "Before the test: right front three-quarter view",
-      "tested_as": "2017 Honda CR-V AWD LX", "model_year": 2017, "test_no": 10060, "test_kind": "frontal",
-      "test_label": "NHTSA frontal crash test 10060", "test_description": "The car was driven into a rigid barrier at 56 km/h (35 mph).",
-      "match": { "kind": "exact", "year_gap": 0, "differences": [] },
-      "nhtsa_test_url": "https://nrd-static.nhtsa.dot.gov/reports/vehdb/...pdf",
-      "nhtsa_photo_url": "https://nrd-static.nhtsa.dot.gov/photos/vehdb/...jpg", "original_file_name": "..." }
+      "tested_as": "2022 Nissan Pathfinder four door SUV", "model_year": 2022, "test_no": 14086, "test_kind": "frontal",
+      "test_label": "NHTSA frontal crash test 14086", "test_description": "The car was driven into a rigid barrier at 56 km/h (35 mph).",
+      "test_type": "NEW CAR ASSESSMENT TEST",
+      "match": { "kind": "exact", "tested_model_year": 2022, "vin_model_year": 2022, "year_gap": 0, "differences": [], "generation_check": null },
+      "nhtsa_test_url": "https://nrd-static.nhtsa.dot.gov/reports/vehdb/v10000/v14000/v14086R001.pdf",
+      "nhtsa_photo_url": "https://nrd-static.nhtsa.dot.gov/photos/vehdb/v10000/v14000/v14086P014.JPG",
+      "original_file_name": "No. 014 Pre-Test Right Front 3-4 View.JPG" },
+    { "url": "https://mcp.vin/nhtsa-photos/14086/v14086P015-960.webp", "phase": "post_test", "view": "front_34_right",
+      "label": "After NHTSA's frontal crash test: right front three-quarter view", "...": "same fields" }
   ],
-  "source": { "provider": "NHTSA vehicle crash-test database ...", "indexed_at": "..." }
+  "source": { "provider": "NHTSA vehicle crash-test database: test-lab photos of the tested vehicles (nrd-static.nhtsa.dot.gov), resized and served by mcp.vin",
+              "indexed_at": "...", "dataset_generated_at": "..." }
 }
 ```
 
