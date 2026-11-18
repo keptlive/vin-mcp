@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { validateVin, normalizeVin } from './lib/validate.mjs';
-import { decodeVin as nhtsaDecode, batchDecode, getComplaints, getSafetyRatings } from './lib/nhtsa.mjs';
+import { decodeVin as nhtsaDecode, batchDecode, getSafetyRatings } from './lib/nhtsa.mjs';
 import { getFuelEconomy } from './lib/epa.mjs';
 import { getPhotoUrl } from './lib/photo.mjs';
 import { vinCache } from './lib/cache.mjs';
@@ -20,8 +20,7 @@ import { rateBenchmarks } from './lib/rate-benchmarks.mjs';
 import { scenario } from './lib/scenario.mjs';
 import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
-import { vinRecallStatus } from './lib/recall-status.mjs';
-import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls } from './lib/reports.mjs';
+import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls, modelYearComplaints, vinRecallStatusFor, RECALL_WAIT_MS } from './lib/reports.mjs';
 import { normalizeTransmission, applyOwnerDetails } from './lib/transmission-choice.mjs';
 import { validateOwnerDetails, parseOwnerDetails, serializeOwnerDetails, OwnerDetailsError } from './lib/owner-details.mjs';
 import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
@@ -483,16 +482,21 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     } catch (err) { safeError(res, err); }
   });
 
+  // ?recall_wait=full: wait for the manufacturer's VIN recall lookup instead of answering with recall_status.pending
+  // after RECALL_WAIT_MS.report (lib/reports.mjs). The website asks again with it when a report comes back pending.
   app.get('/api/vin/:vin', rateGuard(30), async (req, res) => {
     const t = transmissionParam(req, res); if (!t.ok) return;
-    try { res.json(restReport(applyOwnerDetails(await fullReport(req.params.vin), { transmission: t.value }, { by: 'request' }), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
+    const wait = req.query.recall_wait;
+    if (wait !== undefined && wait !== 'full') return res.status(400).json({ error: 'recall_wait must be "full"' });
+    try { res.json(restReport(applyOwnerDetails(await fullReport(req.params.vin, { recallWaitMs: wait === 'full' ? Infinity : RECALL_WAIT_MS.report }), { transmission: t.value }, { by: 'request' }), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
   });
 
   app.get('/api/vin/:vin/validate', rateGuard(60), (req, res) => {
     res.json(validateVin(req.params.vin));
   });
 
-  app.get('/api/vin/:vin/recall-status',rateGuard(30),researchHandler(req=>vinRecallStatus(req.params.vin)));
+  // Waits for a lookup a report already started (recall_status.status_url of a pending report).
+  app.get('/api/vin/:vin/recall-status',rateGuard(30),researchHandler(req=>vinRecallStatusFor(req.params.vin)));
 
   app.use('/api/vin/:vin', (req, res, next) => {
     if (!validateVin(req.params.vin).valid) return res.status(400).json({error:'Provide a valid VIN (format and checksum)'});
@@ -513,7 +517,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
       const decoded = await nhtsaDecode(normalizeVin(req.params.vin));
       if (!decoded) return res.status(400).json({ error: 'Could not decode VIN' });
       const { make, model, year } = decoded.vehicle;
-      res.json(await getComplaints(make, model, year) || { count: 0, complaints: [], summary: {} });
+      res.json(await modelYearComplaints(make, model, year)); // joins a report's running request
     } catch (err) { safeError(res, err); }
   });
 

@@ -106,7 +106,8 @@ form.addEventListener('submit', async (e) => {
     // Compact hero
     hero.classList.add('compact');
     results.hidden = false;
-    $('#decode-status').textContent = 'Report ready. Review source coverage in each section.';
+    $('#decode-status').textContent = readyMessage(report);
+    followPending(report);
     if (!location.hash || location.hash === '#report') {
       history.replaceState(null, '', '/' + encodeURIComponent(vin) + location.search + '#report');
       results.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
@@ -326,7 +327,7 @@ function renderFuel(r) {
 function rerenderOwnerView(focusChoice) {
   if (!currentReport) return;
   const view = window.OwnerDetails?.applyToReport(currentReport) || currentReport;
-  renderFuel(view); window.CarSheet?.render(view); window.VinWorkspace?.reportUpdated(view);
+  renderFuel(view); window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view); window.VinWorkspace?.reportUpdated(view);
   if (focusChoice) $('#fuel-body [data-owner-transmission]')?.focus();
 }
 $('#fuel-body').addEventListener('click', async e => {
@@ -381,19 +382,132 @@ function renderFuelBody(r) {
 }
 
 // ── Recalls Card ──
+// The VIN-specific status is its own block (#recall-status-block), so it can be filled in alone when the maker's
+// lookup answers after the report is drawn (followRecallStatus).
 function renderRecalls(r) {
   renderCampaigns(r);
+  $('#recalls-body').innerHTML = `<div class="recall-item" id="recall-status-block">${recallStatusHtml(r)}</div><h3>Model-year recall campaigns</h3>` + $('#recalls-body').innerHTML;
+}
+function recallStatusHtml(r) {
   const s = r.recall_status;
   const link = s?.verification_url || 'https://www.nhtsa.gov/recalls';
   const renderStatusRecords = records => records.map(x => `<div class="recall-item"><strong>${esc(x.campaign_number)} · ${esc(x.manufacturer_status)}</strong>${x.record_kind ? `<p class="small">${esc(x.record_kind.replaceAll('_',' '))}</p>` : ''}<p>${esc(x.summary || x.title || '')}</p>${x.completion_description ? `<p><span class="recall-detail-label">Completion basis:</span> ${esc(x.completion_description)}</p>` : ''}${x.repair_completed_at ? `<p><span class="recall-detail-label">Reported repair date:</span> ${esc(x.repair_completed_at)}</p>` : ''}${x.manufacturer_closed_at ? `<p><span class="recall-detail-label">Manufacturer closing date:</span> ${esc(x.manufacturer_closed_at)}</p>` : ''}${x.remedy ? `<p><span class="recall-detail-label">Remedy:</span> ${esc(x.remedy)}</p>` : ''}${x.document_url ? `<a href="${esc(x.document_url)}" target="_blank" rel="noopener">Manufacturer bulletin</a>` : ''}</div>`).join('');
-  const content = s?.available
+  const maker = esc(s?.maker || 'the manufacturer');
+  // Still answering: unknown, never "no open recalls"; on paper it says the status had not loaded.
+  const content = s?.pending
+    ? `<p class="recall-pending pending-screen"><span class="pending-dot" aria-hidden="true"></span>Checking with ${maker}… Its VIN lookup is still answering; this part fills in by itself.</p><p class="pending-print">Not loaded: ${maker} had not answered when this page was printed, so this VIN’s repair status is unknown here.</p>`
+    : s?.available
     ? `<p>${s.open_record_count!==undefined ? esc(s.open_record_count)+' open recall/campaign records · '+esc(s.open_count ?? 'Unknown')+' verified safety-recall count' : esc(s.open_count ?? 'Unknown')+' open recalls'} · ${esc(s.completed_count ?? 'Unknown')} manufacturer-reported completed/closed${s.unknown_count ? ' · '+esc(s.unknown_count)+' unknown status' : ''}</p>
        <p>Checked ${esc(s.source.retrieved_at)} · ${esc(s.source.provider)}</p>
        ${renderStatusRecords(s.campaigns || s.recalls)}
        ${!s.campaigns && s.service_campaigns?.length ? `<h4>Other manufacturer programs · ${esc(s.service_campaigns.length)}</h4>${renderStatusRecords(s.service_campaigns)}` : ''}
        <p>${esc(s.note)}</p>`
     : `<p>VIN-specific repair status is unavailable. ${esc(s?.note || 'Check the official source. Model-year campaigns do not establish completed repairs.')}</p>`;
-  $('#recalls-body').innerHTML = `<div class="recall-item"><h3>VIN-specific recall repair status</h3>${content}<p><a href="${esc(link)}" target="_blank" rel="noopener">Verify this VIN with the official source</a></p></div><h3>Model-year recall campaigns</h3>` + $('#recalls-body').innerHTML;
+  return `<h3>VIN-specific recall repair status</h3>${content}<p><a href="${esc(link)}" target="_blank" rel="noopener">Verify this VIN with the official source</a></p>`;
+}
+
+// ── Parts that arrive after the report ──
+// The server does not hold a report back for its two slow sources (lib/reports.mjs): the maker's VIN recall status
+// (recall_status.pending) and NHTSA's complaint list (complaints.pending). The page asks for each again and fills it
+// in place.
+function readyMessage(report) {
+  const later = [];
+  if (report.recall_status?.pending) later.push(`${report.recall_status.maker || 'The manufacturer'}’s VIN recall status`);
+  if (report.complaints?.pending) later.push('NHTSA’s complaint list');
+  if (!later.length) return 'Report ready. Review source coverage in each section.';
+  return later.length > 1 ? `Report ready. ${later.join(' and ')} are still loading; they fill in by themselves.` : `Report ready. ${later[0]} is still loading; it fills in by itself.`;
+}
+function followPending(report) {
+  if (report.recall_status?.pending) followRecallStatus(report);
+  if (report.complaints?.pending) followComplaints(report);
+}
+// Fetch `url` as JSON until `done(data)` accepts it, at most twice (3 s apart), while `live()` holds; null if not.
+async function fetchFollowUp(url, done, live) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) await new Promise(resolve => setTimeout(resolve, 3000));
+    if (!live()) return null;
+    try {
+      const res = await apiFetch(url);
+      const data = res.ok ? await res.json() : null;
+      if (done(data)) return data;
+    } catch { /* tried again once, then shown as not loaded */ }
+  }
+  return null;
+}
+
+// NHTSA's complaint list: /api/vin/{vin}/complaints joins the request the report started (cached once it arrives).
+let complaintsFollow = 0;
+async function followComplaints(report) {
+  const token = ++complaintsFollow, vin = report.vin;
+  const live = () => token === complaintsFollow && currentReport?.vin === vin && currentReport.complaints?.pending === true;
+  let next = await fetchFollowUp(`/api/vin/${encodeURIComponent(vin)}/complaints`, data => data && typeof data.available === 'boolean' && !data.pending, live);
+  if (!live()) return;
+  if (!next) next = {...currentReport.complaints, pending: false, available: false, reason: 'lookup_not_loaded',
+    note: 'NHTSA’s complaint list could not be loaded here. The count is unknown; reload the report.'};
+  currentReport = {...currentReport, complaints: next};
+  const view = window.OwnerDetails?.applyToReport(currentReport) || currentReport;
+  const around = window.KeepState ? KeepState.around : (roots, fn) => fn();
+  around([$('#complaints-body')], () => {
+    renderComplaints(view);
+    window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view);
+    window.VinWorkspace?.reportUpdated(view);
+    // inside the redraw: a shorter status line moves the page too
+    $('#decode-status').textContent = next.available ? 'NHTSA’s owner complaints have loaded.' : 'NHTSA’s owner complaints could not be loaded; see the complaints section.';
+  }, [$('#sheet-body'), $('#sheet-foot')]);
+}
+
+// ── The maker's VIN recall status, when it answers after the report ──
+// A report can arrive with recall_status.pending (lib/reports.mjs: the maker's lookup was still answering). The page
+// asks again with ?recall_wait=full, which waits for that same lookup, and fills in only what it changes: the status
+// block, the car sheet's recall row and footer, and, when the maker's description of the VIN changed the decode checks
+// or the fuel and tire matches, those blocks. Typed text, open forms, focus, the transmission choice and the place on
+// screen are kept (public/keep-state.js).
+const MAKER_BLOCKS = ['recall_status', 'decode_checks', 'fuel_economy', 'tire_placard', 'test_vehicle_specs', 'epa_test_vehicles', 'parts_content', 'production_theft'];
+let recallFollow = 0;
+async function followRecallStatus(report) {
+  // Still wanted while this VIN's report is shown with the status pending (typing the same VIN again keeps it).
+  const token = ++recallFollow, vin = report.vin;
+  const live = () => token === recallFollow && currentReport?.vin === vin && currentReport.recall_status?.pending === true;
+  let next = await fetchFollowUp(`/api/vin/${encodeURIComponent(vin)}?recall_wait=full`, data => data?.vehicle && data.recall_status && !data.recall_status.pending, live);
+  if (!live()) return;
+  if (!next) {
+    const s = currentReport.recall_status || {};
+    next = {...currentReport, recall_status: {...s, pending: false, available: false, reason: 'lookup_not_loaded',
+      note: `${s.maker || 'The manufacturer'}’s answer could not be loaded. VIN-specific repair status is unknown; reload the report or check the official source.`}};
+  }
+  applyMakerUpdate(next);
+}
+
+function applyMakerUpdate(next) {
+  const prev = currentReport;
+  if (!prev || prev.vin !== next.vin) return;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const merged = {...prev};
+  for (const k of MAKER_BLOCKS) { if (k in next) merged[k] = next[k]; else delete merged[k]; }
+  // The maker's record only changes the "checked against" line, unless it changed a checked value (then the
+  // fuel-economy, tire and test-car matches may have changed too).
+  const checks = dc => dc && dc.sources ? {...dc, sources: {...dc.sources, manufacturer_record: null}} : dc;
+  const valuesChanged = !same(checks(prev.decode_checks), checks(next.decode_checks)) || MAKER_BLOCKS.slice(2).some(k => !same(prev[k], next[k]));
+  currentReport = merged;
+  const view = window.OwnerDetails?.applyToReport(merged) || merged;
+  const statusBlock = $('#recall-status-block');
+  const cards = valuesChanged ? ['#overview-body', '#engine-body', '#decode-checks-body', '#safety-ratings-body', '#fuel-body'].map(id => $(id)) : [];
+  const around = window.KeepState ? KeepState.around : (roots, fn) => fn();
+  around([statusBlock, ...cards], () => {
+    if (statusBlock) statusBlock.innerHTML = recallStatusHtml(view);
+    if (valuesChanged) {
+      renderOverview(view); renderEngine(view); renderDecodeChecks(view); renderSafetyRatings(view);
+      window.TestVehicle?.render(view); renderFuel(view); window.MoreSources?.render(view);
+    } else if (!same(prev.decode_checks, next.decode_checks)) {
+      const line = $('#decode-checks-body .dc-sources');
+      if (line && window.DecodeChecks?.sourcesHtml) line.outerHTML = DecodeChecks.sourcesHtml(view);
+    }
+    window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view);
+    window.VinWorkspace?.reportUpdated(view);
+    // inside the redraw: a shorter status line moves the page too
+    const s = merged.recall_status || {}, maker = prev.recall_status?.maker || s.maker || 'The manufacturer';
+    $('#decode-status').textContent = s.available ? `${maker}’s VIN recall status has loaded.` : `${maker}’s VIN recall status is not available; see the recall section.`;
+  }, [$('#sheet-body'), $('#sheet-foot')]);
 }
 
 function renderCampaigns(r) {
@@ -492,10 +606,19 @@ function renderComplaints(r) {
   const count = c?.count || 0;
   const badge = $('#complaint-count');
 
+  if (c?.pending) {
+    // Still arriving (followComplaints fills it in): unknown, never zero; on paper it was not loaded.
+    badge.textContent = '…';
+    badge.className = 'count-badge';
+    $('#complaints-body').innerHTML = '<div class="empty-state"><p class="recall-pending pending-screen"><span class="pending-dot" aria-hidden="true"></span>Loading NHTSA’s owner complaints… The list for a common model is large and can take 15 seconds or more; this card fills in by itself.</p><p class="pending-print">Not loaded: NHTSA’s complaint list had not arrived when this page was printed.</p></div>';
+    return;
+  }
   if (c?.available === false) {
     badge.textContent = '?';
     badge.className = 'count-badge';
-    $('#complaints-body').innerHTML = '<div class="empty-state">Complaint lookup is temporarily unavailable. Please try again.</div>';
+    $('#complaints-body').innerHTML = c.reason === 'lookup_not_loaded'
+      ? '<div class="empty-state">NHTSA’s complaint list could not be loaded here. The count is unknown; reload the report.</div>'
+      : '<div class="empty-state">Complaint lookup is temporarily unavailable. Please try again.</div>';
     return;
   }
   if (count === 0) {
@@ -1104,6 +1227,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
         updateSaveButton(vin);
         hero.classList.add('compact');
         results.hidden = false;
+        followPending(report);
       }
       return report;
     },

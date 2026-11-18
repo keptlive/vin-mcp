@@ -104,15 +104,26 @@ const DecodeChecks = (() => {
       return `<li class="dc-item dc-item-${esc(f.status)}"><span class="dc dc-${esc(f.status)}">${esc(WORD[f.status] || f.status)}</span> <strong>${esc(f.label)}</strong>: ${value}`
         + `${f.note ? `<span class="dc-why">${esc(f.note)}${tests ? ` NHTSA ${tests}.` : ''}</span>` : ''}</li>`;
     }).join('');
+    return `<ul class="dc-list">${rows}</ul>${sourcesHtml(r)}${formHtml(r)}`;
+  }
+
+  /**
+   * "Checked against …": the sources line of the card. While the maker's recall lookup is still answering
+   * (manufacturer_record pending) it says so on screen, and on paper that the record had not loaded.
+   */
+  function sourcesHtml(r) {
+    const dc = r && r.decode_checks;
+    if (!dc || !Array.isArray(dc.fields)) return '';
     const s = dc.sources || {};
     const mfr = s.manufacturer_record || {};
     const mfrText = mfr.status === 'used' ? `the manufacturer’s description of this VIN (“${esc(mfr.text)}”, ${esc(mfr.source || 'recall lookup')})`
+      : mfr.status === 'pending' ? `the manufacturer’s record (<span class="pending-screen">checking with ${esc(mfr.maker || 'the manufacturer')}…</span><span class="pending-print">not loaded when printed</span>)`
       : mfr.status === 'not_checked' ? 'the manufacturer’s record (not yet loaded)' : mfr.status === 'not_supported' ? null : 'the manufacturer’s record (not available for this VIN)';
     const tv = s.test_vehicle_pattern || {};
     const tvText = tv.status === 'used' ? `${esc(tv.vehicles)} NHTSA test vehicle${tv.vehicles === 1 ? '' : 's'} with VIN pattern ${esc(dc.pattern)}` : `NHTSA test vehicles (none with VIN pattern ${esc(dc.pattern || '?')})`;
     const fixText = s.rule_fixes && s.rule_fixes.status === 'used' ? `mcp.vin’s reviewed fixes of NHTSA’s vPIC rules (${esc((s.rule_fixes.ids || []).join(', '))}${s.rule_fixes.release ? `, vPIC release ${esc(s.rule_fixes.release)}` : ''})` : null;
     const used = [mfrText, fixText, tvText, s.epa && s.epa.status === 'used' ? 'EPA’s configurations for this model year' : null].filter(Boolean).join('; ');
-    return `<ul class="dc-list">${rows}</ul><p class="dc-note">Checked against ${used}. ${esc(dc.note || '')}</p>${formHtml(r)}`;
+    return `<p class="dc-note dc-sources">Checked against ${used}. ${esc(dc.note || '')}</p>`;
   }
 
   /** "Report a decode error": screen only, for review, never applied. */
@@ -156,6 +167,6 @@ const DecodeChecks = (() => {
     });
   }
 
-  return { check, marker, shown, valueHtml, checkedValue, combinedHtml, cardHtml, formHtml, fields };
+  return { check, marker, shown, valueHtml, checkedValue, combinedHtml, cardHtml, sourcesHtml, formHtml, fields };
 })();
 if (typeof window !== 'undefined') window.DecodeChecks = DecodeChecks;
