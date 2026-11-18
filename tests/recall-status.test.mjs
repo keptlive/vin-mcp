@@ -24,9 +24,23 @@ test('invalid, rejected, null and upstream error responses stay unknown and are 
  const vin=nextVin();globalThis.fetch=async()=>{throw Error('offline');};const r=await vinRecallStatus(vin);assert.equal(r.available,false);assert.equal(r.open_count,null);
 });
 test('unsupported makes never call upstream or invent completed repairs; invalid VINs rejected',async()=>{
- globalThis.fetch=async()=>{throw Error('Unexpected network call');};let v='WBA'+nextVin().slice(3);v=v.slice(0,8)+validateVin(v).checksum.expected+v.slice(9);const r=await vinRecallStatus(v);assert.equal(r.reason,'manufacturer_not_supported');assert.equal(r.completed_count,null);await assert.rejects(()=>vinRecallStatus('invalid'),/valid/);
+ globalThis.fetch=async()=>{throw Error('Unexpected network call');};let v='WBA'+nextVin().slice(3);v=v.slice(0,8)+validateVin(v).checksum.expected+v.slice(9);const r=await vinRecallStatus(v);assert.equal(r.reason,'manufacturer_not_supported');assert.equal(r.completed_count,null);assert.equal(r.verification_url,'https://www.nhtsa.gov/recalls?vin='+v);await assert.rejects(()=>vinRecallStatus('invalid'),/valid/);
 });
 test('successful snapshots deduplicate concurrent lookups and are cached per VIN',async()=>{
  let calls=0;globalThis.fetch=async()=>{calls++;await new Promise(r=>setTimeout(r,10));return new Response(JSON.stringify({success:true,responseObject:[]}));};
  const vin=nextVin();const [a,b]=await Promise.all([vinRecallStatus(vin),vinRecallStatus(vin)]);assert.equal(calls,1);assert.equal(a,b);assert.equal(await vinRecallStatus(vin),a);assert.equal(calls,1);
+});
+
+test('official recall links open on the VIN where the maker\'s page takes one; the rest stay plain',async()=>{
+ const {createRecallStatusLookup}=await import('../lib/recall-status.mjs');
+ const lookup=createRecallStatusLookup(async()=>{throw Error('upstream down');});
+ const fix=v=>v.slice(0,8)+validateVin(v).checksum.expected+v.slice(9);
+ const url=async(vin,make)=>(await lookup(fix(vin),make)).verification_url;
+ const honda=fix('19XFC1F30KE001054'),acura=fix('19UDE2F30KA011238');
+ assert.equal(await url(honda,'HONDA'),'https://mygarage.honda.com/s/recall-search?brand=honda&vin='+honda);
+ assert.equal(await url(acura,'ACURA'),'https://mygarage.honda.com/s/recall-search?brand=acura&vin='+acura);
+ const kia=fix('5XXGR4A60FG353263');
+ assert.equal(await url(kia,'KIA'),'https://owners.kia.com/us/en/recalls.html');             // ignores a vin parameter: left plain
+ const jeep=fix('1C4GJXAG0KW512762');
+ assert.equal(await url(jeep,'JEEP'),'https://www.mopar.com/en-us/my-vehicle/recalls/search.html');   // format unknown: left plain
 });

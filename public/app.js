@@ -383,11 +383,16 @@ function renderFuelBody(r) {
   $('#fuel-body').innerHTML = mpgRow + details.map(([l, v]) => dataRow(l, v)).join('') + (window.MoreSources?.fuelMatchNote?.(f) || '');
 }
 
+// NHTSA's recall page, opened on this VIN when there is one.
+function nhtsaRecallUrl(vin) {
+  return 'https://www.nhtsa.gov/recalls' + (/^[A-HJ-NPR-Z0-9]{17}$/i.test(vin || '') ? '?vin=' + String(vin).toUpperCase() : '');
+}
+
 // ── Recalls Card ──
 function renderRecalls(r) {
   renderCampaigns(r);
   const s = r.recall_status;
-  const link = s?.verification_url || 'https://www.nhtsa.gov/recalls';
+  const link = s?.verification_url || nhtsaRecallUrl(r.vin);
   const renderStatusRecords = records => records.map(x => `<div class="recall-item"><strong>${esc(x.campaign_number)} · ${esc(x.manufacturer_status)}</strong>${x.record_kind ? `<p class="small">${esc(x.record_kind.replaceAll('_',' '))}</p>` : ''}<p>${esc(x.summary || x.title || '')}</p>${x.completion_description ? `<p><span class="recall-detail-label">Completion basis:</span> ${esc(x.completion_description)}</p>` : ''}${x.repair_completed_at ? `<p><span class="recall-detail-label">Reported repair date:</span> ${esc(x.repair_completed_at)}</p>` : ''}${x.manufacturer_closed_at ? `<p><span class="recall-detail-label">Manufacturer closing date:</span> ${esc(x.manufacturer_closed_at)}</p>` : ''}${x.remedy ? `<p><span class="recall-detail-label">Remedy:</span> ${esc(x.remedy)}</p>` : ''}${x.document_url ? `<a href="${esc(x.document_url)}" target="_blank" rel="noopener">Manufacturer bulletin</a>` : ''}</div>`).join('');
   const content = s?.available
     ? `<p>${s.open_record_count!==undefined ? esc(s.open_record_count)+' open recall/campaign records · '+esc(s.open_count ?? 'Unknown')+' verified safety-recall count' : esc(s.open_count ?? 'Unknown')+' open recalls'} · ${esc(s.completed_count ?? 'Unknown')} manufacturer-reported completed/closed${s.unknown_count ? ' · '+esc(s.unknown_count)+' unknown status' : ''}</p>
@@ -453,7 +458,7 @@ function renderCampaigns(r) {
          </div>`).join('')}</div>`
     : '';
 
-  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected. <a href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener">Check VIN-specific repair status at NHTSA</a>.</p>' + items + showMore + related;
+  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected. <a href="' + esc(nhtsaRecallUrl(r.vin)) + '" target="_blank" rel="noopener">Check VIN-specific repair status at NHTSA</a>.</p>' + items + showMore + related;
 }
 
 // Campaigns NHTSA files under other model names (CR-V HYBRID for a CR-V, F150 for F-150).

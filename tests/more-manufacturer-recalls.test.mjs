@@ -114,7 +114,7 @@ test('new makes route by VIN prefix, name their source, cache successes and keep
     const body = url.includes('subaru.com') ? subaru([subaruRecall()]) : url.includes('vwusa.io') ? vw() : url.includes('audi.com') ? audi([]) : {model: '2016', vin: LR, error: 204, vehicle: 'Range Rover Evoque'};
     return {ok: true, json: async () => body, text: async () => JSON.stringify(body)};
   });
-  let r = await lookup(SUBARU); assert.equal(r.available, true); assert.equal(r.completed_count, 1); assert.match(r.source.provider, /Subaru/); assert.equal(r.verification_url, 'https://www.subaru.com/recalls.html');
+  let r = await lookup(SUBARU); assert.equal(r.available, true); assert.equal(r.completed_count, 1); assert.match(r.source.provider, /Subaru/); assert.equal(r.verification_url, 'https://www.subaru.com/recalls.html?vin=' + SUBARU);
   r = await lookup(VW); assert.equal(r.available, true); assert.equal(r.open_count, 0); assert.match(r.source.url, /vin=3VWD17AJ9GM333431$/);
   r = await lookup(AUDI); assert.equal(r.available, true); assert.equal(calls.at(-1)[1], 'POST');
   r = await lookup(LR); assert.equal(r.available, true); assert.match(r.source.provider, /Land Rover/);
