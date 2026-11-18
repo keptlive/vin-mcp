@@ -63,6 +63,7 @@ def fetch(url, dest):
                 raise ValueError('unexpected content encoding')
             data = r.read(MAX_BYTES + 1)
     except urllib.error.HTTPError as err:
+        err.close()
         if err.code == 429 or err.code >= 500:
             raise Blocked(f'HTTP {err.code} {url}')
         if err.code == 403:
@@ -113,13 +114,24 @@ def main():
     built_path = os.path.join(out, 'built.jsonl')
     done = set()
     if os.path.exists(built_path):
-        for line in open(built_path):
-            r = json.loads(line)
-            done.add((r['test_no'], r['file']))
-    built = open(built_path, 'a')
-    todo = [(t['test_no'], p) for line in open(manifest) if line.strip() for t in [json.loads(line)] for p in t['photos']
-            if (t['test_no'], p['file']) not in done]
-    log(f'{len(todo)} photos to do ({len(done)} already built), gap {GAP}s')
+        with open(built_path) as fh:
+            for line in fh:
+                r = json.loads(line)
+                done.add((r['test_no'], r['file']))
+    with open(manifest) as fh:
+        todo = [(t['test_no'], p) for line in fh if line.strip() for t in [json.loads(line)] for p in t['photos']
+                if (t['test_no'], p['file']) not in done]
+    with open(built_path, 'a') as built:
+        return run(todo, built, out, orig, limit, len(done))
+
+
+def write(path, text):
+    with open(path, 'w') as fh:
+        fh.write(text)
+
+
+def run(todo, built, out, orig, limit, n_done):
+    log(f'{len(todo)} photos to do ({n_done} already built), gap {GAP}s')
     errors_in_row = forbidden_in_row = n = fetched = 0
     t0 = time.time()
     try:
@@ -173,14 +185,14 @@ def main():
                 log(f'{n}/{len(todo)} done, {fetched} fetched, {rate:.2f}/s')
     except Blocked as err:
         log(f'BLOCKED/ERRORS: {err}; stopping')
-        open(os.path.join(out, 'FAILED'), 'w').write(str(err) + '\n')
+        write(os.path.join(out, 'FAILED'), str(err) + '\n')
         return 3
     except Exception as err:
         log(f'FAILED: {err!r}')
-        open(os.path.join(out, 'FAILED'), 'w').write(repr(err) + '\n')
+        write(os.path.join(out, 'FAILED'), repr(err) + '\n')
         return 2
     log(f'finished: {n} processed, {fetched} fetched')
-    open(os.path.join(out, 'DONE'), 'w').write(time.strftime('%Y-%m-%dT%H:%M:%S') + '\n')
+    write(os.path.join(out, 'DONE'), time.strftime('%Y-%m-%dT%H:%M:%S') + '\n')
     return 0
 
 

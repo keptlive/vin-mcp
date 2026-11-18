@@ -368,7 +368,7 @@ PHOTO_PHASES = ('pre', 'post')
 PHOTO_VIEWS = ('front_34_left', 'front_34_right', 'front_34', 'as_delivered', 'side_left', 'side_right', 'side',
                'rear_34_left', 'rear_34_right', 'rear_34', 'front', 'rear')
 TEST_KINDS = ('frontal', 'side', 'pole', 'rear')
-PHOTO_HOST = 'https://nrd-static.nhtsa.dot.gov/photos/vehdb/'
+PHOTO_HOST = 'https://nrd-static.nhtsa.dot.gov/'  # photos/vehdb/... (classic listings) and vehdb/<test>/photos/... (newer)
 
 
 def check_photo_row(row, n):
@@ -393,7 +393,7 @@ def check_photo_row(row, n):
         bad('photos')
     stems = set()
     for p in photos:
-        if not re.fullmatch(r'v\d{5}P\d{3,4}', str(p.get('stem') or '')) or p['stem'] in stems:
+        if not re.fullmatch(r'v\d{5}[PN]\d{3,4}', str(p.get('stem') or '')) or p['stem'] in stems:
             bad('photo stem')
         stems.add(p['stem'])
         if p.get('phase') not in PHOTO_PHASES:
@@ -402,7 +402,7 @@ def check_photo_row(row, n):
             bad('photo view')
         if p['phase'] == 'post' and not row.get('test_kind'):
             bad('crash photo without a test kind')
-        if not str(p.get('nhtsa_url') or '').startswith(PHOTO_HOST) or not isinstance(p.get('original_file_name'), str):
+        if not str(p.get('nhtsa_url') or '').startswith(PHOTO_HOST) or re.search(r'\s', p['nhtsa_url']) or not isinstance(p.get('original_file_name'), str):
             bad('photo source')
         for size, box in (('w960', (960, 720)), ('w320', (320, 240))):
             d = p.get(size) or {}

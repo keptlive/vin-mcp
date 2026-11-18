@@ -12,7 +12,7 @@
       sizes. Photos the build left out (narrow, failed) are not listed.
 
 Never guesses: a test whose names give no clear whole-car view gets no row."""
-import datetime, json, os, re, sys
+import datetime, json, os, re, sys, urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -100,7 +100,7 @@ def index(manifest_path, built_path):
                 continue
             photos.append({'stem': p['stem'], 'phase': p['phase'], 'view': p['view'], 'web': p['web'],
                            'w960': {k: b['w960'][k] for k in ('width', 'height', 'bytes')}, 'w320': {k: b['w320'][k] for k in ('width', 'height', 'bytes')},
-                           'nhtsa_url': p['media'], 'original_file_name': p['name']})
+                           'nhtsa_url': NRD + urllib.parse.quote(p['media'][len(NRD):], safe='/'), 'original_file_name': p['name']})
             total['photos'] += 1
             total['bytes'] += b['w960']['bytes'] + b['w320']['bytes']
         if not photos:

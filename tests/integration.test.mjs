@@ -201,7 +201,9 @@ test('REST endpoints, direct VIN page and educational pages remain available',as
  for(const part of ['validate','recalls','complaints','safety','fuel'])assert.equal((await req(`/api/vin/${vin}/${part}`)).status,200,part);
  const recalls=await(await req(`/api/vin/${vin}/recalls`)).json();assert.equal(recalls.count,0);assert.equal(recalls.related_models.available,true);
  assert.equal(recalls.related_campaigns_found,false);assert.equal(recalls.related_models.label_sources.flat_file_index,'not_installed');
- const photo=await fetch(base+`/api/vin/${vin}/photo`,{redirect:'manual'});assert.equal(photo.status,302);
+ // no NHTSA test-vehicle photos in this fixture: a clear 404, never a redirect to a placeholder or a third party
+ const photo=await fetch(base+`/api/vin/${vin}/photo`,{redirect:'manual'});assert.equal(photo.status,404);
+ const missing=await photo.json();assert.equal(missing.photos,null);assert.equal(missing.vin,vin);assert.match(missing.error,/No photo/);
 });
 test('bad JSON and malformed batches return JSON errors',async()=>{
  let res=await fetch(base+'/api/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:'{bad'});assert.equal(res.status,400);assert.equal((await res.json()).error,'Invalid JSON body');

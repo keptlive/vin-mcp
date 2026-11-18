@@ -9,7 +9,7 @@
  */
 const TestPhotos = (() => {
   const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const PATH = /^\/nhtsa-photos\/\d{1,6}\/v\d{5}P\d{3,4}-(?:960|320)\.webp$/;
+  const PATH = /^\/nhtsa-photos\/\d{1,6}\/v\d{5}[PN]\d{3,4}-(?:960|320)\.webp$/;
   /** Only this site's photo folder (relative, or absolute on this page's own origin). */
   function okImage(u) {
     const s = String(u || '');
