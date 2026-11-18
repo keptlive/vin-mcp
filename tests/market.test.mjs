@@ -96,7 +96,7 @@ test('Price tab: outage and empty answers say so plainly', () => {
 
 test('report tabs: the tab lives in ?tab= and Overview is the default', () => {
   const T = page('report-tabs.js', 'ReportTabs');
-  assert.deepEqual([...T.TABS], ['sheet', 'price', 'safety', 'specs', 'all']);
+  assert.deepEqual([...T.TABS], ['sheet', 'price', 'tires', 'safety', 'specs', 'all']);
   assert.equal(T.fromSearch('?tab=price'), 'price');
   assert.equal(T.fromSearch('?tab=nonsense'), 'sheet');
   assert.equal(T.fromSearch(''), 'sheet');
@@ -110,10 +110,31 @@ test('report tabs: the tab lives in ?tab= and Overview is the default', () => {
 
 test('report page: tab bar, price panel and their scripts are in place; print still shows the whole report', () => {
   const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-  for (const tab of ['sheet', 'price', 'safety', 'specs', 'all']) assert.ok(html.includes(`data-report-tab="${tab}"`), tab);
+  for (const tab of ['sheet', 'price', 'tires', 'safety', 'specs', 'all']) assert.ok(html.includes(`data-report-tab="${tab}"`), tab);
   assert.ok(html.includes('id="market-panel"'));
   assert.ok(html.indexOf('/report-tabs.js') < html.indexOf('/app.js') && html.indexOf('/market.js') < html.indexOf('/app.js'));
   const css = readFileSync(new URL('../public/market.css', import.meta.url), 'utf8');
-  assert.match(css, /@media screen\{[\s\S]*#results:not\(\[data-tab=sheet\]\) #car-sheet\{display:none\}/);   // hiding is screen-only
-  assert.match(css, /@media print\{\.report-nav,#market-panel\{display:none!important\}\}/);
+  assert.match(css, /@media screen\{[\s\S]*#results:not\(\[data-tab=sheet\],\[data-tab=tires\]\) #car-sheet\{display:none\}/);   // hiding is screen-only
+  assert.match(css, /@media print\{\.report-nav,#market-panel,#tires-quick\{display:none!important\}\}/);
+  assert.ok(html.includes('id="tires-quick"') && html.indexOf('/tires-tab.js') < html.indexOf('/app.js'));
+});
+
+test('Tires tab: figures come from the closest NHTSA test vehicle, with the match stated and the placard governing', () => {
+  const T = page('tires-tab.js', 'TiresTab');
+  const v = {tested_as: '2019 Honda CR-V AWD LX 5-Door MPV', tires: {front: 'P235/65R17 104H', rear: 'P235/65R17 104H'},
+    cold_pressure_psi: {front: 32, rear: 30}, cold_pressure_kpa: {front: 220, rear: 210}, match: {kind: 'nearest_model_year', tested_model_year: 2019, vin_model_year: 2021}};
+  const html = T.quickHtml([v]);
+  assert.match(html, /Tire size<\/span><b>P235\/65R17 104H<\/b><small>front and rear/);
+  assert.match(html, /Front, cold<\/span><b>32 psi<\/b><small>220 kPa/);
+  assert.match(html, /Rear, cold<\/span><b>30 psi<\/b><small>210 kPa/);
+  assert.match(html, /tires-basis-near"><strong>From NHTSA’s 2019 test vehicle; yours is 2021\.<\/strong> Your door placard governs\./);   // a mismatch is stated and marked
+  const exact = T.quickHtml([{...v, match: {kind: 'exact'}}]);
+  assert.doesNotMatch(exact, /tires-basis-near/);
+  assert.match(exact, /From the vehicle NHTSA tested for this model year\./);
+  assert.match(T.quickHtml([{...v, match: {kind: 'different_variant'}}]), /tires-basis-near"><strong>From a different version NHTSA tested for this model year\./);
+  const staggered = {...v, tested_as: 'Another version', tires: {front: '245/40R19 98Y', rear: '275/35R19 <100Y>'}, cold_pressure_psi: {front: 35, rear: 38}};
+  const two = T.quickHtml([staggered, v]);
+  assert.match(two, /245\/40R19 98Y<\/b><small>front<\/small>[\s\S]*275\/35R19 &lt;100Y&gt;<\/b><small>rear/);
+  assert.match(two, /1 other tested version lists different values below\./);
+  assert.equal(T.quickHtml([]), '');                              // nothing tested: no figures, never a guess
 });

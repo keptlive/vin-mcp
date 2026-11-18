@@ -1,9 +1,9 @@
-/* Tabs over the VIN report: Overview (the car sheet), Price, Safety, Specs, All data.
+/* Tabs over the VIN report: Overview (the car sheet), Price, Tires, Safety, Specs, All.
  * One attribute does the work: #results[data-tab]. The style sheet (market.css) shows the matching view on screen;
  * print ignores the tabs and prints the full report as before. The choice is kept in the address as ?tab=price,
  * because the #hash already names the workspace view. */
 const ReportTabs = (() => {
-  const TABS = ['sheet', 'price', 'safety', 'specs', 'all'];
+  const TABS = ['sheet', 'price', 'tires', 'safety', 'specs', 'all'];
   const listeners = [];
   let current = 'sheet';
 

@@ -14,9 +14,15 @@
 .market{margin:20px 0 36px}
 @media screen{
   #results[data-tab=sheet] .report-nav-title{display:none}
-  #results:not([data-tab=sheet]) #car-sheet{display:none}
+  #results:not([data-tab=sheet],[data-tab=tires]) #car-sheet{display:none}
+  /* Tires tab: the sheet's own tire section alone, under the figures (public/tires-tab.js) */
+  #results:not([data-tab=tires]) #tires-quick{display:none}
+  #results[data-tab=tires] #car-sheet>.sheet-head,#results[data-tab=tires] #car-sheet>.sheet-foot,#results[data-tab=tires] .sheet-body>.sheet-section:not(.sheet-tires){display:none}
+  #results[data-tab=tires] .sheet-body{display:block}
+  #results[data-tab=tires] .sheet-tires>h3{display:none}
+  #results[data-tab=tires] .car-sheet{margin-top:16px}
   #results:not([data-tab=price]) #market-panel{display:none}
-  #results[data-tab=sheet] .cards-grid,#results[data-tab=price] .cards-grid{display:none}
+  #results[data-tab=sheet] .cards-grid,#results[data-tab=price] .cards-grid,#results[data-tab=tires] .cards-grid{display:none}
   #results .car-sheet{margin-top:20px}
   #results .cards-grid{margin-top:20px}
   #results[data-tab=safety] .cards-grid>.card:not(#card-recalls,#card-safety-ratings,#card-complaints,#card-safety-equip){display:none}
@@ -24,7 +30,18 @@
   #results[data-tab=safety] #card-recalls{order:-1}
   #results[data-tab=specs] .cards-grid>.card:is(#card-recalls,#card-safety-ratings,#card-complaints,#card-safety-equip,#card-raw){display:none}
 }
-@media print{.report-nav,#market-panel{display:none!important}}
+@media print{.report-nav,#market-panel,#tires-quick{display:none!important}}
+
+/* ── Tires tab: figures ── */
+.tires-quick{margin:20px 0 0}
+.tires-quick .eyebrow{margin-bottom:10px}
+.tires-tiles{grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)}
+.tires-tiles .market-tile-main b{font-size:clamp(19px,5.4vw,28px);letter-spacing:-.4px;overflow-wrap:anywhere}
+.tires-tiles b.tires-two{font-size:18px}
+.tires-basis{margin:10px 2px 0;font-size:12px;line-height:1.6;color:var(--text-muted);max-width:760px}
+.tires-basis strong{color:var(--text-dim);font-weight:650}
+.tires-basis-near{color:var(--orange)}
+.tires-basis-near strong{color:var(--orange)}
 
 /* ── Price tab ── */
 .market-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px}
@@ -112,7 +129,10 @@
 @media(max-width:560px){
   .report-nav{margin:14px -16px 0;padding:6px 16px 0}
   .report-tabs{margin:0 -16px;padding:0 10px}
-  .report-tabs button{padding:10px 10px;font-size:13.5px}
+  .report-tabs button{padding:10px 7px;font-size:13px}
+  .tab-figure{padding:2px 6px}
+  .tires-tiles{grid-template-columns:1fr 1fr}
+  .tires-tiles .market-tile-main{grid-column:1/-1}
   .market-head{align-items:stretch;flex-direction:column;gap:12px}
   .market-form label{flex:1 1 0}
   .market-form input{width:100%}
