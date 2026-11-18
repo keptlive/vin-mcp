@@ -539,6 +539,48 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
 - **Not shown.** Crash results (injury measures, crush, post-test observations) are extracted into
   a research dataset only; NCAP star ratings are not in these reports and are not derived.
 
+## NHTSA test-vehicle photos (`photos`, added 18 November 2026)
+
+Replaces the IMAGIN.studio renders (they were served under IMAGIN's demo customer id, which mcp.vin had no licence
+for, and had started returning an "Access error" image).
+
+- **Source.** NHTSA's vehicle crash-test database: `get-multimedia-files/<test>` lists every photo the test lab
+  took, with the lab's own file name (`originalFileName`); the files are on `nrd-static.nhtsa.dot.gov` (`photos/vehdb/...`,
+  newer tests `vehdb/<test>/photos/...`). Public, no key, a US government work. NHTSA's showroom images
+  (`static.nhtsa.gov/images/vehicles/...`) are not used: they are likely licensed stock photos.
+- **Which photos.** Only the file name says what a photo shows, so `scripts/nhtsa_photo_select.py` reads it and
+  keeps a photo only when the name is clearly the whole car before the test ("Pre-Test Left Front 3-4 View",
+  "As-Delivered Left Rear 3-4 View", "Right Front 3-4 View, As Received") or after it ("Post-Test Left Side View").
+  Anything else is never used: labels, placards, dummies, seats, belts, interiors, underbody, engine bay,
+  barriers, impactors, close-ups, and camera file names (IMG_1234.jpg). Per test it keeps up to three views
+  before the test (front three-quarter, side, rear three-quarter) and the one view after the test that shows
+  the damage (frontal test: front three-quarter; side and pole: the struck side; rear: rear three-quarter).
+  The lab's "impact for web" stills are recognised but not kept (most are 222 x 127 thumbnails).
+  Rules were checked by eye on contact sheets of 57 tests from all five labs (Calspan, Karco, MGA, TRC,
+  Medical College of Wisconsin), model years 2007-2025; `tests/nhtsa_photos_test.py` holds real names as cases.
+- **Images.** Downloaded once on a build server (never by visitors' browsers or the web server),
+  `scripts/build-nhtsa-photos.py`: one connection, one request a second, stops on HTTP 429/5xx or three 403s in a
+  row. Each photo is resized to WebP fitting 960 x 720 (q74) and 320 x 240 (q70), metadata stripped, and served by
+  mcp.vin from `data/nhtsa-photos/<test>/<stem>-960.webp` / `-320.webp`. Photos narrower than 640 px are left out.
+- **Matching.** The `test_vehicle_specs` closest-match tiers, stricter: never a tested vehicle with another body
+  style, cab or door count; another model year only when Transport Canada lists the same wheelbase for both years
+  (`unknown` is not enough). A photo before the test is required for anything to show. Crash views come from the
+  same tested model year (NHTSA uses a separate car for each test), one per test kind (frontal, side, pole, rear),
+  at most three. `photos` is `null` when nothing qualifies, and the site shows no photo area.
+- **Labelling.** Every photo names its test car (`tested_as`), its NHTSA test and phase, links NHTSA's report for
+  that test, and says "Not this vehicle; trim, colour and equipment may differ."
+- **Shipped files.** `data-src/test-vehicle-photos.jsonl` (+ `.meta.json`) from `scripts/nhtsa-photo-manifest.py`;
+  `npm run import:test-vehicles` adds table `photos` to `data/tire-placards.db`, dropping any photo whose files are
+  missing from `data/nhtsa-photos/`. The image folder is not in git.
+- **Coverage (18 November 2026).** Of the 2,202 crash tests the site can match, 1,840 have photos (1,819 also a
+  view after the test): 7,308 photos, 511.6 MB of WebP for both sizes. By tested model year: 2011-2024 88-99% of
+  tests; 2005-2010 0-38% (the labs named files by camera number then, so nothing is used); 2025 55% and 2026 0%,
+  because NHTSA's photo host answered HTTP 502 for the newest tests during the build (218 photos of 59 tests
+  left out; the build is resumable). Of 1,617 VINs of cars listed by US dealers (a traffic proxy, mostly 2026-2027
+  models), 9% get photos from the same tested model year; in a seeded sample of 100 of those VINs from model
+  years 2016-2025, with the site's real Transport Canada generation check, 57 got photos (6 exact, 8 same year
+  in another version, 43 a nearest year of the same generation).
+
 ## VIN decoding: NHTSA's decoder, run locally (added 18 November 2026)
 
 VINs are decoded by mcp.vin's own copy of NHTSA's vPIC decoder instead of NHTSA's live API, so decoding does not
