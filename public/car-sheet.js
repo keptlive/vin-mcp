@@ -478,12 +478,17 @@ const CarSheet = (() => {
     const related = rec && rec.related_models && rec.related_models.available && rec.related_models.count > 0 ? ` (plus ${fmt(rec.related_models.count)} filed under related model names; they may not apply)` : '';
     const otherName = rec && rec.count === 0 && !related && (rec.related_campaigns_found === null || (rec.related_models && rec.related_models.decoded_name_in_recall_data === false))
       ? ' (NHTSA may file campaigns for this vehicle under another model name)' : '';
-    const complaints = !c || c.available === false || typeof c.count !== 'number' ? 'Unknown (lookup unavailable)' : `${fmt(c.count)} for this model year`;
+    // Still arriving from NHTSA (complaints.pending): on screen it fills in by itself; on paper it was not loaded.
+    const complaints = c && c.pending
+      ? `<span class="pending-screen sheet-pending">Loading from NHTSA…</span><span class="pending-print">Unknown: NHTSA's list had not arrived when this sheet was printed.</span>`
+      : esc(!c || c.available === false || typeof c.count !== 'number'
+        ? (c && c.reason === 'lookup_not_loaded' ? 'Unknown (could not be loaded here; reload the report)' : 'Unknown (lookup unavailable)')
+        : `${fmt(c.count)} for this model year`);
     const stars = rat.rated && num(rat.overall) ? `${rat.overall} of 5 stars overall` : rat.rated ? 'Rated, but no overall score published' : 'No NHTSA rating found';
     const rows = [
       rowHtml('This VIN’s recall status', status),
       rowHtml('Model-year recall campaigns', `${esc(campaigns + related + otherName)}<span class="sheet-source">NHTSA campaigns for the make, model and year. Not this car’s repair status.</span>`),
-      rowHtml('Owner complaints to NHTSA', `${esc(complaints)}<span class="sheet-source">Reports, not confirmed defects.</span>`),
+      rowHtml('Owner complaints to NHTSA', `${complaints}<span class="sheet-source">Reports, not confirmed defects.</span>`),
       row('NHTSA crash rating', stars),
     ];
     return section('recalls', 'Recalls and safety', list(rows));

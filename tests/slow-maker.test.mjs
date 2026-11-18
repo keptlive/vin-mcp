@@ -1,6 +1,7 @@
-// The real server with a slow manufacturer lookup: Ford's page answers after 2.6 s (tests/mock-upstream.mjs,
-// MOCK_FORD_DELAY_MS), longer than the website/REST wait (2 s) and shorter than MCP's (6 s). Own server and port,
-// so its rate limits and caches are apart from tests/integration.test.mjs.
+// The real server with a slow manufacturer lookup and slow NHTSA complaints: Ford's page and NHTSA's complaint list
+// answer after 2.6 s (tests/mock-upstream.mjs, MOCK_FORD_DELAY_MS, MOCK_COMPLAINTS_DELAY_MS), longer than the
+// website/REST wait (2 s) and shorter than MCP's (6 s). Own server and port, so its rate limits and caches are apart
+// from tests/integration.test.mjs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, cp, symlink, rm, mkdir } from 'node:fs/promises';
@@ -18,7 +19,7 @@ for (const f of ['server.mjs', 'package.json', 'lib', 'public', 'tests/mock-upst
 await symlink(path.join(root, 'node_modules'), path.join(stage, 'node_modules'), 'dir');
 await mkdir(path.join(stage, 'data'), {recursive: true});
 const port = 23292, base = `http://127.0.0.1:${port}`, FORD_DELAY = 2600;
-const env = {...process.env, JWT_SECRET: 'isolated-test-secret', ADMIN_KEY: 'b'.repeat(64), NODE_ENV: 'production', MOCK_FORD_DELAY_MS: String(FORD_DELAY)};
+const env = {...process.env, JWT_SECRET: 'isolated-test-secret', ADMIN_KEY: 'b'.repeat(64), NODE_ENV: 'production', MOCK_FORD_DELAY_MS: String(FORD_DELAY), MOCK_COMPLAINTS_DELAY_MS: String(FORD_DELAY)};
 const child = spawn(process.execPath, ['--import', path.join(stage, 'tests/mock-upstream.mjs'), path.join(stage, 'server.mjs'), '--http', '--port', String(port)], {cwd: stage, env, stdio: ['ignore', 'ignore', 'pipe']});
 let stderr = ''; child.stderr.on('data', b => stderr += b);
 test.after(async () => { child.kill(); await new Promise(resolve => child.once('exit', resolve)); await rm(stage, {recursive: true, force: true}); });
@@ -36,8 +37,13 @@ test('REST: a first report answers before the slow maker, pending with status_ur
   assert.deepEqual([s.pending, s.available, s.reason, s.open_count, s.completed_count, s.maker], [true, false, 'lookup_in_progress', null, null, 'Ford']);
   assert.equal(s.status_url, `/api/vin/${vin}/recall-status`);
   assert.equal(first.body.decode_checks.sources.manufacturer_record.status, 'pending');
-  // status_url waits for the same lookup (no new 2.6 s wait from the start)
-  const status = await timed(s.status_url);
+  const c = first.body.complaints;
+  assert.deepEqual([c.pending, c.available, c.count, c.status_url], [true, false, null, `/api/vin/${vin}/complaints`]);
+  // Each status_url waits for the request already running (no new 2.6 s wait from the start).
+  const [status, complaints] = await Promise.all([timed(s.status_url), timed(c.status_url)]);
+  assert.equal(complaints.res.status, 200);
+  assert.deepEqual([complaints.body.available, complaints.body.count, complaints.body.pending], [true, 0, undefined]);
+  assert.ok(first.ms + complaints.ms < FORD_DELAY + 1500, `complaints after ${first.ms + complaints.ms} ms in all`);
   assert.equal(status.res.status, 200);
   assert.equal(status.body.available, true);
   assert.equal(status.body.open_count, 1);
@@ -45,6 +51,7 @@ test('REST: a first report answers before the slow maker, pending with status_ur
   const again = await timed('/api/vin/' + vin);
   assert.equal(again.body.recall_status.available, true);
   assert.equal(again.body.recall_status.pending, undefined);
+  assert.equal(again.body.complaints.available, true);
   assert.ok(again.ms < 1000, `cached report in ${again.ms} ms`);
 });
 
@@ -65,6 +72,7 @@ test('MCP: decode_vin waits up to 6 s, so this maker is complete; vin_recall_sta
     const r = JSON.parse((await client.callTool({name: 'decode_vin', arguments: {vin}})).content[0].text);
     assert.equal(r.recall_status.available, true);
     assert.equal(r.recall_status.open_count, 1);
+    assert.equal(r.complaints.available, true, 'the complaint list arrived within the 6 s too');
     // A website report leaves the lookup running; vin_recall_status gets its answer.
     const other = withCheck('1FTEX1EP0FFD06904');
     const site = await timed('/api/vin/' + other);

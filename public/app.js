@@ -106,9 +106,8 @@ form.addEventListener('submit', async (e) => {
     // Compact hero
     hero.classList.add('compact');
     results.hidden = false;
-    const pendingMaker = report.recall_status?.pending ? (report.recall_status.maker || 'The manufacturer') : null;
-    $('#decode-status').textContent = pendingMaker ? `Report ready. ${pendingMaker}’s VIN recall status is still loading; it fills in by itself.` : 'Report ready. Review source coverage in each section.';
-    if (pendingMaker) followRecallStatus(report);
+    $('#decode-status').textContent = readyMessage(report);
+    followPending(report);
     if (!location.hash || location.hash === '#report') {
       history.replaceState(null, '', '/' + encodeURIComponent(vin) + location.search + '#report');
       results.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
@@ -407,6 +406,55 @@ function recallStatusHtml(r) {
   return `<h3>VIN-specific recall repair status</h3>${content}<p><a href="${esc(link)}" target="_blank" rel="noopener">Verify this VIN with the official source</a></p>`;
 }
 
+// ── Parts that arrive after the report ──
+// The server does not hold a report back for its two slow sources (lib/reports.mjs): the maker's VIN recall status
+// (recall_status.pending) and NHTSA's complaint list (complaints.pending). The page asks for each again and fills it
+// in place.
+function readyMessage(report) {
+  const later = [];
+  if (report.recall_status?.pending) later.push(`${report.recall_status.maker || 'The manufacturer'}’s VIN recall status`);
+  if (report.complaints?.pending) later.push('NHTSA’s complaint list');
+  if (!later.length) return 'Report ready. Review source coverage in each section.';
+  return later.length > 1 ? `Report ready. ${later.join(' and ')} are still loading; they fill in by themselves.` : `Report ready. ${later[0]} is still loading; it fills in by itself.`;
+}
+function followPending(report) {
+  if (report.recall_status?.pending) followRecallStatus(report);
+  if (report.complaints?.pending) followComplaints(report);
+}
+// Fetch `url` as JSON until `done(data)` accepts it, at most twice (3 s apart), while `live()` holds; null if not.
+async function fetchFollowUp(url, done, live) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) await new Promise(resolve => setTimeout(resolve, 3000));
+    if (!live()) return null;
+    try {
+      const res = await apiFetch(url);
+      const data = res.ok ? await res.json() : null;
+      if (done(data)) return data;
+    } catch { /* tried again once, then shown as not loaded */ }
+  }
+  return null;
+}
+
+// NHTSA's complaint list: /api/vin/{vin}/complaints joins the request the report started (cached once it arrives).
+let complaintsFollow = 0;
+async function followComplaints(report) {
+  const token = ++complaintsFollow, vin = report.vin;
+  const live = () => token === complaintsFollow && currentReport?.vin === vin && currentReport.complaints?.pending === true;
+  let next = await fetchFollowUp(`/api/vin/${encodeURIComponent(vin)}/complaints`, data => data && typeof data.available === 'boolean' && !data.pending, live);
+  if (!live()) return;
+  if (!next) next = {...currentReport.complaints, pending: false, available: false, reason: 'lookup_not_loaded',
+    note: 'NHTSA’s complaint list could not be loaded here. The count is unknown; reload the report.'};
+  currentReport = {...currentReport, complaints: next};
+  const view = window.OwnerDetails?.applyToReport(currentReport) || currentReport;
+  const around = window.KeepState ? KeepState.around : (roots, fn) => fn();
+  around([$('#complaints-body')], () => {
+    renderComplaints(view);
+    window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view);
+    window.VinWorkspace?.reportUpdated(view);
+  }, [$('#sheet-body'), $('#sheet-foot')]);
+  $('#decode-status').textContent = next.available ? 'NHTSA’s owner complaints have loaded.' : 'NHTSA’s owner complaints could not be loaded; see the complaints section.';
+}
+
 // ── The maker's VIN recall status, when it answers after the report ──
 // A report can arrive with recall_status.pending (lib/reports.mjs: the maker's lookup was still answering). The page
 // asks again with ?recall_wait=full, which waits for that same lookup, and fills in only what it changes: the status
@@ -419,16 +467,7 @@ async function followRecallStatus(report) {
   // Still wanted while this VIN's report is shown with the status pending (typing the same VIN again keeps it).
   const token = ++recallFollow, vin = report.vin;
   const live = () => token === recallFollow && currentReport?.vin === vin && currentReport.recall_status?.pending === true;
-  let next = null;
-  for (let attempt = 0; attempt < 2 && !next; attempt++) {
-    if (attempt) await new Promise(resolve => setTimeout(resolve, 3000));
-    if (!live()) return;
-    try {
-      const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}?recall_wait=full`);
-      const data = res.ok ? await res.json() : null;
-      if (data?.vehicle && data.recall_status && !data.recall_status.pending) next = data;
-    } catch { /* tried again once, then shown as not loaded */ }
-  }
+  let next = await fetchFollowUp(`/api/vin/${encodeURIComponent(vin)}?recall_wait=full`, data => data?.vehicle && data.recall_status && !data.recall_status.pending, live);
   if (!live()) return;
   if (!next) {
     const s = currentReport.recall_status || {};
@@ -565,10 +604,19 @@ function renderComplaints(r) {
   const count = c?.count || 0;
   const badge = $('#complaint-count');
 
+  if (c?.pending) {
+    // Still arriving (followComplaints fills it in): unknown, never zero; on paper it was not loaded.
+    badge.textContent = '…';
+    badge.className = 'count-badge';
+    $('#complaints-body').innerHTML = '<div class="empty-state"><p class="recall-pending pending-screen"><span class="pending-dot" aria-hidden="true"></span>Loading NHTSA’s owner complaints… The list for a common model is large and can take 15 seconds or more; this card fills in by itself.</p><p class="pending-print">Not loaded: NHTSA’s complaint list had not arrived when this page was printed.</p></div>';
+    return;
+  }
   if (c?.available === false) {
     badge.textContent = '?';
     badge.className = 'count-badge';
-    $('#complaints-body').innerHTML = '<div class="empty-state">Complaint lookup is temporarily unavailable. Please try again.</div>';
+    $('#complaints-body').innerHTML = c.reason === 'lookup_not_loaded'
+      ? '<div class="empty-state">NHTSA’s complaint list could not be loaded here. The count is unknown; reload the report.</div>'
+      : '<div class="empty-state">Complaint lookup is temporarily unavailable. Please try again.</div>';
     return;
   }
   if (count === 0) {
@@ -1177,7 +1225,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
         updateSaveButton(vin);
         hero.classList.add('compact');
         results.hidden = false;
-        if (report.recall_status?.pending) followRecallStatus(report);
+        followPending(report);
       }
       return report;
     },

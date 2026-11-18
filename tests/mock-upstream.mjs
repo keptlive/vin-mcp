@@ -7,6 +7,8 @@ import {EventEmitter} from 'node:events';
 const nativeGet=https.get;
 // MOCK_FORD_DELAY_MS: Ford's page answers after that long (its CDN holds real requests ~9-10 s; tests/slow-maker.test.mjs).
 const fordDelay=Number(process.env.MOCK_FORD_DELAY_MS)||0;
+// MOCK_COMPLAINTS_DELAY_MS: NHTSA's complaint list answers after that long (5-17 s for a common model live).
+const complaintsDelay=Number(process.env.MOCK_COMPLAINTS_DELAY_MS)||0;
 https.get=(url,opts,callback)=>{
  if(String(url)==='https://www.nissanusa.com/owners/recalls-vin.html'){
   const response=Readable.from([Buffer.from(nissanPage)]);response.statusCode=200;queueMicrotask(()=>callback(response));return new EventEmitter();
@@ -54,7 +56,7 @@ globalThis.fetch=async (input,opts)=>{
  }
  if(u.includes('api.nhtsa.gov/recalls'))return json({results:[]});
  if(u.includes('api.nhtsa.gov/products/vehicle/models'))return json({results:[]});
- if(u.includes('api.nhtsa.gov/complaints'))return json({results:[]});
+ if(u.includes('api.nhtsa.gov/complaints')){if(complaintsDelay)await new Promise(r=>setTimeout(r,complaintsDelay));return json({results:[]});}
  if(u.includes('api.nhtsa.gov/SafetyRatings'))return json({Results:[]});
  if(u.includes('fueleconomy.gov')){
   const url=new URL(u),model=url.searchParams.get('model');

@@ -136,3 +136,51 @@ test('VinClient.decode asks for the full wait only when told to', async () => {
   await client.decode('1FTEX1EP4FFD06976', {recallWait: 'full'});
   assert.deepEqual(seen, ['http://localhost:3298/api/vin/1FTEX1EP4FFD06976', 'http://localhost:3298/api/vin/1FTEX1EP4FFD06976?recall_wait=full']);
 });
+
+// ---- NHTSA's complaint list arriving after the report (complaints.pending) ----
+const pendingComplaints = {available: false, pending: true, reason: 'lookup_in_progress', scope: 'make_model_year', count: null, complaints: [], summary: null,
+  status_url: '/api/vin/1FTEX1EP4FFD06976/complaints', note: 'not zero'};
+const complaintList = {available: true, scope: 'make_model_year', count: 2, summary: {crashes: 1, fires: 0, injuries: 1, deaths: 0},
+  complaints: [{odi_number: '1', date_complaint_filed: '03/02/2024', component: 'ENGINE', summary: 'Stalled'}, {odi_number: '2', date_complaint_filed: '04/05/2024', component: 'BRAKES', summary: 'Long stop', crash: true}]};
+
+test('car sheet and complaints card: pending complaints are "loading" on screen and "not loaded" on paper, never zero', () => {
+  const {sheet} = loadSheet();
+  const row = html => html.match(/Owner complaints to NHTSA<\/dt><dd>(.*?)<\/dd>/)[1];
+  const pendingRow = row(sheet.html(report(complete, {complaints: pendingComplaints})).body);
+  assert.match(screen(pendingRow), /^Loading from NHTSA…/);
+  assert.match(paper(pendingRow), /^Unknown: NHTSA's list had not arrived when this sheet was printed\./);
+  assert.doesNotMatch(paper(pendingRow), /\b0\b|Loading/);
+  assert.match(row(sheet.html(report(complete, {complaints: complaintList})).body), /^2 for this model year/);
+  assert.match(row(sheet.html(report(complete, {complaints: {...pendingComplaints, pending: false, reason: 'lookup_not_loaded'}})).body), /^Unknown \(could not be loaded here; reload the report\)/);
+});
+
+test('web report: pending complaints show "Loading…", then /complaints fills the card in place', async () => {
+  const {ctx, els, run} = frontend();
+  ctx.first = report(complete, {complaints: pendingComplaints});
+  run('currentReport = first; renderComplaints(first)');
+  assert.equal(els.get('#complaint-count').textContent, '…');
+  assert.match(els.get('#complaints-body').innerHTML, /Loading NHTSA’s owner complaints…/);
+  assert.match(els.get('#complaints-body').innerHTML, /<p class="pending-print">Not loaded: NHTSA’s complaint list had not arrived when this page was printed\.<\/p>/);
+  assert.equal(run('readyMessage(first)'), 'Report ready. NHTSA’s complaint list is still loading; it fills in by itself.');
+  assert.equal(run('readyMessage({...first, recall_status: ' + JSON.stringify(pending) + '})'), 'Report ready. Ford’s VIN recall status and NHTSA’s complaint list are still loading; they fill in by themselves.');
+  ctx.reply = () => Response.json(complaintList);
+  await run('followComplaints(currentReport)');
+  assert.deepEqual(ctx.requests, ['/api/vin/1FTEX1EP4FFD06976/complaints']);
+  assert.equal(els.get('#complaint-count').textContent, 2);
+  assert.match(els.get('#complaints-body').innerHTML, /Long stop/);
+  assert.equal(run('currentReport.complaints.count'), 2);
+  assert.equal(run('currentReport.recall_status.open_count'), 2, 'the recall status is kept');
+  assert.match(els.get('#decode-status').textContent, /owner complaints have loaded/);
+});
+
+test('web report: complaints that cannot be loaded read as unknown (could not be loaded), never zero', async () => {
+  const {ctx, els, run} = frontend();
+  ctx.first = report(complete, {complaints: pendingComplaints});
+  run('currentReport = first; renderComplaints(first)');
+  ctx.reply = () => new Response('{}', {status: 502});
+  await run('followComplaints(currentReport)');
+  assert.equal(ctx.requests.length, 2, 'asked twice');
+  assert.equal(els.get('#complaint-count').textContent, '?');
+  assert.match(els.get('#complaints-body').innerHTML, /could not be loaded here\. The count is unknown/);
+  assert.equal(run('currentReport.complaints.pending'), false);
+});

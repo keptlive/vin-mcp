@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { validateVin, normalizeVin } from './lib/validate.mjs';
-import { decodeVin as nhtsaDecode, batchDecode, getComplaints, getSafetyRatings } from './lib/nhtsa.mjs';
+import { decodeVin as nhtsaDecode, batchDecode, getSafetyRatings } from './lib/nhtsa.mjs';
 import { getFuelEconomy } from './lib/epa.mjs';
 import { getPhotoUrl } from './lib/photo.mjs';
 import { vinCache } from './lib/cache.mjs';
@@ -20,7 +20,7 @@ import { rateBenchmarks } from './lib/rate-benchmarks.mjs';
 import { scenario } from './lib/scenario.mjs';
 import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
-import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls, vinRecallStatusFor, RECALL_WAIT_MS } from './lib/reports.mjs';
+import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls, modelYearComplaints, vinRecallStatusFor, RECALL_WAIT_MS } from './lib/reports.mjs';
 import { normalizeTransmission, applyOwnerDetails } from './lib/transmission-choice.mjs';
 import { validateOwnerDetails, parseOwnerDetails, serializeOwnerDetails, OwnerDetailsError } from './lib/owner-details.mjs';
 import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
@@ -517,7 +517,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
       const decoded = await nhtsaDecode(normalizeVin(req.params.vin));
       if (!decoded) return res.status(400).json({ error: 'Could not decode VIN' });
       const { make, model, year } = decoded.vehicle;
-      res.json(await getComplaints(make, model, year) || { count: 0, complaints: [], summary: {} });
+      res.json(await modelYearComplaints(make, model, year)); // joins a report's running request
     } catch (err) { safeError(res, err); }
   });
 
