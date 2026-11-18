@@ -26,7 +26,7 @@ def table(headers,rows,widths):
 def chrome(canvas,doc):
  canvas.saveState();canvas.setFillColor(ACCENT);canvas.rect(42,749,528,3,fill=1,stroke=0)
  canvas.setFont('Helvetica-Bold',9);canvas.setFillColor(INK);canvas.drawString(42,764,'mcp.vin  /  PROFESSIONAL BRIEF')
- canvas.setFont('Helvetica',8);canvas.drawRightString(570,764,'24 OCTOBER 2026')
+ canvas.setFont('Helvetica',8);canvas.drawRightString(570,764,'24 OCTOBER 2026, REVISED 18 NOVEMBER 2026')
  canvas.setStrokeColor(LINE);canvas.line(42,39,570,39)
  canvas.setFillColor(MUTED);canvas.setFont('Helvetica',7.5);canvas.drawString(42,26,'RELEASE 1.6.0  |  Public-source vehicle research')
  sheet='01' if doc.subject=='Capability comparison' else '02'
@@ -50,7 +50,7 @@ comparison=[
  ['Taxes and fees','Tax and fee endpoint','<b>Gap.</b> Entered amounts only; no jurisdiction-specific lookup.'],
  ['Ownership costs','Ownership-cost endpoint','<b>Partial.</b> Editable cost scenarios; no resale or repair-cost prediction.'],
  ['Recall campaigns','Recall endpoint','<b>Partial.</b> Model-year NHTSA campaigns; VIN applicability unconfirmed.'],
- ['Unrepaired recalls','Open-recall endpoint','<b>Partial.</b> Ford, GM and Tesla status; Honda active recalls; Nissan/Mopar positive open records. Toyota, Hyundai, Kia: interactive checks.'],
+ ['Unrepaired recalls','Open-recall endpoint','<b>Gap.</b> Not checked. Each report links to the manufacturer\'s own recall page and NHTSA\'s VIN recall page.'],
  ['Developer access','REST, MCP, CLI, SDK','<b>Implemented.</b> REST, 22 MCP tools, local JavaScript client and CLI.'],
 ]
 first=build('capability-comparison.pdf','Capability comparison',[
@@ -59,12 +59,12 @@ first=build('capability-comparison.pdf','Capability comparison',[
  p('auto.dev entries reflect its public product descriptions. mcp.vin entries reflect the verified release 1.6.0. This is a scope comparison, not a test of relative accuracy, coverage or service performance.','small'),Spacer(1,12),
  table(['Capability','auto.dev advertises [1]','mcp.vin implementation [2]'],comparison,[101,126,301]),Spacer(1,10),
  p('<b>Assessment:</b> mcp.vin supports public-data research and transparent cost modeling. It does not yet replace auto.dev across factory build data, inventory, plate lookup or universal VIN recall repair status.','body'),Spacer(1,8),
- p('[1] auto.dev product catalog: <link href="https://www.auto.dev/" color="#494C96">www.auto.dev</link>; specifications, OEM build and open-recall product pages. Reviewed 24 Oct 2026. Advertised capabilities were not independently benchmarked.<br/>[2] Source: release 1.6.0; source review dated 24 Oct 2026. Partial = narrower scope. Gap = required data not integrated. Implemented does not imply identical data coverage.','small')])
+ p('[1] auto.dev product catalog: <link href="https://www.auto.dev/" color="#494C96">www.auto.dev</link>; specifications, OEM build and open-recall product pages. Reviewed 24 Oct 2026. Advertised capabilities were not independently benchmarked.<br/>[2] Source: release 1.6.0; source review dated 24 Oct 2026. Partial = narrower scope. Gap = required data not integrated. Implemented does not imply identical data coverage. Recall rows revised 18 Nov 2026: mcp.vin no longer asks manufacturers about a VIN.','small')])
 
 sources=[
  ['NHTSA vPIC [1]','VIN decoding and submitted vehicle attributes','US-oriented manufacturer records; completeness varies by vehicle.'],
  ['EPA / FuelEconomy.gov [2]','Configurations, emissions, energy assumptions and owner MPG','Test configuration data. Owner reports are voluntary; sample size and method are shown.'],
- ['Transport Canada via vPIC [1]','Dimensions and curb mass','Canadian model variants. Select the appropriate configuration; not an exact-VIN match.'],
+ ['Transport Canada via vPIC [1]','Dimensions and curb mass','Canadian model variants. Select the appropriate configuration; not an exact-VIN match. Contains information licensed under the Open Government Licence \u2013 Canada [5].'],
  ['NHTSA ODI archives [3]','Manufacturer communications and defect investigations','Dated local indexes. Report variants and provenance retained; not a vehicle-level defect finding.'],
  ['Federal Reserve G.19 [4]','New-car loan rate context','Manual snapshot: Aug 2026 observations, released 7 Oct 2026. Not a lender offer.'],
 ]
@@ -77,9 +77,9 @@ second=build('data-and-methodology.pdf','Data and methodology',[
  p('Illustrative source check','head'),
  p('2003 Honda Accord V6 automatic, EPA ID 18657: <b>22 combined EPA MPG</b>; <b>23.5 owner-reported harmonic mean MPG</b> from 29 submitted records, range 15-34 MPG. These measures use different methods and samples. The Honda Accord 2003 investigation query returned five distinct actions. Values reflect the 24 Oct 2026 UTC verification.'),
  p('Professional use','head'),
- p('<b>Confirm the configuration.</b> Model-year records do not establish exact factory equipment.<br/><b>Read manufacturer coverage.</b> Ford, GM and Tesla report VIN status; Honda reports active recalls (15 years). Nissan and Mopar supply positive open records. Toyota, Hyundai and Kia need interactive verification. GM closure is not always repair; only explicit repair dates are shown.<br/><b>Review assumptions and dates.</b> Cost results use entered assumptions; snapshots can become outdated.'),
+ p('<b>Confirm the configuration.</b> Model-year records do not establish exact factory equipment.<br/><b>Check this VIN\'s recalls at the source.</b> mcp.vin lists model-year campaigns and does not check a vehicle\'s recall repairs; each report links to the manufacturer\'s own recall page and NHTSA\'s.<br/><b>Review assumptions and dates.</b> Cost results use entered assumptions; snapshots can become outdated.'),
  p('Sources and verification basis','head'),
- p('[1] <link href="https://vpic.nhtsa.dot.gov/api/" color="#494C96">vpic.nhtsa.dot.gov/api/</link><br/>[2] <link href="https://www.fueleconomy.gov/feg/ws/" color="#494C96">fueleconomy.gov/feg/ws/</link><br/>[3] <link href="https://www.nhtsa.gov/nhtsa-datasets-and-apis" color="#494C96">nhtsa.gov/nhtsa-datasets-and-apis</link><br/>[4] <link href="https://www.federalreserve.gov/releases/g19/20261007/" color="#494C96">federalreserve.gov/releases/g19/20261007/</link><br/>Source reference: docs/data-sources.md; verified release 1.6.0. No paid data provider is required for these research features. Hosting, maintenance and source availability remain operational considerations.','small')])
+ p('[1] <link href="https://vpic.nhtsa.dot.gov/api/" color="#494C96">vpic.nhtsa.dot.gov/api/</link><br/>[2] <link href="https://www.fueleconomy.gov/feg/ws/" color="#494C96">fueleconomy.gov/feg/ws/</link><br/>[3] <link href="https://www.nhtsa.gov/nhtsa-datasets-and-apis" color="#494C96">nhtsa.gov/nhtsa-datasets-and-apis</link><br/>[4] <link href="https://www.federalreserve.gov/releases/g19/20261007/" color="#494C96">federalreserve.gov/releases/g19/20261007/</link><br/>[5] <link href="https://open.canada.ca/en/open-government-licence-canada" color="#494C96">open.canada.ca/en/open-government-licence-canada</link><br/>mcp.vin is an independent free service, not affiliated with or endorsed by NHTSA, EPA, the U.S. Department of Energy, Transport Canada, the Federal Reserve or any vehicle manufacturer. Source reference: docs/data-sources.md; verified release 1.6.0. No paid data provider is required for these research features. Hosting, maintenance and source availability remain operational considerations.','small')])
 writer=PdfWriter()
 for path in [first,second]:writer.append(str(path))
 writer.add_metadata({'/Title':'mcp.vin - Professional comparison and data brief','/Author':'mcp.vin'})

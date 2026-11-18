@@ -1,7 +1,7 @@
 /* Redraw part of a page in place without losing what the reader is doing there: typed text, choices, disabled
  * (already sent) forms and their status lines, open <details>, focus and caret, and the place on screen.
  *
- * Used when the manufacturer's VIN recall status arrives after the report is drawn (public/app.js, car-sheet.js):
+ * Used when NHTSA's complaint list arrives after the report is drawn (public/app.js, car-sheet.js):
  * only the blocks whose data changed are redrawn, through these helpers.
  * - Form controls are matched by kind (tag, type, name) and their order within the redrawn element.
  * - The place on screen: an element at the top of the viewport that is not redrawn keeps its position; browsers

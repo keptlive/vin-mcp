@@ -1,4 +1,4 @@
-import {VinClient} from '/client.mjs?v=d2b27f93e7db';
+import {VinClient} from '/client.mjs?v=8cb9a1ccfdce';
 const api=new VinClient({baseUrl:location.origin}), $=s=>document.querySelector(s);
 const esc=s=>String(s??'Unknown').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
