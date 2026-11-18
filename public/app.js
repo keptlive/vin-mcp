@@ -451,8 +451,9 @@ async function followComplaints(report) {
     renderComplaints(view);
     window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view);
     window.VinWorkspace?.reportUpdated(view);
+    // inside the redraw: a shorter status line moves the page too
+    $('#decode-status').textContent = next.available ? 'NHTSA’s owner complaints have loaded.' : 'NHTSA’s owner complaints could not be loaded; see the complaints section.';
   }, [$('#sheet-body'), $('#sheet-foot')]);
-  $('#decode-status').textContent = next.available ? 'NHTSA’s owner complaints have loaded.' : 'NHTSA’s owner complaints could not be loaded; see the complaints section.';
 }
 
 // ── The maker's VIN recall status, when it answers after the report ──
@@ -503,9 +504,10 @@ function applyMakerUpdate(next) {
     }
     window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view);
     window.VinWorkspace?.reportUpdated(view);
+    // inside the redraw: a shorter status line moves the page too
+    const s = merged.recall_status || {}, maker = prev.recall_status?.maker || s.maker || 'The manufacturer';
+    $('#decode-status').textContent = s.available ? `${maker}’s VIN recall status has loaded.` : `${maker}’s VIN recall status is not available; see the recall section.`;
   }, [$('#sheet-body'), $('#sheet-foot')]);
-  const s = merged.recall_status || {}, maker = prev.recall_status?.maker || s.maker || 'The manufacturer';
-  $('#decode-status').textContent = s.available ? `${maker}’s VIN recall status has loaded.` : `${maker}’s VIN recall status is not available; see the recall section.`;
 }
 
 function renderCampaigns(r) {
