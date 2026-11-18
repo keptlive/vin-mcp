@@ -106,7 +106,9 @@ form.addEventListener('submit', async (e) => {
     // Compact hero
     hero.classList.add('compact');
     results.hidden = false;
-    $('#decode-status').textContent = 'Report ready. Review source coverage in each section.';
+    const pendingMaker = report.recall_status?.pending ? (report.recall_status.maker || 'The manufacturer') : null;
+    $('#decode-status').textContent = pendingMaker ? `Report ready. ${pendingMaker}’s VIN recall status is still loading; it fills in by itself.` : 'Report ready. Review source coverage in each section.';
+    if (pendingMaker) followRecallStatus(report);
     if (!location.hash || location.hash === '#report') {
       history.replaceState(null, '', '/' + encodeURIComponent(vin) + location.search + '#report');
       results.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
@@ -326,7 +328,7 @@ function renderFuel(r) {
 function rerenderOwnerView(focusChoice) {
   if (!currentReport) return;
   const view = window.OwnerDetails?.applyToReport(currentReport) || currentReport;
-  renderFuel(view); window.CarSheet?.render(view); window.VinWorkspace?.reportUpdated(view);
+  renderFuel(view); window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view); window.VinWorkspace?.reportUpdated(view);
   if (focusChoice) $('#fuel-body [data-owner-transmission]')?.focus();
 }
 $('#fuel-body').addEventListener('click', async e => {
@@ -381,19 +383,90 @@ function renderFuelBody(r) {
 }
 
 // ── Recalls Card ──
+// The VIN-specific status is its own block (#recall-status-block), so it can be filled in alone when the maker's
+// lookup answers after the report is drawn (followRecallStatus).
 function renderRecalls(r) {
   renderCampaigns(r);
+  $('#recalls-body').innerHTML = `<div class="recall-item" id="recall-status-block">${recallStatusHtml(r)}</div><h3>Model-year recall campaigns</h3>` + $('#recalls-body').innerHTML;
+}
+function recallStatusHtml(r) {
   const s = r.recall_status;
   const link = s?.verification_url || 'https://www.nhtsa.gov/recalls';
   const renderStatusRecords = records => records.map(x => `<div class="recall-item"><strong>${esc(x.campaign_number)} · ${esc(x.manufacturer_status)}</strong>${x.record_kind ? `<p class="small">${esc(x.record_kind.replaceAll('_',' '))}</p>` : ''}<p>${esc(x.summary || x.title || '')}</p>${x.completion_description ? `<p><span class="recall-detail-label">Completion basis:</span> ${esc(x.completion_description)}</p>` : ''}${x.repair_completed_at ? `<p><span class="recall-detail-label">Reported repair date:</span> ${esc(x.repair_completed_at)}</p>` : ''}${x.manufacturer_closed_at ? `<p><span class="recall-detail-label">Manufacturer closing date:</span> ${esc(x.manufacturer_closed_at)}</p>` : ''}${x.remedy ? `<p><span class="recall-detail-label">Remedy:</span> ${esc(x.remedy)}</p>` : ''}${x.document_url ? `<a href="${esc(x.document_url)}" target="_blank" rel="noopener">Manufacturer bulletin</a>` : ''}</div>`).join('');
-  const content = s?.available
+  const maker = esc(s?.maker || 'the manufacturer');
+  // Still answering: unknown, never "no open recalls"; on paper it says the status had not loaded.
+  const content = s?.pending
+    ? `<p class="recall-pending pending-screen"><span class="pending-dot" aria-hidden="true"></span>Checking with ${maker}… Its VIN lookup is still answering; this part fills in by itself.</p><p class="pending-print">Not loaded: ${maker} had not answered when this page was printed, so this VIN’s repair status is unknown here.</p>`
+    : s?.available
     ? `<p>${s.open_record_count!==undefined ? esc(s.open_record_count)+' open recall/campaign records · '+esc(s.open_count ?? 'Unknown')+' verified safety-recall count' : esc(s.open_count ?? 'Unknown')+' open recalls'} · ${esc(s.completed_count ?? 'Unknown')} manufacturer-reported completed/closed${s.unknown_count ? ' · '+esc(s.unknown_count)+' unknown status' : ''}</p>
        <p>Checked ${esc(s.source.retrieved_at)} · ${esc(s.source.provider)}</p>
        ${renderStatusRecords(s.campaigns || s.recalls)}
        ${!s.campaigns && s.service_campaigns?.length ? `<h4>Other manufacturer programs · ${esc(s.service_campaigns.length)}</h4>${renderStatusRecords(s.service_campaigns)}` : ''}
        <p>${esc(s.note)}</p>`
     : `<p>VIN-specific repair status is unavailable. ${esc(s?.note || 'Check the official source. Model-year campaigns do not establish completed repairs.')}</p>`;
-  $('#recalls-body').innerHTML = `<div class="recall-item"><h3>VIN-specific recall repair status</h3>${content}<p><a href="${esc(link)}" target="_blank" rel="noopener">Verify this VIN with the official source</a></p></div><h3>Model-year recall campaigns</h3>` + $('#recalls-body').innerHTML;
+  return `<h3>VIN-specific recall repair status</h3>${content}<p><a href="${esc(link)}" target="_blank" rel="noopener">Verify this VIN with the official source</a></p>`;
+}
+
+// ── The maker's VIN recall status, when it answers after the report ──
+// A report can arrive with recall_status.pending (lib/reports.mjs: the maker's lookup was still answering). The page
+// asks again with ?recall_wait=full, which waits for that same lookup, and fills in only what it changes: the status
+// block, the car sheet's recall row and footer, and, when the maker's description of the VIN changed the decode checks
+// or the fuel and tire matches, those blocks. Typed text, open forms, focus, the transmission choice and the place on
+// screen are kept (public/keep-state.js).
+const MAKER_BLOCKS = ['recall_status', 'decode_checks', 'fuel_economy', 'tire_placard', 'test_vehicle_specs', 'epa_test_vehicles', 'parts_content', 'production_theft'];
+let recallFollow = 0;
+async function followRecallStatus(report) {
+  // Still wanted while this VIN's report is shown with the status pending (typing the same VIN again keeps it).
+  const token = ++recallFollow, vin = report.vin;
+  const live = () => token === recallFollow && currentReport?.vin === vin && currentReport.recall_status?.pending === true;
+  let next = null;
+  for (let attempt = 0; attempt < 2 && !next; attempt++) {
+    if (attempt) await new Promise(resolve => setTimeout(resolve, 3000));
+    if (!live()) return;
+    try {
+      const res = await apiFetch(`/api/vin/${encodeURIComponent(vin)}?recall_wait=full`);
+      const data = res.ok ? await res.json() : null;
+      if (data?.vehicle && data.recall_status && !data.recall_status.pending) next = data;
+    } catch { /* tried again once, then shown as not loaded */ }
+  }
+  if (!live()) return;
+  if (!next) {
+    const s = currentReport.recall_status || {};
+    next = {...currentReport, recall_status: {...s, pending: false, available: false, reason: 'lookup_not_loaded',
+      note: `${s.maker || 'The manufacturer'}’s answer could not be loaded. VIN-specific repair status is unknown; reload the report or check the official source.`}};
+  }
+  applyMakerUpdate(next);
+}
+
+function applyMakerUpdate(next) {
+  const prev = currentReport;
+  if (!prev || prev.vin !== next.vin) return;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const merged = {...prev};
+  for (const k of MAKER_BLOCKS) { if (k in next) merged[k] = next[k]; else delete merged[k]; }
+  // The maker's record only changes the "checked against" line, unless it changed a checked value (then the
+  // fuel-economy, tire and test-car matches may have changed too).
+  const checks = dc => dc && dc.sources ? {...dc, sources: {...dc.sources, manufacturer_record: null}} : dc;
+  const valuesChanged = !same(checks(prev.decode_checks), checks(next.decode_checks)) || MAKER_BLOCKS.slice(2).some(k => !same(prev[k], next[k]));
+  currentReport = merged;
+  const view = window.OwnerDetails?.applyToReport(merged) || merged;
+  const statusBlock = $('#recall-status-block');
+  const cards = valuesChanged ? ['#overview-body', '#engine-body', '#decode-checks-body', '#safety-ratings-body', '#fuel-body'].map(id => $(id)) : [];
+  const around = window.KeepState ? KeepState.around : (roots, fn) => fn();
+  around([statusBlock, ...cards], () => {
+    if (statusBlock) statusBlock.innerHTML = recallStatusHtml(view);
+    if (valuesChanged) {
+      renderOverview(view); renderEngine(view); renderDecodeChecks(view); renderSafetyRatings(view);
+      window.TestVehicle?.render(view); renderFuel(view); window.MoreSources?.render(view);
+    } else if (!same(prev.decode_checks, next.decode_checks)) {
+      const line = $('#decode-checks-body .dc-sources');
+      if (line && window.DecodeChecks?.sourcesHtml) line.outerHTML = DecodeChecks.sourcesHtml(view);
+    }
+    window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view);
+    window.VinWorkspace?.reportUpdated(view);
+  }, [$('#sheet-body'), $('#sheet-foot')]);
+  const s = merged.recall_status || {}, maker = prev.recall_status?.maker || s.maker || 'The manufacturer';
+  $('#decode-status').textContent = s.available ? `${maker}’s VIN recall status has loaded.` : `${maker}’s VIN recall status is not available; see the recall section.`;
 }
 
 function renderCampaigns(r) {
@@ -1104,6 +1177,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
         updateSaveButton(vin);
         hero.classList.add('compact');
         results.hidden = false;
+        if (report.recall_status?.pending) followRecallStatus(report);
       }
       return report;
     },

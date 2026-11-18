@@ -448,7 +448,13 @@ const CarSheet = (() => {
     const v = r.vehicle || {}, s = r.recall_status, rec = r.recalls, c = r.complaints, rat = r.safety_ratings || {};
     const name = [v.year, makeName(v.make), v.model].filter(present).join(' ');
     let status;
-    if (s && s.available) {
+    if (s && s.pending) {
+      // The maker's lookup is still answering (lib/reports.mjs pendingRecallStatus): on screen "Checking with Ford…",
+      // filled in when it answers; on paper never a placeholder: the status had not loaded, so it is unknown.
+      const maker = s.maker || 'the manufacturer';
+      status = `<span class="pending-screen sheet-pending">Checking with ${esc(maker)}…<span class="sheet-source">The maker’s VIN lookup is still answering; this row fills in by itself.</span></span>`
+        + `<span class="pending-print">Unknown: ${esc(maker)} had not answered when this sheet was printed.</span>`;
+    } else if (s && s.available) {
       const provider = (s.source && s.source.provider) || 'the manufacturer';
       const checked = fmtDate(s.source && s.source.retrieved_at);
       const unk = x => (x === null || x === undefined ? 'unknown' : fmt(x));
@@ -461,7 +467,8 @@ const CarSheet = (() => {
       const alert = Number(s.open_count) > 0 || Number(s.open_record_count) > 0;
       status = `<span class="${alert ? 'sheet-alert' : ''}">${esc(parts.join(' · '))}</span><span class="sheet-source">Reported by ${esc(provider)}${checked ? `, checked ${esc(checked)}` : ''}.</span>`;
     } else {
-      const why = s && s.reason === 'interactive_verification_required' ? 'The maker’s check needs a person to verify.' : 'Not available for this vehicle here.';
+      const why = s && s.reason === 'interactive_verification_required' ? 'The maker’s check needs a person to verify.'
+        : s && s.reason === 'lookup_not_loaded' ? 'The maker’s answer could not be loaded here; reload the report.' : 'Not available for this vehicle here.';
       status = `Unknown. ${esc(why)}`;
     }
     const verify = (s && s.verification_url) || 'https://www.nhtsa.gov/recalls';
@@ -511,12 +518,15 @@ const CarSheet = (() => {
     return `<div class="sheet-foot-text"><p><strong>Sources:</strong> ${esc(sources.join('; '))}.${assembled ? ` Data gathered ${esc(assembled)}.` : ''}</p><p>Decoded from the VIN and public records; options, repairs and later changes are not shown. Check the placard, the manual and the official recall links.</p><p class="sheet-live">Live report: <a href="${url}">${url}</a>${dagger}</p></div>${qr ? `<div class="sheet-qr">${qr}</div>` : ''}`;
   }
 
+  /** The sheet's sections in order, as [class name, html]; html is '' for a section with nothing to show. */
+  function sections(r) {
+    return [['sheet-vehicle', vehicleSection(r)], ['sheet-power', powerSection(r)], ['sheet-recalls', recallSection(r)], ['sheet-size', sizeSection(r)],
+      ['sheet-tires', tireSection(r)], ['sheet-manual', manualSection(r)], ['sheet-vin', vinSection(r)]];
+  }
+
   /** Sheet HTML for a report: {body, foot}. Pure; used by render() and the tests. */
   function html(r) {
-    return {
-      body: [vehicleSection(r), powerSection(r), recallSection(r), sizeSection(r), tireSection(r), manualSection(r), vinSection(r)].join(''),
-      foot: footer(r),
-    };
+    return { body: sections(r).map(x => x[1]).join(''), foot: footer(r) };
   }
 
   /** Summarize Transport Canada variants (metric). Values all variants agree on are single; others are ranges. */
@@ -550,9 +560,13 @@ const CarSheet = (() => {
     return `${list(rows)}<p class="sheet-note">Transport Canada model data<span class="sheet-screen-only">, ${esc(which)}</span>. Not specific to this VIN.</p>`;
   }
 
-  let current = null;
+  // current: the report drawn; drawn: its sections and footer as drawn, so update() can swap only what changed;
+  // dimsToken: the Transport Canada request in flight belongs to the vehicle drawn last by render().
+  let current = null, drawn = null, dimsToken = 0;
   async function loadDimensions(r) {
-    const target = typeof document !== 'undefined' && document.querySelector('#sheet-body [data-dims]');
+    const token = ++dimsToken;
+    const dimsTarget = () => typeof document !== 'undefined' && document.querySelector('#sheet-body [data-dims]');
+    const target = dimsTarget();
     const v = r.vehicle || {};
     if (!target || !present(v.year) || !present(v.make) || !present(v.model)) { if (target) target.innerHTML = ''; return; }
     const ask = async model => {
@@ -565,10 +579,11 @@ const CarSheet = (() => {
       // vPIC and Transport Canada name some models differently ("Bolt EV" / "BOLT 4DR HATCHBACK").
       // Retry with the first word only; the matched record names are printed so the reader can judge.
       if (data.available && !data.data.length && /\s/.test(String(v.model).trim())) data = await ask(String(v.model).trim().split(/\s+/)[0]);
-      if (current !== r) return;
-      target.innerHTML = data.available ? dimensionsHtml(dimensionSummary(data.data), r) : '<p class="sheet-note sheet-screen-only">Transport Canada dimensions are unavailable right now.</p>';
+      // update() may have swapped the size section meanwhile: write into the one on the page now
+      if (token !== dimsToken || !dimsTarget()) return;
+      dimsTarget().innerHTML = data.available ? dimensionsHtml(dimensionSummary(data.data), current || r) : '<p class="sheet-note sheet-screen-only">Transport Canada dimensions are unavailable right now.</p>';
     } catch {
-      if (current === r) target.innerHTML = '<p class="sheet-note sheet-screen-only">Transport Canada dimensions are unavailable right now.</p>';
+      if (token === dimsToken && dimsTarget()) dimsTarget().innerHTML = '<p class="sheet-note sheet-screen-only">Transport Canada dimensions are unavailable right now.</p>';
     }
   }
 
@@ -581,9 +596,36 @@ const CarSheet = (() => {
     if (title) title.textContent = [v.year, makeName(v.make), v.model, v.trim].filter(present).join(' ');
     body.innerHTML = out.body;
     if (foot) foot.innerHTML = out.foot;
+    drawn = { vin: r.vin, sections: sections(r), foot: out.foot };
     const assembled = fmtDate(r.provenance && r.provenance.assembled_at), prepared = document.querySelector('#sheet-prepared');
     if (prepared) prepared.textContent = assembled ? `Data gathered ${assembled} from public NHTSA, EPA, Transport Canada and maker records.` : 'From public NHTSA, EPA, Transport Canada and maker records.';
     loadDimensions(r);
+  }
+
+  /**
+   * Redraw only the sections of the drawn sheet whose HTML changed for `r` (the same vehicle, e.g. once the maker's
+   * recall status arrives or the owner states the transmission). Copied-in values, open forms, focus and the Transport
+   * Canada dimensions already loaded are kept (public/keep-state.js). Falls back to render() for another vehicle.
+   */
+  function update(r) {
+    const body = typeof document !== 'undefined' && document.querySelector('#sheet-body'), foot = document.querySelector('#sheet-foot');
+    if (!body || !r || !r.vehicle) return;
+    if (!drawn || drawn.vin !== r.vin || typeof KeepState === 'undefined') { render(r); return; }
+    const next = sections(r);
+    for (const [i, [name, h]] of next.entries()) {
+      if (h === drawn.sections[i][1]) continue;
+      const old = drawn.sections[i][1] ? body.querySelector(`:scope > .${name}`) : null;
+      if (!old || !h) { render(r); return; } // a section appeared or went away: draw the sheet again
+      const dims = old.querySelector('[data-dims]');
+      const swapped = KeepState.replace(old, h);
+      if (!swapped) { render(r); return; }
+      const newDims = swapped.querySelector('[data-dims]');
+      if (dims && newDims) newDims.replaceWith(dims); // vehicle dimensions do not depend on what changed
+    }
+    const f = footer(r);
+    if (foot && f !== drawn.foot) foot.innerHTML = f;
+    drawn = { vin: r.vin, sections: next, foot: f };
+    current = r;
   }
 
   // "Print this sheet" prints one page; the toolbar's "Print view" prints the sheet followed by the full report.
@@ -632,6 +674,6 @@ const CarSheet = (() => {
     });
   }
 
-  return { manualFor, html, dimensionSummary, dimensionsHtml, fmtDate, render, testedPlacards, testedSpecs, matchText };
+  return { manualFor, html, dimensionSummary, dimensionsHtml, fmtDate, render, update, testedPlacards, testedSpecs, matchText };
 })();
 if (typeof window !== 'undefined') window.CarSheet = CarSheet;
