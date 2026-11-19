@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {buildFixtureDb} from '../scripts/make-vpic-fixture.mjs';
 import {checkRuleFixes} from '../scripts/check-vpic-rule-fixes.mjs';
-import {decodeLocal, closeVpicLocal, LIVE_VALUE_KEYS} from '../lib/vpic-local.mjs';
+import {decodeLocal, closeVpicLocal, LIVE_VALUE_KEYS, servedReason} from '../lib/vpic-local.mjs';
 import {decodeVin, batchDecode, localFallbackReason, DECODE_SOURCE_LOCAL, DECODE_SOURCE_LIVE} from '../lib/nhtsa.mjs';
 import {checkDecode, checkedDecode, officialDecode, patternKey, PRECEDENCE} from '../lib/decode-checks.mjs';
 import {compactDecodeChecks, decodedFromReport} from '../lib/decode-report.mjs';
@@ -48,7 +48,9 @@ test('the fixture decodes exactly as the full release did, on fixed and on NHTSA
       const d = decodeLocal(vin, {file: DB, rules, now: NOW});
       assert.equal(d.available, true, vin);
       assert.deepEqual(d.values, FIXTURE.expected[vin][rules].values, `${vin} ${rules}`);
-      assert.deepEqual(d.rule_fixes, FIXTURE.expected[vin][rules].rule_fixes, `${vin} ${rules} rule_fixes`);
+      // The fixture keeps each fix's reviewed reason; reports serve it without maker-supplied text (servedReason, rf-008).
+      const want = FIXTURE.expected[vin][rules].rule_fixes;
+      assert.deepEqual(d.rule_fixes, want && {...want, fixes: want.fixes.map(f => ({...f, reason: servedReason(f.id, f.reason)}))}, `${vin} ${rules} rule_fixes`);
     }
   }
 });
@@ -143,8 +145,8 @@ test('batchDecode: local where it can, one live request for the rest, answers ma
 const evidence = (vin, vehicles = []) => ({available: true, pattern: patternKey(vin), vehicles});
 const field = (r, f) => r.fields.find(x => x.field === f);
 
-test('decode checks: a rule fix corrects the field (basis mcp.vin rule fix), keeps NHTSA\'s value, below owner and manufacturer', async () => {
-  assert.deepEqual(PRECEDENCE, ['owner', 'manufacturer_vin_record', 'mcp_vin_rule_fix', 'nhtsa_test_vehicle_pattern', 'vpic_decode', 'assumption']);
+test('decode checks: a rule fix corrects the field (basis mcp.vin rule fix), keeps NHTSA\'s value, below the owner', async () => {
+  assert.deepEqual(PRECEDENCE, ['owner', 'mcp_vin_rule_fix', 'nhtsa_test_vehicle_pattern', 'vpic_decode', 'assumption']);
   const d = await decodeVin(ATLAS, {vpicFile: DB, fetch: noNetwork, now: NOW});
   // two test vehicles that say all-wheel drive do not outrank the reviewed fix
   const tvAll = {vin: ATLAS, model_year: 2018, title: 'test', tests: [{test_no: 1, report_url: 'https://nrd-static.nhtsa.dot.gov/reports/x.pdf'}], values: {drive: {value: 'all', sources: ['data sheet']}}};
@@ -156,6 +158,9 @@ test('decode checks: a rule fix corrects the field (basis mcp.vin rule fix), kee
   assert.match(x.note, /mcp\.vin rule fix .* gives front-wheel drive; the official decode says all-wheel or four-wheel drive\. .*Launch/);
   assert.deepEqual(x.evidence.rule_fix.changed, [{field: 'DriveType', official_value: 'AWD/All-Wheel Drive', value: 'FWD/Front-Wheel Drive'}]);
   assert.equal(x.evidence.rule_fix.fixes[0].id, 'rf-008');
+  // The stored reason quotes Volkswagen's VIN record; the served one keeps only NHTSA's and EPA's evidence (2026-11-18).
+  assert.doesNotMatch(JSON.stringify(r), /own (VIN )?record|recall lookup|ATLAS S 3\.6/);
+  assert.match(x.evidence.rule_fix.fixes[0].reason, /Both NHTSA test Atlases with B were front-drive; EPA lists FWD and 4Motion Atlases\./);
   assert.deepEqual(x.candidates.map(c => c.tier), ['mcp_vin_rule_fix', 'nhtsa_test_vehicle_pattern', 'vpic_decode']);
   assert.deepEqual(r.sources.rule_fixes.ids, ['rf-008']); assert.equal(r.sources.rule_fixes.status, 'used');
   assert.equal(checkedDecode(d, r).transmission.drive_type, 'FWD/Front-Wheel Drive');

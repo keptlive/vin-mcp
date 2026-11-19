@@ -21,7 +21,8 @@ URLS = {
     'vehicles': 'https://www.fueleconomy.gov/feg/epadata/vehicles.csv.zip',
     'emissions': 'https://www.fueleconomy.gov/feg/epadata/emissions.csv.zip',
 }
-UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+# Honest client name (no browser imitation): if a source refuses it, stop and report, never disguise the request.
+UA = 'mcp.vin-importer/1.0 (+https://mcp.vin)'
 MAX_BYTES = 20_000_000
 
 # Columns kept (CSV names). Text columns stay text; the rest are numbers.

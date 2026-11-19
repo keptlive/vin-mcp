@@ -20,7 +20,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
 API = 'https://www.federalregister.gov/api/v1/documents'
-UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+# Honest client name (no browser imitation): if a source refuses it, stop and report, never disguise the request.
+UA = 'mcp.vin-importer/1.0 (+https://mcp.vin)'
 TITLE = re.compile(r'Theft Rates (?:for|of) (?:Model Year )?(\d{4})(?: Model Year)? .*Stolen in Calendar Year (\d{4})', re.I)
 
 

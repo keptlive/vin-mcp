@@ -91,17 +91,26 @@
     <h2>Who receives data</h2>
     <p>We do not sell, rent or trade personal data, and we do not share it for advertising. To build a report, our server sends the VIN, or the make, model and year, to the public sources below. They receive the request from our server, not from you, so they do not see your IP address or your account.</p>
     <ul>
-      <li><strong>NHTSA</strong> (U.S. National Highway Traffic Safety Administration): vehicle specifications, recalls, complaints and safety ratings.</li>
-      <li><strong>EPA</strong> (fueleconomy.gov): fuel economy and emissions.</li>
-      <li><strong>Vehicle manufacturers&rsquo; recall lookups</strong>: for supported makes, the VIN is sent to the manufacturer&rsquo;s own recall service to check that vehicle&rsquo;s recall status.</li>
+      <li><strong>NHTSA</strong> (U.S. National Highway Traffic Safety Administration): vehicle specifications, recalls, complaints and safety ratings. Transport Canada&rsquo;s model dimensions are fetched through NHTSA&rsquo;s vPIC service too, with the make, model and year only.</li>
+      <li><strong>EPA</strong> (fueleconomy.gov): fuel economy and emissions, by make, model and year or EPA vehicle number.</li>
     </ul>
-    <p>Two services are contacted by your browser directly, so they see your IP address:</p>
+    <p id="no-manufacturers"><strong>We do not send VINs to vehicle manufacturers.</strong> Until 18 November 2026, for some makes, our server sent the VIN to the manufacturer&rsquo;s own recall lookup; that has stopped. A report now links to the manufacturer&rsquo;s recall page and to NHTSA&rsquo;s instead, and mcp.vin does not check whether a vehicle&rsquo;s recall repairs are done. If you follow one of those links, your browser opens that page directly: the manufacturer or NHTSA then sees your IP address and, where the link carries it, the VIN, under its own privacy policy.</p>
+    <p>Vehicle photos load from mcp.vin itself. They are NHTSA&rsquo;s own photos of the vehicles it crash-tested, which we downloaded from NHTSA once and serve from our server, so showing them does not contact NHTSA or any image service. Your browser contacts NHTSA only if you open one of the linked NHTSA test reports or original photos.</p>
+    <p>One service is contacted by your browser directly, so it sees your IP address:</p>
     <ul>
-      <li><strong>IMAGIN.studio</strong> serves the stock vehicle photos. The image address contains the make, model and year, not the VIN.</li>
       <li><strong>Google Fonts</strong> serves the typefaces used on the site.</li>
     </ul>
-    <p>Links to official recall pages (NHTSA and the manufacturers) carry the VIN where the page accepts one, so it opens on your vehicle. The VIN reaches that site only if you follow the link.</p>
     <p>The service runs on rented servers in the United States. We would disclose data if the law required it.</p>
+
+    <h2 id="sources">Sources and independence</h2>
+    <p>mcp.vin is an independent free service, not affiliated with or endorsed by NHTSA, EPA, the U.S. Department of Energy, Transport Canada, the Federal Reserve or any vehicle manufacturer. Its data comes from these public sources:</p>
+    <ul>
+      <li><strong>NHTSA</strong>, <a href="https://www.nhtsa.gov">nhtsa.gov</a>: VIN decoding (vPIC), recalls, complaints, investigations, crash ratings, test reports and photos, parts content (AALA), theft rates.</li>
+      <li><strong>EPA and the U.S. Department of Energy</strong>, <a href="https://www.fueleconomy.gov">fueleconomy.gov</a> and <a href="https://www.epa.gov">epa.gov</a>: fuel economy, emissions, EPA test cars.</li>
+      <li><strong>Transport Canada</strong>, <a href="https://tc.canada.ca">tc.canada.ca</a> (Canadian Vehicle Specifications, through NHTSA vPIC): model dimensions. Contains information licensed under the <a href="https://open.canada.ca/en/open-government-licence-canada">Open Government Licence &ndash; Canada</a>.</li>
+      <li><strong>Federal Reserve Board</strong>, <a href="https://www.federalreserve.gov">federalreserve.gov</a> (G.19 Consumer Credit): new-car loan rate benchmark, copied by hand; no request is sent.</li>
+      <li><strong>Dealer websites</strong>: the Price tab&rsquo;s asking prices and cars for sale, from our own index of the listings dealers publish on their websites (<a href="#prices">see above</a>). Trade-in and private-sale figures are rules of thumb applied to those prices.</li>
+    </ul>
 
     <h2>Your choices</h2>
     <ul>
@@ -126,7 +135,7 @@
   </div>
 
   <footer class="footer">
-    <p>Data from NHTSA, EPA and IMAGIN.studio. <a href="/examples/">Example reports</a> &middot; <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
+    <p>Data from NHTSA, EPA and DOE (fueleconomy.gov), Transport Canada and the Federal Reserve. Photos: NHTSA test vehicles. mcp.vin is an independent free service, not affiliated with or endorsed by NHTSA, EPA, the U.S. Department of Energy, Transport Canada, the Federal Reserve or any vehicle manufacturer. <a href="/privacy/#sources">Sources</a> &middot; <a href="/examples/">Example reports</a> &middot; <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
   </footer>
 
 </body>
