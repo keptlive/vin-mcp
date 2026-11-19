@@ -242,6 +242,7 @@ test('VIN recall repairs: not checked by mcp.vin, links to the maker and NHTSA; 
   const out = text(sheet.html(base()).body);
   assert.match(out, /This VIN’s recall repairs Not checked by mcp\.vin\. Check this VIN on GM’s recall page \(enter the VIN there\) · Check on NHTSA mcp\.vin shows the model year’s campaigns; only the maker or NHTSA can say whether this car’s repairs are done\. Not checked by mcp\.vin\. Check at experience\.gm\.com\/ownercenter\/recalls or nhtsa\.gov\/recalls\./);
   assert.match(out, /Model-year recall campaigns 4 for the 2017 Chevrolet Bolt EV NHTSA campaigns for the make, model and year\. Not this car’s repair status\./);
+  assert.ok(out.indexOf('Model-year recall campaigns') < out.indexOf('This VIN’s recall repairs'), 'campaigns first, then where to check this VIN');
   assert.match(out, /Owner complaints to NHTSA 47 for this model year Reports, not confirmed defects\./);
   assert.doesNotMatch(out, /\bopen\b|completed or closed|Reported by/);
   // Ford's page takes the VIN from the link: no "enter the VIN there".

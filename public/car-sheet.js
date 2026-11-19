@@ -473,8 +473,8 @@ const CarSheet = (() => {
         : `${fmt(c.count)} for this model year`);
     const stars = rat.rated && num(rat.overall) ? `${rat.overall} of 5 stars overall` : rat.rated ? 'Rated, but no overall score published' : 'No NHTSA rating found';
     const rows = [
-      rowHtml('This VIN’s recall repairs', status),
       rowHtml('Model-year recall campaigns', `${esc(campaigns + related + otherName)}<span class="sheet-source">NHTSA campaigns for the make, model and year. Not this car’s repair status.</span>`),
+      rowHtml('This VIN’s recall repairs', status),
       rowHtml('Owner complaints to NHTSA', `${complaints}<span class="sheet-source">Reports, not confirmed defects.</span>`),
       row('NHTSA crash rating', stars),
     ];
