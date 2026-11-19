@@ -55,11 +55,22 @@ const KeepState = (() => {
     }
   }
 
+  /** In a sticky or fixed bar (the report's tab bar): it stays put while the page under it moves, so it is no anchor. */
+  function pinned(el) {
+    if (typeof getComputedStyle !== 'function') return false;
+    for (let e = el; e && e.nodeType === 1 && e !== document.body; e = e.parentElement) {
+      const p = getComputedStyle(e).position;
+      if (p === 'sticky' || p === 'fixed') return true;
+    }
+    return false;
+  }
+
   /** The element at the top of the viewport that lies outside every element in `roots`, with its position. */
   function anchor(roots) {
     if (typeof document === 'undefined' || typeof innerWidth === 'undefined' || !document.elementFromPoint) return null;
-    for (const y of [8, 48, 120, Math.round(innerHeight / 2)]) {
+    for (const y of [8, 48, 120, 200, Math.round(innerHeight / 2)]) {
       let el = document.elementFromPoint(Math.round(innerWidth / 2), y);
+      if (el && pinned(el)) continue;
       // inside a redrawn element: anchor on that element itself, which stays in the page
       const host = el && roots.find(r => r && r.contains(el));
       if (host) el = host;
