@@ -273,7 +273,10 @@ NHTSA's `complaintsByVehicle` sends a model year's whole list at once: 1-2 MB of
   Toyota, Honda and Acura MyGarage, Nissan. Ford and Tesla refuse scripted requests;
   their pages are confirmed in search results only. No Subaru or Lexus library is listed.
 - **Dimensions.** Transport Canada's model-variant specifications (via vPIC) are shown
-  on the sheet, labelled as not VIN-specific. Some model names differ from vPIC's
+  on the sheet, labelled as not VIN-specific, with the credit "Contains information
+  licensed under the Open Government Licence – Canada" and a link to the licence
+  (https://open.canada.ca/en/open-government-licence-canada); the research page and
+  the `vehicle_dimensions` result (`attribution`, `licence_url`) carry the same credit. Some model names differ from vPIC's
   ("Bolt EV" is "BOLT 4DR HATCHBACK"), so an empty lookup is retried once with the first
   word of the model and the matched record names are printed.
 

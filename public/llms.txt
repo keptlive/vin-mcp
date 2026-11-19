@@ -43,7 +43,7 @@ mcp.vin combines free public vehicle data from NHTSA, EPA and manufacturer sourc
 - Account: list_saved_vins, save_vin, remove_saved_vin, get_output_preferences, update_output_preferences (require a website login token)
 - Hosted and GitHub source versions may be newer than the npm package; use HTTP or current source for the full tool set.
 - Model-year recall campaigns and complaints do not establish VIN repair status or individual safety rankings. Missing data is not zero.
-- mcp.vin is an independent free service, not affiliated with or endorsed by NHTSA, EPA, the U.S. Department of Energy, Transport Canada, the Federal Reserve or any vehicle manufacturer.
+- mcp.vin is an independent free service, not affiliated with or endorsed by NHTSA, EPA, the U.S. Department of Energy, Transport Canada, the Federal Reserve or any vehicle manufacturer. Transport Canada dimensions: contains information licensed under the Open Government Licence – Canada (https://open.canada.ca/en/open-government-licence-canada).
 
 ## Example reports
 - https://mcp.vin/examples/ — Twelve example VINs with live reports and links to each maker's and NHTSA's VIN recall pages
