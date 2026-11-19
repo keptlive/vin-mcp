@@ -358,8 +358,10 @@ function renderFuelBody(r) {
 // (it never asks a manufacturer about a VIN), so the card links to the maker's own recall page and to NHTSA's
 // (recall_status, lib/recall-links.mjs).
 function renderRecalls(r) {
-  renderCampaigns(r);
-  $('#recalls-body').innerHTML = `<h3>Model-year recall campaigns</h3>` + $('#recalls-body').innerHTML + `<div class="recall-item recall-check" id="recall-status-block">${recallStatusHtml(r)}</div>`;
+  // The block goes after the campaigns filed under this model name and before "Related model names": the clean view
+  // (report-clean.js) folds everything after that heading under "Show", and these links must stay in view.
+  renderCampaigns(r, `<div class="recall-item recall-check" id="recall-status-block">${recallStatusHtml(r)}</div>`);
+  $('#recalls-body').innerHTML = `<h3>Model-year recall campaigns</h3>` + $('#recalls-body').innerHTML;
 }
 // NHTSA's recall page with the VIN in its address (lib/recall-links.mjs; whether the page reads it is not confirmed).
 function nhtsaRecallUrl(vin) {
@@ -438,7 +440,8 @@ async function followComplaints(report) {
   }, [$('#sheet-body'), $('#sheet-foot')]);
 }
 
-function renderCampaigns(r) {
+// `check`: the recall check block, placed after this model name's campaigns and before related model names.
+function renderCampaigns(r, check = '') {
   const rec = r.recalls;
   const count = rec?.count || 0;
   const badge = $('#recall-count');
@@ -446,7 +449,7 @@ function renderCampaigns(r) {
   if (rec?.available === false) {
     badge.textContent = '?';
     badge.className = 'count-badge';
-    $('#recalls-body').innerHTML = '<div class="empty-state">Recall lookup is temporarily unavailable. Please try again.</div>';
+    $('#recalls-body').innerHTML = '<div class="empty-state">Recall lookup is temporarily unavailable. Please try again.</div>' + check;
     return;
   }
   const related = relatedCampaignsHTML(rec);
@@ -458,7 +461,7 @@ function renderCampaigns(r) {
     $('#recalls-body').innerHTML = (rec?.related_campaigns_found === true
       ? '<div class="empty-state">No campaigns are filed under this exact make, model and year. NHTSA lists campaigns under related model names below. Check your VIN at NHTSA for unrepaired recalls.</div>'
       : nameUnused ? '<div class="empty-state">No campaigns are filed under this exact make, model and year. NHTSA has never filed a recall under this model name, so campaigns for this vehicle may be listed under another name. Check your VIN at NHTSA for unrepaired recalls.</div>'
-      : '<div class="empty-state">No campaigns found for this make, model and year. Check your VIN at NHTSA for unrepaired recalls.</div>') + related;
+      : '<div class="empty-state">No campaigns found for this make, model and year. Check your VIN at NHTSA for unrepaired recalls.</div>') + check + related;
     return;
   }
 
@@ -492,7 +495,7 @@ function renderCampaigns(r) {
          </div>`).join('')}</div>`
     : '';
 
-  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected.</p>' + items + showMore + related;
+  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected.</p>' + items + showMore + check + related;
 }
 
 // Campaigns NHTSA files under other model names (CR-V HYBRID for a CR-V, F150 for F-150).

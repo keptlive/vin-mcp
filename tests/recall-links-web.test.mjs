@@ -98,6 +98,22 @@ test('web report: a page that does not take the VIN gets a Copy VIN button; an u
   assert.match(body, /Check this VIN at nhtsa\.gov\/recalls\./);
 });
 
+test('web report: the links sit before "Related model names" (the clean view folds what follows it) and survive every campaign state', () => {
+  const {els, run, ctx} = frontend();
+  const related = {available: true, count: 1, models: [{nhtsa_model: 'F-150 HYBRID', match: 'longer_name', recalls: [{component: 'BRAKES', summary: 's', campaign_number: '21V100000'}]}]};
+  const body = recalls => { ctx.first = report(links, {recalls}); run('currentReport = first; renderRecalls(first)'); return els.get('#recalls-body').innerHTML; };
+  for (const recalls of [{available: true, count: 1, recalls: [{component: 'ENGINE', campaign_number: '20V000000'}], related_models: related, related_campaigns_found: true},
+    {available: true, count: 0, recalls: [], related_models: related, related_campaigns_found: true}]) {
+    const html = body(recalls);
+    assert.ok(html.indexOf('Model-year recall campaigns') < html.indexOf('id="recall-status-block"'), 'campaigns first');
+    assert.ok(html.indexOf('id="recall-status-block"') < html.indexOf('Related model names'), 'links before the related-name fold');
+    assert.match(html, /Check this VIN on Ford’s recall page/);
+  }
+  const down = body({available: false});
+  assert.match(down, /Recall lookup is temporarily unavailable/);
+  assert.match(down, /id="recall-status-block"[\s\S]*Check on NHTSA/, 'NHTSA campaigns down: the links still show');
+});
+
 test('VinClient.decode never asks to wait for a maker; recallStatus reads the link block', async () => {
   const seen = [];
   const client = new VinClient({baseUrl: 'http://localhost:3298', fetchImpl: async url => { seen.push(url); return new Response('{}'); }});
