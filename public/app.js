@@ -106,7 +106,8 @@ form.addEventListener('submit', async (e) => {
     // Compact hero
     hero.classList.add('compact');
     results.hidden = false;
-    $('#decode-status').textContent = 'Report ready.';
+    $('#decode-status').textContent = readyMessage(report);
+    followPending(report);
     if (!location.hash || location.hash === '#report') {
       history.replaceState(null, '', '/' + encodeURIComponent(vin) + location.search + '#report');
       results.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
@@ -196,40 +197,8 @@ function renderHero(r) {
 
   $('#hero-badges').innerHTML = badges.join('');
 
-  // Photos
-  const photos = r.photos;
-  const mainImg = $('#photo-main');
-  const thumbsEl = $('#photo-thumbs');
-
-  if (photos) {
-    const urls = typeof photos === 'object' && !Array.isArray(photos)
-      ? Object.values(photos)
-      : Array.isArray(photos) ? photos : [photos];
-
-    if (urls.length > 0) {
-      mainImg.style.display = '';
-      mainImg.src = urls[0];
-      mainImg.alt = title;
-      thumbsEl.innerHTML = urls.map((url, i) =>
-        `<img src="${esc(url)}" alt="View ${i+1}" tabindex="0" role="button" aria-label="Show vehicle view ${i+1}" class="${i === 0 ? 'active' : ''}" data-url="${esc(url)}">`
-      ).join('');
-
-      $$('img', thumbsEl).forEach(img => {
-        img.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); img.click(); } });
-        img.addEventListener('click', () => {
-          mainImg.src = img.dataset.url;
-          $$('img', thumbsEl).forEach(t => t.classList.remove('active'));
-          img.classList.add('active');
-        });
-      });
-    } else {
-      mainImg.style.display = 'none';
-      thumbsEl.innerHTML = '';
-    }
-  } else {
-    mainImg.style.display = 'none';
-    thumbsEl.innerHTML = '';
-  }
+  // Photos of NHTSA's test car (public/test-photos.js); no photo area when there are none
+  window.TestPhotos?.render(r);
 }
 
 // ── Overview Card ──
@@ -329,7 +298,7 @@ function renderFuel(r) {
 function rerenderOwnerView(focusChoice) {
   if (!currentReport) return;
   const view = window.OwnerDetails?.applyToReport(currentReport) || currentReport;
-  renderFuel(view); window.CarSheet?.render(view); window.VinWorkspace?.reportUpdated(view);
+  renderFuel(view); window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view); window.VinWorkspace?.reportUpdated(view);
   if (focusChoice) $('#fuel-body [data-owner-transmission]')?.focus();
 }
 $('#fuel-body').addEventListener('click', async e => {
@@ -383,28 +352,96 @@ function renderFuelBody(r) {
   $('#fuel-body').innerHTML = mpgRow + details.map(([l, v]) => dataRow(l, v)).join('') + (window.MoreSources?.fuelMatchNote?.(f) || '');
 }
 
-// NHTSA's recall page, opened on this VIN when there is one.
+
+// ── Recalls Card ──
+// NHTSA's campaigns for the model year, then where to check this VIN's repairs: mcp.vin does not check them itself
+// (it never asks a manufacturer about a VIN), so the card links to the maker's own recall page and to NHTSA's
+// (recall_status, lib/recall-links.mjs).
+function renderRecalls(r) {
+  // The block goes after the campaigns filed under this model name and before "Related model names": the clean view
+  // (report-clean.js) folds everything after that heading under "Show", and these links must stay in view.
+  renderCampaigns(r, `<div class="recall-item recall-check" id="recall-status-block">${recallStatusHtml(r)}</div>`);
+  $('#recalls-body').innerHTML = `<h3>Model-year recall campaigns</h3>` + $('#recalls-body').innerHTML;
+}
+// NHTSA's recall page with the VIN in its address (lib/recall-links.mjs; whether the page reads it is not confirmed).
 function nhtsaRecallUrl(vin) {
   return 'https://www.nhtsa.gov/recalls' + (/^[A-HJ-NPR-Z0-9]{17}$/i.test(vin || '') ? '?vin=' + String(vin).toUpperCase() : '');
 }
+// "Ford's", "Lexus'" (a name ending in s takes the apostrophe alone).
+const possessive = name => /s$/i.test(name) ? `${name}’` : `${name}’s`;
+function recallStatusHtml(r) {
+  const s = r.recall_status || {};
+  const vin = String(r.vin || '');
+  const https = u => typeof u === 'string' && /^https:\/\//.test(u);
+  const nhtsa = https(s.nhtsa_lookup_url) ? s.nhtsa_lookup_url : nhtsaRecallUrl(vin);
+  const maker = s.maker && https(s.manufacturer_lookup_url)
+    ? `<a class="button-link recall-check-btn" href="${esc(s.manufacturer_lookup_url)}" target="_blank" rel="noopener">Check this VIN on ${esc(possessive(s.maker))} recall page</a>` : '';
+  const paste = maker && !s.vin_prefilled
+    ? `<div class="small recall-paste rc-screen">${esc(possessive(s.maker))} page does not take the VIN from a link: enter <code>${esc(vin)}</code> there. <button type="button" class="recall-copy" data-copy="${esc(vin)}">Copy VIN</button></div>` : '';
+  return `<h3>This VIN’s recall repairs</h3>`
+    + `<p class="recall-check-lead">mcp.vin shows the model year’s campaigns above. Only the maker or NHTSA can say whether this exact car’s repairs are done.</p>`
+    + `<div class="recall-check-actions rc-screen">${maker}<a class="button-link recall-check-btn${maker ? ' secondary' : ''}" href="${esc(nhtsa)}" target="_blank" rel="noopener">Check on NHTSA</a></div>${paste}`
+    + `<div class="rc-print recall-check-print">Not checked by mcp.vin. Check this VIN at ${maker ? esc(shortUrl(s.manufacturer_page_url || s.manufacturer_lookup_url)) + ' or ' : ''}nhtsa.gov/recalls.</div>`;
+}
+// A link as printed: host and path, no scheme, "www." or query ("ford.com/support/recalls").
+function shortUrl(url) {
+  return /^https?:\/\//.test(url || '') ? String(url).replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/$/, '') : '';
+}
+// The "Copy VIN" button next to a maker page that does not take the VIN from a link.
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('.recall-copy');
+  if (!b) return;
+  const done = ok => { b.textContent = ok ? 'Copied' : 'Copy failed'; setTimeout(() => { b.textContent = 'Copy VIN'; }, 2000); };
+  try { navigator.clipboard.writeText(b.dataset.copy).then(() => done(true), () => done(false)); } catch { done(false); }
+});
 
-// ── Recalls Card ──
-function renderRecalls(r) {
-  renderCampaigns(r);
-  const s = r.recall_status;
-  const link = s?.verification_url || nhtsaRecallUrl(r.vin);
-  const renderStatusRecords = records => records.map(x => `<div class="recall-item"><strong>${esc(x.campaign_number)} · ${esc(x.manufacturer_status)}</strong>${x.record_kind ? `<p class="small">${esc(x.record_kind.replaceAll('_',' '))}</p>` : ''}<p>${esc(x.summary || x.title || '')}</p>${x.completion_description ? `<p><span class="recall-detail-label">Completion basis:</span> ${esc(x.completion_description)}</p>` : ''}${x.repair_completed_at ? `<p><span class="recall-detail-label">Reported repair date:</span> ${esc(x.repair_completed_at)}</p>` : ''}${x.manufacturer_closed_at ? `<p><span class="recall-detail-label">Manufacturer closing date:</span> ${esc(x.manufacturer_closed_at)}</p>` : ''}${x.remedy ? `<p><span class="recall-detail-label">Remedy:</span> ${esc(x.remedy)}</p>` : ''}${x.document_url ? `<a href="${esc(x.document_url)}" target="_blank" rel="noopener">Manufacturer bulletin</a>` : ''}</div>`).join('');
-  const content = s?.available
-    ? `<p>${s.open_record_count!==undefined ? esc(s.open_record_count)+' open recall/campaign records · '+esc(s.open_count ?? 'Unknown')+' verified safety-recall count' : esc(s.open_count ?? 'Unknown')+' open recalls'} · ${esc(s.completed_count ?? 'Unknown')} manufacturer-reported completed/closed${s.unknown_count ? ' · '+esc(s.unknown_count)+' unknown status' : ''}</p>
-       <p>Checked ${esc(s.source.retrieved_at)} · ${esc(s.source.provider)}</p>
-       ${renderStatusRecords(s.campaigns || s.recalls)}
-       ${!s.campaigns && s.service_campaigns?.length ? `<h4>Other manufacturer programs · ${esc(s.service_campaigns.length)}</h4>${renderStatusRecords(s.service_campaigns)}` : ''}
-       <p>${esc(s.note)}</p>`
-    : `<p>VIN-specific repair status is unavailable. ${esc(s?.note || 'Check the official source. Model-year campaigns do not establish completed repairs.')}</p>`;
-  $('#recalls-body').innerHTML = `<div class="recall-item"><h3>VIN-specific recall repair status</h3>${content}<p><a href="${esc(link)}" target="_blank" rel="noopener">Verify this VIN with the official source</a></p></div><h3>Model-year recall campaigns</h3>` + $('#recalls-body').innerHTML;
+// ── Parts that arrive after the report ──
+// The server does not hold a report back for NHTSA's complaint list (complaints.pending, lib/reports.mjs). The page
+// asks for it again and fills it in place.
+function readyMessage(report) {
+  if (report.complaints?.pending) return 'Report ready. NHTSA’s complaint list is still loading; it fills in by itself.';
+  return 'Report ready.';
+}
+function followPending(report) {
+  if (report.complaints?.pending) followComplaints(report);
+}
+// Fetch `url` as JSON until `done(data)` accepts it, at most twice (3 s apart), while `live()` holds; null if not.
+async function fetchFollowUp(url, done, live) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) await new Promise(resolve => setTimeout(resolve, 3000));
+    if (!live()) return null;
+    try {
+      const res = await apiFetch(url);
+      const data = res.ok ? await res.json() : null;
+      if (done(data)) return data;
+    } catch { /* tried again once, then shown as not loaded */ }
+  }
+  return null;
 }
 
-function renderCampaigns(r) {
+// NHTSA's complaint list: /api/vin/{vin}/complaints joins the request the report started (cached once it arrives).
+let complaintsFollow = 0;
+async function followComplaints(report) {
+  const token = ++complaintsFollow, vin = report.vin;
+  const live = () => token === complaintsFollow && currentReport?.vin === vin && currentReport.complaints?.pending === true;
+  let next = await fetchFollowUp(`/api/vin/${encodeURIComponent(vin)}/complaints`, data => data && typeof data.available === 'boolean' && !data.pending, live);
+  if (!live()) return;
+  if (!next) next = {...currentReport.complaints, pending: false, available: false, reason: 'lookup_not_loaded',
+    note: 'NHTSA’s complaint list could not be loaded here. The count is unknown; reload the report.'};
+  currentReport = {...currentReport, complaints: next};
+  const view = window.OwnerDetails?.applyToReport(currentReport) || currentReport;
+  const around = window.KeepState ? KeepState.around : (roots, fn) => fn();
+  around([$('#complaints-body')], () => {
+    renderComplaints(view);
+    window.CarSheet?.update ? CarSheet.update(view) : window.CarSheet?.render(view);
+    window.VinWorkspace?.reportUpdated(view);
+    // inside the redraw: a shorter status line moves the page too
+    $('#decode-status').textContent = next.available ? 'NHTSA’s owner complaints have loaded.' : 'NHTSA’s owner complaints could not be loaded; see the complaints section.';
+  }, [$('#sheet-body'), $('#sheet-foot')]);
+}
+
+// `check`: the recall check block, placed after this model name's campaigns and before related model names.
+function renderCampaigns(r, check = '') {
   const rec = r.recalls;
   const count = rec?.count || 0;
   const badge = $('#recall-count');
@@ -412,7 +449,7 @@ function renderCampaigns(r) {
   if (rec?.available === false) {
     badge.textContent = '?';
     badge.className = 'count-badge';
-    $('#recalls-body').innerHTML = '<div class="empty-state">Recall lookup is temporarily unavailable. Please try again.</div>';
+    $('#recalls-body').innerHTML = '<div class="empty-state">Recall lookup is temporarily unavailable. Please try again.</div>' + check;
     return;
   }
   const related = relatedCampaignsHTML(rec);
@@ -424,7 +461,7 @@ function renderCampaigns(r) {
     $('#recalls-body').innerHTML = (rec?.related_campaigns_found === true
       ? '<div class="empty-state">No campaigns are filed under this exact make, model and year. NHTSA lists campaigns under related model names below. Check your VIN at NHTSA for unrepaired recalls.</div>'
       : nameUnused ? '<div class="empty-state">No campaigns are filed under this exact make, model and year. NHTSA has never filed a recall under this model name, so campaigns for this vehicle may be listed under another name. Check your VIN at NHTSA for unrepaired recalls.</div>'
-      : '<div class="empty-state">No campaigns found for this make, model and year. Check your VIN at NHTSA for unrepaired recalls.</div>') + related;
+      : '<div class="empty-state">No campaigns found for this make, model and year. Check your VIN at NHTSA for unrepaired recalls.</div>') + check + related;
     return;
   }
 
@@ -458,7 +495,7 @@ function renderCampaigns(r) {
          </div>`).join('')}</div>`
     : '';
 
-  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected. <a href="' + esc(nhtsaRecallUrl(r.vin)) + '" target="_blank" rel="noopener">Check VIN-specific repair status at NHTSA</a>.</p>' + items + showMore + related;
+  $('#recalls-body').innerHTML = '<p class="empty-state">Campaigns for this make, model and year; your VIN may not be affected.</p>' + items + showMore + check + related;
 }
 
 // Campaigns NHTSA files under other model names (CR-V HYBRID for a CR-V, F150 for F-150).
@@ -500,10 +537,19 @@ function renderComplaints(r) {
   const count = c?.count || 0;
   const badge = $('#complaint-count');
 
+  if (c?.pending) {
+    // Still arriving (followComplaints fills it in): unknown, never zero; on paper it was not loaded.
+    badge.textContent = '…';
+    badge.className = 'count-badge';
+    $('#complaints-body').innerHTML = '<div class="empty-state"><p class="recall-pending pending-screen"><span class="pending-dot" aria-hidden="true"></span>Loading NHTSA’s owner complaints… The list for a common model is large and can take 15 seconds or more; this card fills in by itself.</p><p class="pending-print">Not loaded: NHTSA’s complaint list had not arrived when this page was printed.</p></div>';
+    return;
+  }
   if (c?.available === false) {
     badge.textContent = '?';
     badge.className = 'count-badge';
-    $('#complaints-body').innerHTML = '<div class="empty-state">Complaint lookup is temporarily unavailable. Please try again.</div>';
+    $('#complaints-body').innerHTML = c.reason === 'lookup_not_loaded'
+      ? '<div class="empty-state">NHTSA’s complaint list could not be loaded here. The count is unknown; reload the report.</div>'
+      : '<div class="empty-state">Complaint lookup is temporarily unavailable. Please try again.</div>';
     return;
   }
   if (count === 0) {
@@ -1112,6 +1158,7 @@ if (typeof navigator !== 'undefined' && navigator.modelContext) {
         updateSaveButton(vin);
         hero.classList.add('compact');
         results.hidden = false;
+        followPending(report);
       }
       return report;
     },

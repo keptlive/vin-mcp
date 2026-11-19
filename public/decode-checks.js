@@ -11,7 +11,7 @@ const DecodeChecks = (() => {
   const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const MARKED = ['corrected', 'doubtful', 'filled'];
   const WORD = { corrected: 'Corrected', doubtful: 'Doubtful', filled: 'Filled in', confirmed: 'Confirmed', unverified: 'Not checked', unknown: 'Unknown' };
-  const TIER = { owner: 'you', manufacturer_vin_record: 'the manufacturer’s record of this VIN', mcp_vin_rule_fix: 'an mcp.vin rule fix', nhtsa_test_vehicle_pattern: 'NHTSA test vehicles with this VIN pattern', vpic_decode: 'the official decode', assumption: 'EPA’s list for this model year' };
+  const TIER = { owner: 'you', mcp_vin_rule_fix: 'an mcp.vin rule fix', nhtsa_test_vehicle_pattern: 'NHTSA test vehicles with this VIN pattern', vpic_decode: 'the official decode', assumption: 'EPA’s list for this model year' };
 
   const fields = r => (r && r.decode_checks && Array.isArray(r.decode_checks.fields) ? r.decode_checks.fields : []);
   const check = (r, field) => fields(r).find(f => f.field === field) || null;
@@ -104,15 +104,19 @@ const DecodeChecks = (() => {
       return `<li class="dc-item dc-item-${esc(f.status)}"><span class="dc dc-${esc(f.status)}">${esc(WORD[f.status] || f.status)}</span> <strong>${esc(f.label)}</strong>: ${value}`
         + `${f.note ? `<span class="dc-why">${esc(f.note)}${tests ? ` NHTSA ${tests}.` : ''}</span>` : ''}</li>`;
     }).join('');
+    return `<ul class="dc-list">${rows}</ul>${sourcesHtml(r)}${formHtml(r)}`;
+  }
+
+  /** "Checked against …": the sources line of the card. */
+  function sourcesHtml(r) {
+    const dc = r && r.decode_checks;
+    if (!dc || !Array.isArray(dc.fields)) return '';
     const s = dc.sources || {};
-    const mfr = s.manufacturer_record || {};
-    const mfrText = mfr.status === 'used' ? `the manufacturer’s description of this VIN (“${esc(mfr.text)}”, ${esc(mfr.source || 'recall lookup')})`
-      : mfr.status === 'not_checked' ? 'the manufacturer’s record (not yet loaded)' : mfr.status === 'not_supported' ? null : 'the manufacturer’s record (not available for this VIN)';
     const tv = s.test_vehicle_pattern || {};
     const tvText = tv.status === 'used' ? `${esc(tv.vehicles)} NHTSA test vehicle${tv.vehicles === 1 ? '' : 's'} with VIN pattern ${esc(dc.pattern)}` : `NHTSA test vehicles (none with VIN pattern ${esc(dc.pattern || '?')})`;
     const fixText = s.rule_fixes && s.rule_fixes.status === 'used' ? `mcp.vin’s reviewed fixes of NHTSA’s vPIC rules (${esc((s.rule_fixes.ids || []).join(', '))}${s.rule_fixes.release ? `, vPIC release ${esc(s.rule_fixes.release)}` : ''})` : null;
-    const used = [mfrText, fixText, tvText, s.epa && s.epa.status === 'used' ? 'EPA’s configurations for this model year' : null].filter(Boolean).join('; ');
-    return `<ul class="dc-list">${rows}</ul><p class="dc-note">Checked against ${used}. ${esc(dc.note || '')}</p>${formHtml(r)}`;
+    const used = [fixText, tvText, s.epa && s.epa.status === 'used' ? 'EPA’s configurations for this model year' : null].filter(Boolean).join('; ');
+    return `<p class="dc-note dc-sources">Checked against ${used}. ${esc(dc.note || '')}</p>`;
   }
 
   /** "Report a decode error": screen only, for review, never applied. */
@@ -156,6 +160,6 @@ const DecodeChecks = (() => {
     });
   }
 
-  return { check, marker, shown, valueHtml, checkedValue, combinedHtml, cardHtml, formHtml, fields };
+  return { check, marker, shown, valueHtml, checkedValue, combinedHtml, cardHtml, sourcesHtml, formHtml, fields };
 })();
 if (typeof window !== 'undefined') window.DecodeChecks = DecodeChecks;

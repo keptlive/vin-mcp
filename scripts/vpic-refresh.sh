@@ -30,7 +30,7 @@ say() { echo "$*" | tee -a SUMMARY.txt; }
 
 # 1. download
 ZIP=vPICList_lite_$RELEASE.plain.zip
-[ -s "$ZIP" ] || curl -sS -f -m 3600 -A "Mozilla/5.0 (compatible; vpic-refresh)" -o "$ZIP" "https://vpic.nhtsa.dot.gov/downloads/$ZIP" || fail download
+[ -s "$ZIP" ] || curl -sS -f -m 3600 -A "mcp.vin-importer/1.0 (+https://mcp.vin; vpic-refresh)" -o "$ZIP" "https://vpic.nhtsa.dot.gov/downloads/$ZIP" || fail download
 say "release $RELEASE: $(du -hL "$ZIP" | cut -f1) zip"
 
 # 2. build (exit 4 = some rule fix needs review: the file is still written, without those fixes)

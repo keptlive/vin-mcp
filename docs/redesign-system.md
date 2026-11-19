@@ -79,8 +79,10 @@ header; every report card follows unchanged under "Full report".
   wheels, owner's manual and service, the VIN position by position, then sources, the
   data date, the live report URL and a QR code drawn locally by `public/qr.js`.
 - Only report facts are printed. Missing values are left out; unavailable lookups say
-  "Unknown". Model-year campaigns carry "Not this car's repair status"; the VIN status
-  line names the manufacturer source and its check time.
+  "Unknown". Model-year campaigns carry "Not this car's repair status"; the next row,
+  "This VIN's recall repairs", links to the maker's recall page and NHTSA's on screen and
+  prints "Not checked by mcp.vin" with their short addresses (mcp.vin does not check a VIN's
+  recall repairs with anyone).
 - Tire pressures, tire sizes, fuse layout, oil and other owner's-manual facts have no
   public per-vehicle source. The sheet links to the maker's official manual library
   (only pages checked on 16 November 2026) and gives labelled write-in fields. Typed
