@@ -20,7 +20,7 @@ import { rateBenchmarks } from './lib/rate-benchmarks.mjs';
 import { scenario } from './lib/scenario.mjs';
 import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
-import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls, modelYearComplaints, vinRecallStatusFor, vinPhotos, RECALL_WAIT_MS } from './lib/reports.mjs';
+import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls, modelYearComplaints, vinRecallStatusFor, vinPhotos } from './lib/reports.mjs';
 import { normalizeTransmission, applyOwnerDetails } from './lib/transmission-choice.mjs';
 import { validateOwnerDetails, parseOwnerDetails, serializeOwnerDetails, OwnerDetailsError } from './lib/owner-details.mjs';
 import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
@@ -482,21 +482,22 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     } catch (err) { safeError(res, err); }
   });
 
-  // ?recall_wait=full: wait for the manufacturer's VIN recall lookup instead of answering with recall_status.pending
-  // after RECALL_WAIT_MS.report (lib/reports.mjs). The website asks again with it when a report comes back pending.
+  // ?recall_wait (from older clients) is ignored: mcp.vin no longer asks manufacturers, so there is nothing to wait for.
   app.get('/api/vin/:vin', rateGuard(30), async (req, res) => {
     const t = transmissionParam(req, res); if (!t.ok) return;
-    const wait = req.query.recall_wait;
-    if (wait !== undefined && wait !== 'full') return res.status(400).json({ error: 'recall_wait must be "full"' });
-    try { res.json(restReport(applyOwnerDetails(await fullReport(req.params.vin, { recallWaitMs: wait === 'full' ? Infinity : RECALL_WAIT_MS.report }), { transmission: t.value }, { by: 'request' }), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
+    try { res.json(restReport(applyOwnerDetails(await fullReport(req.params.vin), { transmission: t.value }, { by: 'request' }), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
   });
 
   app.get('/api/vin/:vin/validate', rateGuard(60), (req, res) => {
     res.json(validateVin(req.params.vin));
   });
 
-  // Waits for a lookup a report already started (recall_status.status_url of a pending report).
-  app.get('/api/vin/:vin/recall-status',rateGuard(30),researchHandler(req=>vinRecallStatusFor(req.params.vin)));
+  // Links to the maker's and NHTSA's VIN recall pages (lib/recall-links.mjs); mcp.vin checks nothing itself, so the
+  // block is always available:false and still a 200.
+  app.get('/api/vin/:vin/recall-status', rateGuard(30), async (req, res) => {
+    try { res.json(await vinRecallStatusFor(req.params.vin)); }
+    catch (err) { res.status(err instanceof InputError ? 400 : 500).json({ error: err instanceof InputError ? err.message : 'Request failed' }); }
+  });
 
   app.use('/api/vin/:vin', (req, res, next) => {
     if (!validateVin(req.params.vin).valid) return res.status(400).json({error:'Provide a valid VIN (format and checksum)'});

@@ -24,8 +24,8 @@ and 23.5 owner-reported harmonic mean MPG from 29 submitted records (range 15-34
 The measures use different methods and samples. Counts reflect the dated verification.
 
 Full auto.dev parity is incomplete. There is no verified nationwide plate-to-VIN API,
-inventory feed, universal factory build-sheet source or universal VIN repair-status coverage
-in this release. Tesla, Ford, GM and Honda VIN status and Mopar open records are integrated with the limits below; Nissan supplies positive VIN-matched safety recalls; Toyota, Hyundai and Kia use official interactive verification links. Cost results use explicit assumptions;
+inventory feed, universal factory build-sheet source or VIN repair-status check in this release:
+since 18 November 2026 mcp.vin links to the manufacturer's and NHTSA's VIN recall pages instead (below). Cost results use explicit assumptions;
 resale, maintenance and insurance values are not predictions.
 
 Source availability, timestamps, limits and exports accompany research results. The capability
@@ -181,84 +181,80 @@ NHTSA publishes final theft rates for each passenger-vehicle line under the thef
 
 Reports carry `production_theft` for those model years: the matched line(s) with production, thefts, rate, rank (1 = highest rate) and the Federal Register document. The line must carry the vehicle's make (as a prefix such as `LEXUS ES` or `ACURA 3.2 TL`, or through the reporting manufacturer, such as HONDA for `ACCORD`). An exact name gives `match: line_name`; anything else is `closest_line_name` with every step in `match_basis`: a body or drive word dropped (`OUTBACK WAGON`, `RANGER PICKUP`), one name of a slash pair (`LEGACY/OUTBACK`, `CAMRY/SOLARA`), an engine size inside the name, a BMW series (`325i` in line `3`) or a Mercedes class (`C 230` in `203 (C-CLASS)`). A different line that only contains the name (Cherokee vs Grand Cherokee) is never used. The full report shows the figures in a "Production and theft (historical)" card after Manufacturing, labelled as figures for the whole line. Of the seven example VINs, two are in covered model years and both match exactly: 2003 Honda Accord (427,660 produced, 499 thefts, 1.1668 per 1,000, rank 115 of 217) and 2012 Volkswagen Passat (95,583, 107, 1.1194, rank 57 of 211). Full-size pickups such as the F-150 were not subject to the standard in these years and have no line.
 
-## VIN-specific recall repair status
+## VIN recall repairs: links only (since 18 November 2026)
 
-Tesla Service's [official VIN recall search](https://service.tesla.com/en-US/vin-recall-search) exposes manufacturer-reported statuses including “Recall Completed” and “Recall Incomplete.” The adapter uses the same public Tesla endpoint, requires no account or paid feed, and provides checked timestamps, original status text, campaign details and manufacturer bulletin links. Successful responses are cached for up to 15 minutes; failures are not cached. This endpoint is not a documented third-party API and may change.
+mcp.vin does not check whether one vehicle's recall repairs are done, and it does not ask any manufacturer about a
+VIN. Owner decision after the terms review of 18 November 2026: the makers' VIN lookups are offered to owners on
+their own sites, so mcp.vin links to them instead of reading them. Until then the server read the recall lookups of
+Ford, GM, Honda and Acura, Nissan, Mopar, Tesla, Subaru, Volkswagen, Audi, Land Rover and Jaguar; that code
+(`lib/recall-status.mjs`, `lib/manufacturer-recalls.mjs`, `lib/more-manufacturer-recalls.mjs`,
+`lib/mopar-recalls.mjs`, `lib/manufacturer-description.mjs`) is deleted, not switched off. No manufacturer host
+appears in `lib/` except as a link target in `lib/recall-links.mjs` (enforced by `tests/no-maker-requests.test.mjs`).
 
-`GET /api/vin/{vin}/recall-status`, `VinClient.recallStatus(vin)` and MCP `vin_recall_status` expose this data. VIN reports and printable comparisons include the summary. Tesla and Ford supply open/completed states. Subaru supplies completed and incomplete safety recalls, with emissions campaigns listed separately. Volkswagen, Audi and Land Rover report open recalls, and completed ones only where their lookup returns them. Acura is covered through the Honda lookup. (Added 2026-11-16 in `lib/more-manufacturer-recalls.mjs`; open records have been seen live for Volkswagen and Audi; completed records for those two, and any Land Rover or Jaguar record, have only been read from the makers' page code. Jaguar shares Land Rover's lookup. BMW's lookup did not answer plain requests and is not used.) GM supplies open/completed or administratively closed records, and explicit repair dates where supplied. Honda supplies active safety recalls; Nissan supplies positive open safety recalls and Mopar supplies VIN-matched open recall/campaign records, with the limitations below. Toyota, Lexus, Scion, Hyundai and Kia require interactive verification; other manufacturers return unknown with an official lookup link. Unknown response statuses never count as zero open recalls; recall dates never become repair completion dates. Results are not a complete service history or a guarantee of safety. Successful results are cached for up to 15 minutes; failures are retried. Public manufacturer interfaces are undocumented for third-party integration and can change.
-
-#### When the maker answers slowly: `pending`
-
-A report does not wait the whole time for a slow maker. The lookup starts as soon as the VIN is decoded, beside NHTSA's calls, and the report waits for it up to a budget counted from that start: 2 s for the website and `GET /api/vin/{vin}` (`RECALL_WAIT_MS.report` in `lib/reports.mjs`), 6 s for MCP `decode_vin` (`RECALL_WAIT_MS.mcp`). Comparisons wait for the full answer (they are printed and exported). A maker still answering after the budget gives:
+Every report keeps the `recall_status` key, now a link block (also alone at `GET /api/vin/{vin}/recall-status`,
+`VinClient.recallStatus(vin)`, CLI `recall-links`, MCP `vin_recall_status`):
 
 ```json
-"recall_status": {"vin": "1FMCU0G61LUA27504", "scope": "vin", "vin_specific": true, "available": false,
-  "pending": true, "reason": "lookup_in_progress", "maker": "Ford", "waited_ms": 2000,
-  "open_count": null, "completed_count": null, "recalls": [],
-  "source": {"provider": "Ford Owner Support VIN Recalls", "reference_url": "https://www.ford.com/support/recalls-details/..."},
-  "verification_url": "https://www.ford.com/support/recalls-details/...",
-  "status_url": "/api/vin/1FMCU0G61LUA27504/recall-status", "note": "..."}
+"recall_status": {"vin": "1FTEX1EP4FFD06976", "scope": "vin", "vin_specific": true, "available": false,
+  "reason": "manufacturer_link_only", "checked_by_mcp_vin": false, "maker": "Ford",
+  "manufacturer_lookup_url": "https://www.ford.com/support/recalls-details/1FTEX1EP4FFD06976/",
+  "manufacturer_page_url": "https://www.ford.com/support/recalls/", "vin_prefilled": true,
+  "nhtsa_lookup_url": "https://www.nhtsa.gov/recalls?vin=1FTEX1EP4FFD06976", "nhtsa_vin_prefilled": null,
+  "verification_url": "https://www.ford.com/support/recalls-details/1FTEX1EP4FFD06976/",
+  "open_count": null, "completed_count": null, "recalls": [], "note": "..."}
 ```
 
-Pending is unknown, never "no open recalls" (`available: false`, counts null). The lookup keeps running in the background and fills the 15-minute cache; one lookup per VIN runs at a time and every request for that VIN shares it (`createRecallStatusLookup`). `GET status_url`, MCP `vin_recall_status` and `GET /api/vin/{vin}?recall_wait=full` (MCP: `recall_wait: "full"`) wait for that same lookup. A background lookup that fails is caught: nothing is cached and the next request asks the maker again. In MCP output a pending status also carries `next_step: {tool: "vin_recall_status", arguments: {vin}}`. `decode_checks.sources.manufacturer_record.status` is `pending` meanwhile; the checks that use the maker's description of the VIN run when the status arrives.
+`open_count` and `completed_count` are null: unknown, never zero. `recalls` (the report's other key) still lists
+NHTSA's campaigns for the make, model and year. `?recall_wait` (REST) and `recall_wait` (MCP `decode_vin`) are
+accepted and ignored: there is nothing to wait for.
 
-The website shows "Checking with Ford…" in the recall card, the car sheet's recall row and the decode-checks source line, then requests the report again with `?recall_wait=full` and redraws only the blocks that changed (the status block, the car sheet's recall section and footer, and the decode checks, fuel economy and test-vehicle blocks only if the maker's record changed a checked value), keeping typed text, open forms, focus, the transmission choice and the scroll position (`public/keep-state.js`). Printed while pending, the car sheet's row reads "Unknown: Ford had not answered when this sheet was printed" and the recall card "Not loaded: Ford had not answered when this page was printed"; printing does not wait. If the second request fails twice, the status reads as not loaded (unknown).
+The website's recall card, the car sheet's row and the comparison table show the campaigns, then "Check this VIN on
+Ford's recall page" (new tab) and "Check on NHTSA", and say that mcp.vin shows the model year's campaigns and only
+the maker or NHTSA can say whether this exact car's repairs are done. Where the maker's page does not take the VIN
+from a link, a "Copy VIN" button sits beside it. Printed: "Not checked by mcp.vin. Check this VIN at
+ford.com/support/recalls or nhtsa.gov/recalls."
 
-Why Ford is slow (measured 2026-11-18 from the web server, 4 requests): Ford's CDN (Akamai) holds each request about 9-10 s before answering (`server-timing` edge duration 9,000-10,002 ms; origin about 120 ms), even for a no-VIN page, a cached redirect and a reused connection, so the delay is per request and a client cannot shorten it. The VIN page is also about 1.3 MB, with the recall data about 81% of the way through. Reports for other makes took 0.4-2 s in all before this change.
+The link table (`lib/recall-links.mjs`). The VIN is put in a link only where a public page is shown to read it from
+the address: `in_use` = the former lookup read the maker's own page at that address (24 October to 18 November
+2026); `browser_1118` = the vin-links browser check of 18 November 2026 (PR #34); `page_code` = the plain page,
+opened once on 18 November 2026, reads the VIN from its address in its own script. Every other page is linked plain
+and the reader types the VIN. No maker endpoint was called to build or test this table.
 
-#### NHTSA's complaint list: `pending` the same way
+| Make (vPIC) | Page | VIN in the link | Basis |
+| --- | --- | --- | --- |
+| Ford, Lincoln, Mercury | ford.com/support/recalls | yes (`/support/recalls-details/{VIN}/`) | in_use |
+| Tesla | service.tesla.com/en-US/vin-recall-search | yes (`?VIN=`) | page_code |
+| Honda | mygarage.honda.com/s/recall-search?brand=honda | yes (`&vin=`) | browser_1118 |
+| Acura | mygarage.honda.com/s/recall-search?brand=acura | yes (`&vin=`) | browser_1118 |
+| Subaru | subaru.com/recalls.html | yes (`?vin=`) | browser_1118 |
+| Hyundai | autoservice.hyundaiusa.com/campaignhome | yes (`?vin=`) | browser_1118 |
+| Chevrolet, Buick, GMC, Cadillac, Pontiac, Oldsmobile, Saturn, Hummer, BrightDrop | experience.gm.com/ownercenter/recalls | no | |
+| Toyota, Lexus, Scion | toyota.com/recall | no | |
+| Kia | owners.kia.com/us/en/recalls.html | no | |
+| Nissan | nissanusa.com/owners/recalls-vin.html | no | |
+| INFINITI | infinitiusa.com/owners/recalls-vin.html | no | |
+| Chrysler, Dodge, Jeep, Ram, Fiat, Alfa Romeo, Plymouth | mopar.com/en-us/my-vehicle/recalls/search.html | no | |
+| Volkswagen | vw.com/en/owners-and-services/about-my-vehicle/recalls.html | no | |
+| Audi | audiusa.com/en/recalls/ | no | |
+| Land Rover | landroverusa.com/ownership/vin-recall.html | no | |
+| Jaguar | jaguar.com/en-us/jdx/ownership/vin-recall.html | no | |
+| Mercedes-Benz | mbusa.com/en/recall | no | |
+| Mazda | mazdausa.com/owners/recalls | no | |
+| BMW | bmwusa.com/safety-and-emission-recalls.html | no | |
+| Lucid | lucidmotors.com/recalls | no | |
+
+Other makes (Volvo, MINI, Genesis, Mitsubishi, Porsche, Polestar, Rivian and the rest) get NHTSA's link only
+(`maker: null`, `vin_prefilled: null`). The make comes from the decode; the WMI is used only when the decode has no
+make, and WMIs shared by two makes (Nissan and INFINITI) are left out.
+
+NHTSA's link is `https://www.nhtsa.gov/recalls?vin={VIN}`. Whether NHTSA's page reads `vin` from its address is
+not confirmed (`nhtsa_vin_prefilled: null`; NHTSA documents `?nhtsaId=` and `?make=` links); at worst the page opens
+with an empty VIN box. NHTSA's [interactive VIN lookup](https://www.nhtsa.gov/recalls) identifies unrepaired
+recalls, but excludes completed repairs and has age, manufacturer and timing limitations.
+
+### NHTSA's complaint list: `pending`
 
 NHTSA's `complaintsByVehicle` sends a model year's whole list at once: 1-2 MB of JSON for a common model, which took 17.3 s for a 2020 Ford Escape, 5.0 s for a 2017 Honda CR-V and 6.4 s for a 2003 Honda Accord (from the web server, 2026-11-18; time to first byte, so NHTSA's own time). It used to be awaited with the rest under a 10 s timeout, so the Escape's list always failed and its report was never cached. Now (`modelYearComplaints` in `lib/reports.mjs`) one request per make, model and year runs at a time, shared by every report and `GET /api/vin/{vin}/complaints`, for up to 30 s; successful lists are cached 6 hours. The report is assembled without waiting for it and waits up to the same budgets (2 s website and REST, 6 s MCP; comparisons wait). Still arriving, `complaints` is `{"available": false, "pending": true, "reason": "lookup_in_progress", "count": null, "complaints": [], "summary": null, "status_url": "/api/vin/{vin}/complaints", "note": ...}`: unknown, never zero. When the list arrives the complete report is built and cached for the next request. The server-rendered VIN page (`/{vin}`) no longer waits for the list (it leaves the complaint count out of its description while pending). The website shows "Loading NHTSA's owner complaints…" and fills the card and the car sheet's row in place from `status_url`; printed while pending they say the list had not arrived. In MCP output a pending list says to call `decode_vin` again (there is no complaints tool).
-
-### Ford: open/completed recalls and separate programs
-
-The [official Ford VIN page](https://www.ford.com/support/recalls/) serves its VIN-specific status in the same public page used by the browser. The adapter parses the serialized data as JSON; it never executes downloaded JavaScript. Both the page VIN and the returned vehicle VIN must match. The success flag, validation flag, arrays and declared record counts must agree. `O` means open and `C` means completed; other values remain unknown. Safety/environmental recall records and customer-satisfaction programs are separate. Coverage begins January 1, 2004. No repair date is supplied, so `repair_completed_at` remains null. The same official checker accepts Ford, Lincoln and Mercury; upstream confirmation still controls availability.
-
-### GM: completed status is not always a physical repair
-
-The [official GM Recall and Warranty Center](https://experience.gm.com/ownercenter/recalls) provides a free guest VIN request, `/ownercenter/api/{vin}/gfas`, without an account or paid feed. The response must confirm the full VIN and contain no upstream errors. Product-safety (`ZPSR`), noncompliance (`ZNCR`) and emissions (`ZPER`) recalls contribute to the recall counts. Customer-satisfaction (`ZCSP`) and special-coverage (`ZSPP`) records appear separately in `service_campaigns`; unfamiliar classifications fail closed. The client identifies itself as `vin-mcp/1.6.0`.
-
-GM `complete` can mean **Dealer Repaired** or **Manual Complete - OTHER**. The original completion basis is retained in `completion_description`. `repair_completed_at` uses only an explicit `repairDate`; `manufacturer_closed_at` uses the separate `closingDate`. An administrative closure never fabricates a repair date. Multiple GM program numbers may share one NHTSA campaign; these are manufacturer record counts, not counts of distinct defects. The official site's stated coverage begins August 20, 1999. The lookup covers current and legacy GM brands subject to upstream recognition.
-
-### Honda: active safety recalls, not completed history
-
-The [official Honda MyGarage checker](https://mygarage.honda.com/s/recall-search?brand=honda) exposes a free guest action, `OwnAPIController.getRecallsByProductIdentifier`, used by the public vehicle lookup. The adapter discovers the current public framework version from the guest page and submits the VIN with automobile division `A`, without credentials, browser session tokens, login or CAPTCHA. It accepts only a successful action, explicit non-error response and a full matching VIN. `Recall INCOMPLETE` is an open record; unrecognized status strings remain unknown.
-
-A recognized Honda VIN with no active recalls comes back as `campaignType: {}` with no `campaign` array, together with `division_cd` and `model_group_name` (verified November 16, 2026). A VIN Honda does not recognize also returns `campaignType: {}`, but without `division_cd` or `model_group_name`. The adapter therefore reports zero active recalls only when the VIN, division `A` and a model group all confirm the vehicle; otherwise the result stays unconfirmed. Coverage is U.S. Honda automobile safety recalls announced in the past 15 calendar years. `completed_count` remains null because this is an active-recall feed, not completed repair history. A confirmed empty array can establish zero returned active recalls within that scope; an error, missing array or VIN mismatch cannot. Campaign dates never become repair dates. Acura and Honda powersports coverage is not claimed by this adapter.
-
-NHTSA’s [interactive VIN lookup](https://www.nhtsa.gov/recalls) identifies unrepaired recalls, but explicitly excludes completed repairs and has age, manufacturer and timing limitations. Its [API use policy](https://api.nhtsa.gov/) does not support using its consumer VIN API for bulk third-party lookups. [Toyota](https://www.toyota.com/recall/) and [Mopar](https://www.mopar.com/en-us/my-vehicle/recalls/search.html) also offer free official VIN checks.
-
-### Nissan: positive open safety recalls
-
-The [Nissan U.S. public checker](https://www.nissanusa.com/owners/recalls-vin.html) posts `vinNums`, a JSON VIN array, to the same-origin `recallinfo.json` URL declared by its recall component. The adapter discovers that URL from the current page, restricts its host/path, and never executes downloaded scripts. Every returned row must match the full VIN and Nissan brand. Only the verified `Recall Campaign` classification with a U.S. government recall identifier is accepted; unfamiliar classifications fail closed. Identical records are deduplicated; conflicting records fail.
-
-The public sample returned R21A6 / 20V-315 as open. Coverage is U.S. safety recalls initiated after March 15, 1994. This is a **positive-record source**, not a completed-history feed. `completed_count` and all repair dates remain null. Empty arrays, HTTP 404, mismatched VINs, blocks and errors never become zero open recalls: the endpoint does not identify the VIN in an empty result. The coverage flags explicitly set `zero_open_verifiable:false` and `positive_records_only:true`. Unrecognized campaign types are not guessed to be safety recalls.
-
-### Hyundai and Kia: official interactive verification
-
-The [Hyundai U.S. checker](https://autoservice.hyundaiusa.com/campaignhome) requires reCAPTCHA before the VIN form submission. [MyHyundai guidance](https://owners.hyundaiusa.com/us/en/resources/general-information/recall-293-information-and-implementation) sends owners to that checker. The [Recall 239 microsite](https://autoservice.hyundaiusa.com/Campaign239/) has a separate unprotected campaign-specific VIN form, but its generic affected/remedy-available page does not establish completed repairs or an exhaustive VIN recall inventory. It is not used as an automated repair-status source.
-
-The [Kia U.S. checker](https://owners.kia.com/us/en/recalls.html) exposes completed/incomplete labels and separate safety/service campaigns in its application, but its normal public VIN form requires reCAPTCHA. A direct guest request returned `Forbidden request`, not usable recall data. Those protected flows are not automated. Hyundai and Kia VINs now return `interactive_verification_required`, null counts and their own official checker links through REST, MCP, full reports and comparisons.
-
-The [Hyundai Canada checker](https://www.hyundaicanada.com/en/owners-section/recalls) explicitly limits its results to vehicles retailed in Canada; [Kia Canada](https://www.kia.ca/en/owners/recalls) is a separate market lookup. They cannot establish U.S. coverage or justify zero for a U.S. VIN. No Canadian fallback is silently applied.
-
-### Mopar: verified open records, narrower than completed repair history
-
-The [official fleet lookup](https://wrecall.extra.chrysler.com/fleetreports/restricted/wrecall/RecallInq?task=display), linked by Mopar’s consumer site, permits an on-screen last-eight VIN query without an account, email submission or paid feed. The adapter reconstructs each full VIN from the first-nine and last-eight fields and only accepts exact matches. It never selects another vehicle with the same suffix. Successful positive responses are cached for 15 minutes; failures, empty results and VIN mismatches are retried.
-
-This feed’s RC classification includes safety recalls **and other campaigns**. For example, the public sample vehicle’s K03 record is a customer-satisfaction notice in Mopar’s consumer checker. Therefore `open_record_count` counts the returned open records, `campaigns` retains their source classifications, and `open_count` (verified safety-recall count) remains null. `completed_count` also remains null: absence is not evidence of completed repairs. RR rapid-response records remain identified separately in `service_campaigns`. Placeholder dates such as 1900-01-01 become null. STOP DRIVE wording is retained.
-
-The consumer checker can show completed repairs, but direct access is currently blocked from this environment. Those completed records are not imported into the automated app. The fleet lookup is an undocumented public interface, may change and does not establish universal make/year/market coverage.
-
-### Toyota, Lexus and Scion: interactive verification required
-
-The U.S. Toyota checker requests a reCAPTCHA token, and the Canadian checker requires interactive reCAPTCHA plus a CSRF token. Follow-up source review on October 24, 2026 also traced the [Toyota Owners recall page](https://www.toyota.com/owners/recalls/): its `getSafetyCampaigns` path obtains an enterprise reCAPTCHA token, including the guest flow. The [Lexus lookup](https://www.lexus.com/recall/) redirects to Toyota; the [public TIS page](https://techinfo.toyota.com/) and [Southeast Toyota Finance guidance](https://www.setf.com/help-center/checking-your-account-status-and-information/recall-information) direct users to the same consumer check. None established an additional free, unprotected U.S. VIN repair-status source.
-
-No automated adapter is claimed for those protected flows. Toyota-family VINs return `interactive_verification_required`, null counts and an official Toyota verification link. The app does not automate CAPTCHA solving, reuse browser tokens, or substitute model-year campaign counts for VIN repair status. Canadian source: [official recall checker](https://www.toyota.ca/en/owners/recalls/).
-
-Further review on October 24 traced [Toyota Hawaii](https://www.toyotahawaii.com/), whose recall link returns to Toyota's protected U.S. checker, and [Toyota Puerto Rico](https://www.toyotapr.com/); no independent free U.S. VIN repair-status feed was established. Toyota's [Spanish Owners page](https://www.toyota.com/espanol/owners/recalls/) directs users to the same consumer recall service. These additional channels did not resolve the automation gap.
-
-The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.org/faqs/) describes a free CARFAX bulk-check account request for qualified organizations. That is a potential access application, not an established unauthenticated integration or permission to reuse its data in this product. No paid source, private account, CAPTCHA bypass or unsupported zero-count fallback was added.
 
 ## Owner facts on the car information sheet (checked 16 November 2026)
 
@@ -277,7 +273,10 @@ The National Safety Council's [Check To Protect FAQ](https://www.checktoprotect.
   Toyota, Honda and Acura MyGarage, Nissan. Ford and Tesla refuse scripted requests;
   their pages are confirmed in search results only. No Subaru or Lexus library is listed.
 - **Dimensions.** Transport Canada's model-variant specifications (via vPIC) are shown
-  on the sheet, labelled as not VIN-specific. Some model names differ from vPIC's
+  on the sheet, labelled as not VIN-specific, with the credit "Contains information
+  licensed under the Open Government Licence – Canada" and a link to the licence
+  (https://open.canada.ca/en/open-government-licence-canada); the research page and
+  the `vehicle_dimensions` result (`attribution`, `licence_url`) carry the same credit. Some model names differ from vPIC's
   ("Bolt EV" is "BOLT 4DR HATCHBACK"), so an empty lookup is retried once with the first
   word of the model and the matched record names are printed.
 
@@ -710,7 +709,8 @@ checks it field by field and never hides NHTSA's value: the report's `vehicle`, 
 the decode (NHTSA's rules plus mcp.vin's reviewed rule fixes, above), `raw_nhtsa` and each field's `original` are
 NHTSA's official values; the checks sit beside them, and the matchers (fuel economy, EPA test cars, parts content, NHTSA test-vehicle
 tires and capacities) use the checked values. Code: `lib/decode-checks.mjs`, `lib/decode-epa.mjs`,
-`lib/manufacturer-description.mjs`, `lib/decode-report.mjs`.
+`lib/decode-report.mjs`. No manufacturer record is read (since 18 November 2026; see "VIN recall repairs: links
+only").
 
 - **How often vPIC is wrong (audit of 17 November 2026).** The VINs of 2,454 vehicles NHTSA bought and tested
   (crash and compliance tests, model years 2005-2026) were decoded with vPIC and compared with the data sheet in
@@ -724,25 +724,10 @@ tires and capacities) use the checked values. Code: `lib/decode-checks.mjs`, `li
   transmission type 63%, speeds 72%, seats 67% of these vehicles. In the same audit the lab record was wrong about
   as often as vPIC on some fields (13 cylinder misprints), which is why no single lab value corrects anything.
 - **Evidence, strongest first** (`precedence`): `owner` (values the reader states; reserved for the owner
-  choices), `manufacturer_vin_record` (the manufacturer's description of this VIN), `mcp_vin_rule_fix` (a reviewed
+  choices), `mcp_vin_rule_fix` (a reviewed
   fix of NHTSA's rule for this VIN pattern, above: `corrected`, with NHTSA's value kept), `nhtsa_test_vehicle_pattern`
   (NHTSA lab records of test vehicles with the same VIN pattern), `vpic_decode`, `assumption` (EPA lists only one
   value for the model year).
-- **Manufacturer's description of the VIN.** Some makers' VIN recall lookups name the vehicle in the reply the
-  site already fetches for `recall_status` (no extra request; cached 15 minutes per VIN): Volkswagen (`model`,
-  "ATLAS S 3.6 LAUNCH FWD"), Audi (`model`, "A6 SEDAN 2.0T FWD MULTITRONIC"), Land Rover and Jaguar (`vehicle` or
-  `vehicleName`, cut at 40 characters, "Range Rover Evoque 2.0L Si4 Petrol 4WD A"), Subaru (`modelName` +
-  `trimName`), Honda and Acura (`model_group_name` only). Ford, GM, Tesla, Nissan and Mopar replies carry none.
-  `recall_status.manufacturer_description` keeps the raw text, the reply field, the source and retrieval time,
-  and `parsed`: only what the text states without doubt (engine size, cylinders, diesel/petrol/hybrid/electric,
-  transmission family, drive, body, doors, Subaru trim). Unclear words stay in `not_parsed`; two words that
-  disagree leave the field unset; "e-tron", "PZEV", "FED", a lone "A" and Subaru's "2.5X" are never read as
-  powertrain, transmission or drive. The VIN page is drawn before the maker replies and never waits for it
-  (`sources.manufacturer_record.status: "not_checked"`); the REST report, MCP `decode_vin` and comparisons
-  re-run the checks with it (`used`, `not_available` or `not_supported`), or say `pending` when the maker had not
-  answered within the report's wait (see "When the maker answers slowly" above; the website then fills them in). In a gentle sample of 16 NHTSA test
-  vehicles the description agreed with vPIC on every stated field except drive on both 2018 Atlases (vPIC AWD,
-  Volkswagen "FWD", both test reports FWD), and named "MULTITRONIC" (a CVT) where vPIC said "Automatic".
 - **NHTSA test-vehicle evidence.** `data-src/decode-evidence.jsonl` (built offline by the audit, imported with
   `npm run import:decode-evidence` into `data/decode-evidence.db`): 2,418 test vehicles in 1,643 VIN patterns
   (543 with two or more vehicles), the values NHTSA's lab recorded (drive, engine size, cylinders,
@@ -750,7 +735,7 @@ tires and capacities) use the checked values. Code: `lib/decode-checks.mjs`, `li
   certification label, measured weight) and the test numbers and report links. Values the audit found to be lab
   misprints or parser misreads (52) are withheld with the reason. A VIN pattern is positions 1-8, 10 and 11.
   A vehicle never counts as evidence for itself.
-- **Statuses per field.** `confirmed` (a source agrees); `corrected` (the manufacturer's record, two or more
+- **Statuses per field.** `confirmed` (a source agrees); `corrected` (an mcp.vin rule fix, two or more
   test vehicles that agree and none that differ, or one test vehicle whose value EPA lists when it does not list
   vPIC's); `doubtful` (test vehicles differ, one test vehicle differs and EPA lists both, EPA lists no such value
   or combination for the model year, vPIC says "2WD/4WD", or an impossible combination: an electric car with
@@ -780,8 +765,7 @@ tires and capacities) use the checked values. Code: `lib/decode-checks.mjs`, `li
   for sale by US dealers (a sample weighted to new 2025-2027 vehicles), 3.1% had a test vehicle with the same
   pattern (6.1% of used cars). EPA cross-checks reached 87.5% of them. The checks marked at least one field on
   16.1% (filled 14.6%, mostly a mild hybrid EPA lists for every version of the model year, or EPA's only drive;
-  doubtful 1.5%; corrected 0%). The manufacturer's record adds Volkswagen, Audi, Land Rover, Jaguar and Subaru
-  VINs whenever their lookup answers.
+  doubtful 1.5%; corrected 0%).
 - **"Report a decode error".** The report and the car sheet carry a screen-only form (`POST
   /api/decode-corrections`, 5 per minute per IP): which field, what the vehicle has, how the reader knows, a
   note. Stored for review only (`GET /api/admin/decode-corrections`), never shown to other readers, never

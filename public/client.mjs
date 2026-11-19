@@ -1,8 +1,8 @@
 export class VinClient {
  constructor({baseUrl='http://127.0.0.1:3200',fetchImpl=globalThis.fetch,timeout=45000}={}){this.baseUrl=baseUrl.replace(/\/$/,'');this.fetch=(...args)=>fetchImpl(...args);this.timeout=timeout;}
  async request(path,body){const r=await this.fetch(this.baseUrl+path,{cache:'no-store',method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(this.timeout)});const data=await r.json();if(!r.ok){const e=new Error(data.error||data.reason||`HTTP ${r.status}`);e.status=r.status;e.data=data;throw e;}return data;}
- // recallWait 'full': wait for the maker's VIN recall lookup instead of getting recall_status.pending after 2 s.
- decode(vin,{recallWait}={}){return this.request('/api/vin/'+encodeURIComponent(vin)+(recallWait?'?recall_wait='+encodeURIComponent(recallWait):''));}
+ decode(vin){return this.request('/api/vin/'+encodeURIComponent(vin));}
+ // Links to the maker's and NHTSA's VIN recall pages; mcp.vin does not check a VIN's recall repairs itself.
  recallStatus(vin){return this.request('/api/vin/'+encodeURIComponent(vin)+'/recall-status');}
  validate(vin){return this.request('/api/vin/'+encodeURIComponent(vin)+'/validate');}
  batch(vins){return this.request('/api/batch',{vins});}

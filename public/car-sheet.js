@@ -14,8 +14,9 @@
  *   never this VIN's own values, never estimated or averaged; a fuel tank from another
  *   year or version is labelled a best guess. The write-in blanks stay for the owner's own
  *   placard, and "Doesn't match your door placard?" sends a correction for review.
- * - Model-year recall campaigns are not this car's repair status. VIN-specific
- *   status is labelled with the manufacturer source that reported it.
+ * - Model-year recall campaigns are not this car's repair status. mcp.vin does not check
+ *   this VIN's repairs: the sheet links to the maker's and NHTSA's VIN recall pages and
+ *   prints "Not checked by mcp.vin" with where to check.
  */
 const CarSheet = (() => {
   // Official owner's-manual libraries. Each URL is the maker's own page; deep links
@@ -447,32 +448,18 @@ const CarSheet = (() => {
   function recallSection(r) {
     const v = r.vehicle || {}, s = r.recall_status, rec = r.recalls, c = r.complaints, rat = r.safety_ratings || {};
     const name = [v.year, makeName(v.make), v.model].filter(present).join(' ');
-    let status;
-    if (s && s.pending) {
-      // The maker's lookup is still answering (lib/reports.mjs pendingRecallStatus): on screen "Checking with Ford…",
-      // filled in when it answers; on paper never a placeholder: the status had not loaded, so it is unknown.
-      const maker = s.maker || 'the manufacturer';
-      status = `<span class="pending-screen sheet-pending">Checking with ${esc(maker)}…<span class="sheet-source">The maker’s VIN lookup is still answering; this row fills in by itself.</span></span>`
-        + `<span class="pending-print">Unknown: ${esc(maker)} had not answered when this sheet was printed.</span>`;
-    } else if (s && s.available) {
-      const provider = (s.source && s.source.provider) || 'the manufacturer';
-      const checked = fmtDate(s.source && s.source.retrieved_at);
-      const unk = x => (x === null || x === undefined ? 'unknown' : fmt(x));
-      const open = s.open_record_count !== undefined
-        ? `${unk(s.open_record_count)} open recall or campaign records`
-        : `${unk(s.open_count)} open`;
-      const completed = s.coverage && s.coverage.completed_history === false && (s.completed_count === null || s.completed_count === undefined)
-        ? 'completed history not supplied by this source' : `${unk(s.completed_count)} completed or closed`;
-      const parts = [open, completed, s.unknown_count ? `${fmt(s.unknown_count)} with unknown status` : '', s.service_campaign_count ? `${fmt(s.service_campaign_count)} other maker program${s.service_campaign_count === 1 ? '' : 's'}` : ''].filter(Boolean);
-      const alert = Number(s.open_count) > 0 || Number(s.open_record_count) > 0;
-      status = `<span class="${alert ? 'sheet-alert' : ''}">${esc(parts.join(' · '))}</span><span class="sheet-source">Reported by ${esc(provider)}${checked ? `, checked ${esc(checked)}` : ''}.</span>`;
-    } else {
-      const why = s && s.reason === 'interactive_verification_required' ? 'The maker’s check needs a person to verify.'
-        : s && s.reason === 'lookup_not_loaded' ? 'The maker’s answer could not be loaded here; reload the report.' : 'Not available for this vehicle here.';
-      status = `Unknown. ${esc(why)}`;
-    }
-    const verify = (s && s.verification_url) || 'https://www.nhtsa.gov/recalls';
-    status += ` <a href="${esc(verify)}" target="_blank" rel="noopener">Check this VIN with the official source</a><span class="sheet-url">${esc(site(verify))}</span>`;
+    // mcp.vin does not check this VIN's repairs (it never asks a manufacturer): on screen, links to the maker's own
+    // recall page and NHTSA's; on paper, "Not checked by mcp.vin" and where to check (lib/recall-links.mjs).
+    const vin = String(r.vin || '').toUpperCase();
+    const https = u => typeof u === 'string' && /^https:\/\//.test(u);
+    const nhtsa = s && https(s.nhtsa_lookup_url) ? s.nhtsa_lookup_url : 'https://www.nhtsa.gov/recalls' + (/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) ? '?vin=' + vin : '');
+    const maker = s && s.maker && https(s.manufacturer_lookup_url) ? s.maker : null;
+    const own = maker ? `${maker}${/s$/i.test(maker) ? '’' : '’s'}` : '';
+    const short = url => /^https?:\/\//.test(url || '') ? String(url).replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/$/, '') : '';
+    const where = [maker && short(s.manufacturer_page_url || s.manufacturer_lookup_url), 'nhtsa.gov/recalls'].filter(Boolean).join(' or ');
+    const status = `<span class="sheet-screen-only">Not checked by mcp.vin. ${maker ? `<a href="${esc(s.manufacturer_lookup_url)}" target="_blank" rel="noopener">Check this VIN on ${esc(own)} recall page</a>${s.vin_prefilled ? '' : ' (enter the VIN there)'} · ` : ''}<a href="${esc(nhtsa)}" target="_blank" rel="noopener">Check on NHTSA</a>`
+      + `<span class="sheet-source">mcp.vin shows the model year’s campaigns; only the maker or NHTSA can say whether this car’s repairs are done.</span></span>`
+      + `<span class="sheet-print-only">Not checked by mcp.vin. Check at ${esc(where)}.</span>`;
     const campaigns = !rec || rec.available === false || typeof rec.count !== 'number' ? 'Unknown (lookup unavailable)'
       : `${fmt(rec.count)} for the ${name}`;
     const related = rec && rec.related_models && rec.related_models.available && rec.related_models.count > 0 ? ` (plus ${fmt(rec.related_models.count)} filed under related model names; they may not apply)` : '';
@@ -486,8 +473,8 @@ const CarSheet = (() => {
         : `${fmt(c.count)} for this model year`);
     const stars = rat.rated && num(rat.overall) ? `${rat.overall} of 5 stars overall` : rat.rated ? 'Rated, but no overall score published' : 'No NHTSA rating found';
     const rows = [
-      rowHtml('This VIN’s recall status', status),
       rowHtml('Model-year recall campaigns', `${esc(campaigns + related + otherName)}<span class="sheet-source">NHTSA campaigns for the make, model and year. Not this car’s repair status.</span>`),
+      rowHtml('This VIN’s recall repairs', status),
       rowHtml('Owner complaints to NHTSA', `${complaints}<span class="sheet-source">Reports, not confirmed defects.</span>`),
       row('NHTSA crash rating', stars),
     ];
@@ -513,14 +500,13 @@ const CarSheet = (() => {
 
   function footer(r) {
     const vin = esc(r.vin), url = `https://mcp.vin/${vin}`, assembled = fmtDate(r.provenance && r.provenance.assembled_at);
-    const maker = r.recall_status && r.recall_status.available && r.recall_status.source && r.recall_status.source.provider;
     const crash = [testedPlacards(r.tire_placard).length && 'tire placard', testedSpecs(r.test_vehicle_specs) && 'capacities and weights'].filter(Boolean);
-    const sources = ['NHTSA vPIC (maker-submitted VIN data)', 'NHTSA recalls, complaints and crash ratings', crash.length && `NHTSA test reports (test-vehicle ${crash.join(', ')})`, r.fuel_economy && r.fuel_economy.available && 'EPA FuelEconomy.gov', 'Transport Canada via NHTSA vPIC (dimensions)', maker].filter(Boolean);
+    const sources = ['NHTSA vPIC (maker-submitted VIN data)', 'NHTSA recalls, complaints and crash ratings', crash.length && `NHTSA test reports (test-vehicle ${crash.join(', ')})`, r.fuel_economy && r.fuel_economy.available && 'EPA FuelEconomy.gov', 'Transport Canada via NHTSA vPIC (dimensions)'].filter(Boolean);
     const qr = typeof VinQr !== 'undefined' ? VinQr.svg(url, `QR code linking to ${url}`) : '';
     // On paper a value filled where the official decode is blank carries a dagger instead of a "Filled in" tag.
     const filled = typeof DecodeChecks !== 'undefined' && DecodeChecks.fields(r).some(f => f.status === 'filled');
     const dagger = filled ? '<span class="dc-print-only"> · † filled in where the official decode is blank (NHTSA test vehicles, EPA)</span>' : '';
-    return `<div class="sheet-foot-text"><p><strong>Sources:</strong> ${esc(sources.join('; '))}.${assembled ? ` Data gathered ${esc(assembled)}.` : ''}</p><p>Decoded from the VIN and public records; options, repairs and later changes are not shown. Check the placard, the manual and the official recall links.</p><p class="sheet-live">Live report: <a href="${url}">${url}</a>${dagger}</p></div>${qr ? `<div class="sheet-qr">${qr}</div>` : ''}`;
+    return `<div class="sheet-foot-text"><p><strong>Sources:</strong> ${esc(sources.join('; '))}.${assembled ? ` Data gathered ${esc(assembled)}.` : ''}</p><p>Decoded from the VIN and public records; options, repairs and later changes are not shown. Check the placard, the manual, and this VIN’s recalls with the maker or NHTSA. mcp.vin is independent, not affiliated with NHTSA, EPA, Transport Canada or any maker.</p><p class="sheet-live">Live report: <a href="${url}">${url}</a>${dagger}</p></div>${qr ? `<div class="sheet-qr">${qr}</div>` : ''}`;
   }
 
   /** The sheet's sections in order, as [class name, html]; html is '' for a section with nothing to show. */
@@ -562,7 +548,8 @@ const CarSheet = (() => {
     const rows = [row('Length', summary.length), row('Width', summary.width), row('Height', summary.height),
       num(d.wheel_base) ? '' : row('Wheelbase', summary.wheelbase), num(d.curb_weight) ? '' : row('Curb weight', summary.curb)];
     const which = summary.count === 1 ? `the record “${summary.names[0] || 'unnamed'}”` : summary.count <= 3 ? `${summary.count} records (${summary.names.join('; ')})` : `${summary.count} model variants; ranges cover all of them`;
-    return `${list(rows)}<p class="sheet-note">Transport Canada model data<span class="sheet-screen-only">, ${esc(which)}</span>. Not specific to this VIN.</p>`;
+    // Open Government Licence – Canada: the attribution statement and, where possible, a link to the licence.
+    return `${list(rows)}<p class="sheet-note">Transport Canada model data<span class="sheet-screen-only">, ${esc(which)}</span>. Not specific to this VIN. Contains information licensed under the <a href="https://open.canada.ca/en/open-government-licence-canada" target="_blank" rel="noopener">Open Government Licence – Canada</a>.</p>`;
   }
 
   // current: the report drawn; drawn: its sections and footer as drawn, so update() can swap only what changed;
@@ -603,7 +590,7 @@ const CarSheet = (() => {
     if (foot) foot.innerHTML = out.foot;
     drawn = { vin: r.vin, sections: sections(r), foot: out.foot };
     const assembled = fmtDate(r.provenance && r.provenance.assembled_at), prepared = document.querySelector('#sheet-prepared');
-    if (prepared) prepared.textContent = assembled ? `Data gathered ${assembled} from public NHTSA, EPA, Transport Canada and maker records.` : 'From public NHTSA, EPA, Transport Canada and maker records.';
+    if (prepared) prepared.textContent = assembled ? `Data gathered ${assembled} from public NHTSA, EPA and Transport Canada records.` : 'From public NHTSA, EPA and Transport Canada records.';
     loadDimensions(r);
   }
 

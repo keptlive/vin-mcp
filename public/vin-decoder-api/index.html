@@ -81,7 +81,7 @@
       "name": "Does it tell me whether a recall was repaired on a specific car?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "The recalls endpoint lists campaigns for the make, model and year. It does not establish whether a specific vehicle is affected or repaired. For supported manufacturers, the recall-status endpoint checks the manufacturer's own VIN lookup."
+        "text": "The recalls endpoint lists campaigns for the make, model and year. It does not establish whether a specific vehicle is affected or repaired. mcp.vin does not check a VIN's recall repairs: the recall-status endpoint returns links to the manufacturer's own recall page and to NHTSA's, where the owner can check."
       }
     },
     {
@@ -291,7 +291,7 @@ print(report.get("vehicle"))</code></pre>
 
     <div class="info-card">
       <div class="info-card-title">Fleet management</div>
-      <div class="info-card-desc">Decode VINs for an entire vehicle fleet to build a specs database. Research model-year recall campaigns and verify each vehicle's repair status with a supported manufacturer or NHTSA. The batch endpoint handles up to 50 VINs per request.</div>
+      <div class="info-card-desc">Decode VINs for an entire vehicle fleet to build a specs database. Research model-year recall campaigns; each report links to the manufacturer's and NHTSA's VIN recall pages for checking a vehicle's repairs. The batch endpoint handles up to 50 VINs per request.</div>
     </div>
 
     <div class="info-card">
@@ -387,7 +387,7 @@ print(report.get("vehicle"))</code></pre>
     <p>From public U.S. government sources: NHTSA vPIC for specifications, NHTSA for recalls, complaints and crash-test ratings, and the EPA for fuel economy. Photos, when shown, are NHTSA's own photos of a vehicle it crash-tested (the same make, model and body style), served by mcp.vin; they are not the decoded vehicle and there are no stock photos.</p>
 
     <h3>Does it tell me whether a recall was repaired on a specific car?</h3>
-    <p>The recalls endpoint lists campaigns for the make, model and year. It does not establish whether a specific vehicle is affected or repaired. For supported manufacturers, the recall-status endpoint checks the manufacturer's own VIN lookup.</p>
+    <p>The recalls endpoint lists campaigns for the make, model and year. It does not establish whether a specific vehicle is affected or repaired. mcp.vin does not check a VIN's recall repairs: the recall-status endpoint returns links to the manufacturer's own recall page and to NHTSA's, where the owner can check.</p>
 
     <h3>Can AI assistants use it?</h3>
     <p>Yes. The same data is available as a remote MCP server at https://mcp.vin/mcp, with no API key for public tools. It also runs locally over stdio from the open-source repository.</p>
@@ -411,7 +411,7 @@ print(report.get("vehicle"))</code></pre>
   </div>
 
   <footer class="footer">
-    <p>Data from NHTSA, EPA and participating manufacturers. Photos: NHTSA test vehicles. <a href="/examples/">Example reports</a> &middot; <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
+    <p>Data from NHTSA, EPA and DOE (fueleconomy.gov), Transport Canada and the Federal Reserve. Photos: NHTSA test vehicles. mcp.vin is an independent free service, not affiliated with or endorsed by NHTSA, EPA, the U.S. Department of Energy, Transport Canada, the Federal Reserve or any vehicle manufacturer. <a href="/privacy/#sources">Sources</a> &middot; <a href="/examples/">Example reports</a> &middot; <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
   </footer>
 
 </body>

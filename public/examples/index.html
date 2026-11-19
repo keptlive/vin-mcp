@@ -5,13 +5,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Example VIN Reports with Recall Data | mcp.vin</title>
-  <meta name="description" content="Twelve example VIN reports you can open now: recall campaigns, VIN-specific recall status from Ford, Tesla, GM, Nissan, Mopar, Volkswagen, Audi, Subaru and Honda, complaints, safety ratings and fuel economy.">
+  <meta name="description" content="Twelve example VIN reports you can open now: NHTSA recall campaigns, links to each maker&rsquo;s and NHTSA&rsquo;s VIN recall pages, complaints, safety ratings and fuel economy.">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="theme-color" content="#6366f1">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="canonical" href="https://mcp.vin/examples/">
   <meta property="og:title" content="Example VIN Reports with Recall Data | mcp.vin">
-  <meta property="og:description" content="Twelve example VIN reports you can open now, including VIN-specific recall status from nine manufacturers.">
+  <meta property="og:description" content="Twelve example VIN reports you can open now, with NHTSA recall campaigns and links to check each car&rsquo;s recall repairs with its maker or NHTSA.">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mcp.vin/examples/">
   <meta property="og:image" content="https://mcp.vin/og-image.png">
@@ -56,35 +56,25 @@
 
     <p class="article-lead">Each link below opens a full, live mcp.vin report: specifications, recall campaigns, complaints, safety ratings and fuel economy from NHTSA and EPA data. Add any of these VINs to <code>https://mcp.vin/api/vin/</code> to get the same report as JSON.</p>
 
-    <h2>Reports with VIN-specific recall status</h2>
+    <h2>Example reports</h2>
 
-    <p>For these makes, mcp.vin also asks the manufacturer&rsquo;s own recall lookup about the individual vehicle. That answer is separate from the list of campaigns for the model year, and it can change as repairs are made.</p>
-
-    <table>
-      <thead><tr><th>Vehicle</th><th>VIN</th><th>Manufacturer answer</th></tr></thead>
-      <tbody>
-        <tr><td>2015 Ford F-150</td><td><a href="/1FTEX1EP4FFD06976"><code>1FTEX1EP4FFD06976</code></a></td><td>Ford: open and completed recalls for this truck</td></tr>
-        <tr><td>2013 Tesla Model S</td><td><a href="/5YJSA1DG9DFP14705"><code>5YJSA1DG9DFP14705</code></a></td><td>Tesla: open and completed recalls for this car</td></tr>
-        <tr><td>2017 Chevrolet Bolt EV</td><td><a href="/1G1FW6S06H4188545"><code>1G1FW6S06H4188545</code></a></td><td>GM: completed and closed recalls, with repair dates where GM supplies them</td></tr>
-        <tr><td>2015 Nissan Altima</td><td><a href="/1N4AL3APXFN868842"><code>1N4AL3APXFN868842</code></a></td><td>Nissan: open safety recalls for this car</td></tr>
-        <tr><td>2005 Dodge Dakota</td><td><a href="/1D3HW48K55S152258"><code>1D3HW48K55S152258</code></a></td><td>Mopar: recall records from the Mopar fleet lookup</td></tr>
-        <tr><td>2012 Volkswagen Passat</td><td><a href="/1VWCP7A35CC101500"><code>1VWCP7A35CC101500</code></a></td><td>Volkswagen: open recalls for this car</td></tr>
-        <tr><td>2013 Audi A4</td><td><a href="/WAUFFAFL3DA152660"><code>WAUFFAFL3DA152660</code></a></td><td>Audi: open recalls for this car</td></tr>
-        <tr><td>2016 Subaru Outback</td><td><a href="/4S4BSBJCXG3250910"><code>4S4BSBJCXG3250910</code></a></td><td>Subaru: completed and incomplete safety recalls for this car</td></tr>
-        <tr><td>2024 Honda CR-V Sport-L</td><td><a href="/5J6RS6H82RL008945"><code>5J6RS6H82RL008945</code></a></td><td>Honda: active safety recalls for this car, plus campaigns filed under the hybrid model name</td></tr>
-        <tr><td>2003 Honda Accord EX-V6</td><td><a href="/1HGCM82633A004352"><code>1HGCM82633A004352</code></a></td><td>Honda: active safety recalls from the past 15 years; a long model-year recall and complaint history</td></tr>
-      </tbody>
-    </table>
-
-    <h2>Reports with model-year recall campaigns</h2>
-
-    <p>Every report lists the NHTSA recall campaigns for the make, model and year. A campaign on this list does not mean the individual vehicle is affected or unrepaired; check with the manufacturer or <a href="https://www.nhtsa.gov/recalls" rel="noopener noreferrer">NHTSA.gov/recalls</a>.</p>
+    <p>Every report lists NHTSA&rsquo;s recall campaigns for the make, model and year. A campaign on this list does not mean the individual vehicle is affected or unrepaired. mcp.vin does not check whether a car&rsquo;s recall repairs are done; each report links to the manufacturer&rsquo;s own recall page (with the VIN already filled in where the maker&rsquo;s page takes it from the link) and to <a href="https://www.nhtsa.gov/recalls" rel="noopener noreferrer">NHTSA.gov/recalls</a>.</p>
 
     <table>
-      <thead><tr><th>Vehicle</th><th>VIN</th><th>What the report shows</th></tr></thead>
+      <thead><tr><th>Vehicle</th><th>VIN</th><th>Where to check this car&rsquo;s recall repairs</th></tr></thead>
       <tbody>
-        <tr><td>2015 Kia Optima</td><td><a href="/5XXGR4A60FG353263"><code>5XXGR4A60FG353263</code></a></td><td>Recall campaigns plus a five-star overall safety rating</td></tr>
-        <tr><td>2021 Hyundai Kona</td><td><a href="/KM8K53AG0MU098173"><code>KM8K53AG0MU098173</code></a></td><td>An electric model: recall campaign and safety ratings</td></tr>
+        <tr><td>2015 Ford F-150</td><td><a href="/1FTEX1EP4FFD06976"><code>1FTEX1EP4FFD06976</code></a></td><td>Ford&rsquo;s recall page, VIN filled in; NHTSA</td></tr>
+        <tr><td>2013 Tesla Model S</td><td><a href="/5YJSA1DG9DFP14705"><code>5YJSA1DG9DFP14705</code></a></td><td>Tesla&rsquo;s recall page, VIN filled in; NHTSA</td></tr>
+        <tr><td>2017 Chevrolet Bolt EV</td><td><a href="/1G1FW6S06H4188545"><code>1G1FW6S06H4188545</code></a></td><td>GM&rsquo;s recall page (enter the VIN there); NHTSA</td></tr>
+        <tr><td>2015 Nissan Altima</td><td><a href="/1N4AL3APXFN868842"><code>1N4AL3APXFN868842</code></a></td><td>Nissan&rsquo;s recall page (enter the VIN there); NHTSA</td></tr>
+        <tr><td>2005 Dodge Dakota</td><td><a href="/1D3HW48K55S152258"><code>1D3HW48K55S152258</code></a></td><td>Mopar&rsquo;s recall page (enter the VIN there); NHTSA</td></tr>
+        <tr><td>2012 Volkswagen Passat</td><td><a href="/1VWCP7A35CC101500"><code>1VWCP7A35CC101500</code></a></td><td>Volkswagen&rsquo;s recall page (enter the VIN there); NHTSA</td></tr>
+        <tr><td>2013 Audi A4</td><td><a href="/WAUFFAFL3DA152660"><code>WAUFFAFL3DA152660</code></a></td><td>Audi&rsquo;s recall page (enter the VIN there); NHTSA</td></tr>
+        <tr><td>2016 Subaru Outback</td><td><a href="/4S4BSBJCXG3250910"><code>4S4BSBJCXG3250910</code></a></td><td>Subaru&rsquo;s recall page, VIN filled in; NHTSA</td></tr>
+        <tr><td>2024 Honda CR-V Sport-L</td><td><a href="/5J6RS6H82RL008945"><code>5J6RS6H82RL008945</code></a></td><td>Honda&rsquo;s recall page, VIN filled in; NHTSA. The report adds campaigns filed under the hybrid model name</td></tr>
+        <tr><td>2003 Honda Accord EX-V6</td><td><a href="/1HGCM82633A004352"><code>1HGCM82633A004352</code></a></td><td>Honda&rsquo;s recall page, VIN filled in; NHTSA. A long model-year recall and complaint history</td></tr>
+        <tr><td>2015 Kia Optima</td><td><a href="/5XXGR4A60FG353263"><code>5XXGR4A60FG353263</code></a></td><td>Kia&rsquo;s recall page (enter the VIN there); NHTSA. A five-star overall safety rating</td></tr>
+        <tr><td>2021 Hyundai Kona</td><td><a href="/KM8K53AG0MU098173"><code>KM8K53AG0MU098173</code></a></td><td>Hyundai&rsquo;s recall page, VIN filled in; NHTSA. An electric model</td></tr>
       </tbody>
     </table>
 
@@ -101,7 +91,7 @@
   </div>
 
   <footer class="footer">
-    <p>Data from NHTSA, EPA and participating manufacturers. Photos: NHTSA test vehicles. <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
+    <p>Data from NHTSA, EPA and DOE (fueleconomy.gov), Transport Canada and the Federal Reserve. Photos: NHTSA test vehicles. mcp.vin is an independent free service, not affiliated with or endorsed by NHTSA, EPA, the U.S. Department of Energy, Transport Canada, the Federal Reserve or any vehicle manufacturer. <a href="/privacy/#sources">Sources</a> &middot; <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
   </footer>
 
 </body>

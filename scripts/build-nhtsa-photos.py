@@ -24,7 +24,7 @@ Needs Pillow with WebP support."""
 import hashlib, io, json, os, re, sys, time, urllib.error, urllib.parse, urllib.request
 from PIL import Image, ImageOps
 
-UA = 'Mozilla/5.0 (compatible; photo-index-builder/1.0)'
+UA = 'mcp.vin-importer/1.0 (+https://mcp.vin; NHTSA test-vehicle photo index)'
 GAP = float(os.environ.get('PHOTO_GAP', '1.0'))
 HOST = 'https://nrd-static.nhtsa.dot.gov/'
 SIZES = ((960, 720, 74), (320, 240, 70))  # box width, box height, WebP quality

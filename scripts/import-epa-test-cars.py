@@ -40,7 +40,8 @@ URLS = {
 }
 # The 2009 file has a second, later release in the named layout.
 EXTRA = {2009: ['https://www.epa.gov/sites/default/files/2016-07/09tstcar-laterelease.csv']}
-UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+# Honest client name (no browser imitation): if a source refuses it, stop and report, never disguise the request.
+UA = 'mcp.vin-importer/1.0 (+https://mcp.vin)'
 MAX_BYTES = 30_000_000
 
 # Column names per layout -> field. First present name wins.
