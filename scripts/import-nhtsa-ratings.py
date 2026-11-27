@@ -115,7 +115,14 @@ def build(state, target, previous=None, allow_shrink=False):
             raise ValueError(f"rated variants fell from {prev['rated_variants']} to {counts['rated_variants']}: refusing to replace the previous file")
         if not top or counts['rated_variants'] == 0:
             raise ValueError('The crawl holds no ratings')
-        fetched = [r for r in runs if r[2]]
+        # The data's date is the end of the last crawl that went through every year in its scope (a stopped crawl
+        # refreshed only part of it); the server treats the copy as stale 45 days after it.
+        def complete(summary):
+            try:
+                return bool(json.loads(summary or '{}').get('complete'))
+            except ValueError:
+                return False
+        fetched = [r for r in runs if r[2] and complete(r[3])]
         meta = {'schema': SCHEMA_VERSION, 'dataset': 'nhtsa_ratings', 'years_ok': bool(top),
                 'source': 'NHTSA 5-Star Safety Ratings API (api.nhtsa.gov/SafetyRatings), crawled by scripts/harvest-nhtsa-ratings.py',
                 'first_crawl_at': runs[0][1] if runs else None, 'last_crawl_finished_at': fetched[-1][2] if fetched else None,

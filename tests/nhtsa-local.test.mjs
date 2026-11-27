@@ -69,7 +69,8 @@ put(h.path_detail(19599), [{'VehicleDescription': '2024 Honda CR-V SUV AWD', 'Ov
 put(h.path_detail(19598), [{'VehicleDescription': '2024 Honda CR-V SUV FWD', 'OverallRating': 'Not Rated'}])
 put(h.path_variants(2024, 'HONDA', 'PILOT'), [{'VehicleDescription': '2024 Honda Pilot', 'VehicleId': 19000}])
 st.execute("INSERT INTO responses(path,status,fetched_at,tries,error) VALUES(?, 'failed', '2026-11-26T00:00:00Z', 4, 'timed out')", (h.path_detail(19000),))
-st.execute("INSERT INTO runs(run, started_at, finished_at) VALUES('r', '2026-11-26T00:00:00Z', '2026-11-26T05:00:00Z')")
+st.execute("INSERT INTO runs(run, started_at, finished_at, summary) VALUES('r', '2026-11-26T00:00:00Z', '2026-11-26T05:00:00Z', '{\"complete\": true}')")
+st.execute("INSERT INTO runs(run, started_at, finished_at, summary) VALUES('s', '2026-11-27T00:00:00Z', '2026-11-27T00:01:00Z', '{\"complete\": false}')")
 st.commit()
 load('g', 'import-nhtsa-ratings.py').build(d / 'crawl.db', d / 'nhtsa-ratings.db')
 `;
