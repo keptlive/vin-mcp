@@ -107,7 +107,7 @@
 
     <h3>Method 2: mcp.vin (decode + recalls in one step)</h3>
 
-    <p><a href="/">mcp.vin</a> decodes the full VIN and includes recall data alongside the vehicle specs. You can see available specifications and model-year recall campaigns. For supported manufacturers, VIN-specific status may also be available. A campaign is not confirmation that this VIN is affected or that a repair is open or completed; unavailable status is unknown. No signup is required for public research.</p>
+    <p><a href="/">mcp.vin</a> decodes the full VIN and includes recall data alongside the vehicle specs. You can see available specifications and model-year recall campaigns. It does not check whether this VIN&rsquo;s repairs are done: it links to the manufacturer&rsquo;s own recall page and NHTSA&rsquo;s, where you can check. A campaign is not confirmation that this VIN is affected or that a repair is open or completed; unavailable status is unknown. No signup is required for public research.</p>
 
     <p>Developers can also pull recall data programmatically via the <a href="/vin-decoder-api/">free API</a>: <code>GET https://mcp.vin/api/vin/{VIN}/recalls</code></p>
 
@@ -213,7 +213,7 @@
   </div>
 
   <footer class="footer">
-    <p>Data from NHTSA, EPA and IMAGIN.studio. <a href="/examples/">Example reports</a> &middot; <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
+    <p>Data from NHTSA, EPA and DOE (fueleconomy.gov), Transport Canada and the Federal Reserve. Photos: NHTSA test vehicles. mcp.vin is an independent free service, not affiliated with or endorsed by NHTSA, EPA, the U.S. Department of Energy, Transport Canada, the Federal Reserve or any vehicle manufacturer. <a href="/privacy/#sources">Sources</a> &middot; <a href="/examples/">Example reports</a> &middot; <a href="/privacy/">Privacy</a> &middot; <a href="https://github.com/keptlive/vin-mcp">GitHub project</a></p>
   </footer>
 
 </body>
