@@ -10,7 +10,8 @@ WorkingDirectory=/opt/vin-mcp
 ExecStart=/opt/vin-mcp/scripts/nhtsa-refresh.sh ratings
 StateDirectory=vin-mcp-nhtsa
 Environment=NHTSA_WORK=/var/lib/vin-mcp-nhtsa
-# One API request at a time, 1 s apart: a recent-years crawl takes 2-3 hours, a full crawl (every 90 days) about 15.
+# One API request at a time, 1 s apart: a recent-years crawl (4,600 requests) takes about 2 hours, a full crawl (every
+# 90 days, 31,800 requests) about 11.
 Environment=NHTSA_RATINGS_PAUSE=1.0
 Nice=15
 IOSchedulingClass=idle
