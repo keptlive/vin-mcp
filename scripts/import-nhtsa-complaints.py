@@ -12,7 +12,8 @@ none of that is stored.
 
 The flat file has one row per complaint, product and component. A complaint number (ODINO) received before
 2002-12-15 can also cover several complaints by one person about several vehicles, each with its own text, so a
-complaint here is one ODINO + make/model/year + text; its components are collected in file order (CMPLID).
+complaint here is one ODINO + text + make/model/year; its components are those of all the products it names, in file
+order (CMPLID).
 
 Usage: import-nhtsa-complaints.py --zip FLAT_CMPL.zip --out data/nhtsa-complaints.db [--last-modified '<HTTP date>']
        [--previous data/nhtsa-complaints.db] [--allow-shrink]
@@ -42,19 +43,32 @@ def count(text):
 
 
 def rows_of(path):
+    """Records of the archive; a record split over several lines by a line break in a text field is joined back."""
     with zipfile.ZipFile(path) as z:
         files = z.infolist()
         if len(files) != 1 or files[0].filename != 'FLAT_CMPL.txt' or files[0].file_size > 8_000_000_000:
             raise ValueError('Unexpected complaint archive layout')
         with z.open(files[0]) as raw:
+            pending, start = None, 0
             for n, line in enumerate(io.TextIOWrapper(raw, encoding='utf-8', errors='strict', newline=''), 1):
                 line = line.rstrip('\r\n')
-                if not line:
+                if pending is None:
+                    if not line:
+                        continue
+                    pending, start = line, n
+                else:
+                    pending += '\n' + line
+                p = pending.split('\t')
+                if len(p) < FIELDS:
+                    if n - start > 50:
+                        raise ValueError(f'Unexpected complaint schema at line {start}')
                     continue
-                p = line.split('\t')
                 if len(p) != FIELDS or not p[CMPLID].strip().isdigit() or not p[ODINO].strip().isdigit():
-                    raise ValueError(f'Unexpected complaint schema at line {n}')
+                    raise ValueError(f'Unexpected complaint schema at line {start}')
+                pending = None
                 yield p
+            if pending is not None:
+                raise ValueError(f'Unexpected complaint schema at line {start} (incomplete last record)')
 
 
 def sha256(path):
@@ -111,46 +125,56 @@ def build(zip_path, target, last_modified=None, previous=None, allow_shrink=Fals
             db.executemany('INSERT INTO s.stage VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', batch)
         if not rows:
             raise ValueError('Empty complaint archive')
-        # One complaint = ODINO + make/model/year + text. Row values that can differ between the rows of one complaint
-        # (old multi-vehicle complaints) are combined: crash/fire if any row says so, the largest injury and death
-        # counts, the first row's dates; components in file order (lib/nhtsa-local.mjs shapes them like the API).
+        # One complaint = ODINO + text + make/model/year. Its components are those of every product the complaint
+        # names (the API lists them all: a gas can's EQUIPMENT row sits under the can's maker, not the car's), in file
+        # order (CMPLID). Values that can differ between rows of one vehicle (old multi-vehicle complaints) are
+        # combined: crash/fire if any row says so, the largest injury and death counts, the first row's dates.
         db.executescript('''CREATE TABLE complaints(make TEXT NOT NULL, model TEXT NOT NULL, year INTEGER NOT NULL,
               odi INTEGER NOT NULL, first_row INTEGER NOT NULL, crash INTEGER NOT NULL, fire INTEGER NOT NULL,
               injured INTEGER NOT NULL, deaths INTEGER NOT NULL, incident TEXT, received TEXT, components TEXT NOT NULL,
               prod_types TEXT NOT NULL, summary TEXT NOT NULL,
               PRIMARY KEY(make, model, year, odi, first_row)) WITHOUT ROWID;
-            CREATE INDEX s.stage_group ON stage(make, model, year, odi, summary, cmplid);''')
+            CREATE TABLE s.grouped AS SELECT * FROM complaints WHERE 0;
+            CREATE INDEX s.stage_group ON stage(odi, summary, cmplid);''')
         cur = db.execute('SELECT make, model, year, odi, summary, cmplid, crash, fire, injured, deaths, incident, received, component, prod_type '
-                         'FROM s.stage ORDER BY make, model, year, odi, summary, cmplid')
+                         'FROM s.stage ORDER BY odi, summary, cmplid')
         out, group, complaints = [], None, 0
+        insert = 'INSERT INTO s.grouped VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
 
         def flush(g):
             nonlocal complaints
-            complaints += 1
-            out.append((g['k'][0], g['k'][1], g['k'][2], g['k'][3], g['first'], g['crash'], g['fire'], g['injured'], g['deaths'],
-                        g['incident'], g['received'], json.dumps(g['components']), ','.join(sorted(g['types'])), g['k'][4]))
+            components = json.dumps(g['components'])
+            for (make, model, year), v in g['vehicles'].items():
+                complaints += 1
+                out.append((make, model, year, g['k'][0], v['first'], v['crash'], v['fire'], v['injured'], v['deaths'],
+                            v['incident'], v['received'], components, ','.join(sorted(v['types'])), g['k'][1]))
 
         for r in cur:
-            k = r[:5]
+            k = (r[3], r[4])
             if group is None or group['k'] != k:
                 if group:
                     flush(group)
-                group = {'k': k, 'first': r[5], 'crash': 0, 'fire': 0, 'injured': 0, 'deaths': 0, 'incident': r[10],
-                         'received': r[11], 'components': [], 'types': set()}
-            group['crash'] |= r[6]
-            group['fire'] |= r[7]
-            group['injured'] = max(group['injured'], r[8])
-            group['deaths'] = max(group['deaths'], r[9])
+                group = {'k': k, 'components': [], 'vehicles': {}}
             if r[12] and r[12] not in group['components']:
                 group['components'].append(r[12])
+            v = group['vehicles'].get(r[:3])
+            if v is None:
+                v = group['vehicles'][r[:3]] = {'first': r[5], 'crash': 0, 'fire': 0, 'injured': 0, 'deaths': 0, 'incident': r[10],
+                                                'received': r[11], 'types': set()}
+            v['crash'] |= r[6]
+            v['fire'] |= r[7]
+            v['injured'] = max(v['injured'], r[8])
+            v['deaths'] = max(v['deaths'], r[9])
             if r[13]:
-                group['types'].add(r[13])
+                v['types'].add(r[13])
             if len(out) >= 50_000:
-                db.executemany('INSERT INTO complaints VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', out)
+                db.executemany(insert, out)
                 out.clear()
         if group:
             flush(group)
-        db.executemany('INSERT INTO complaints VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', out)
+        db.executemany(insert, out)
+        # Stored in key order, so the rows of one make/model/year sit together in the file.
+        db.execute('INSERT INTO complaints SELECT * FROM s.grouped ORDER BY make, model, year, odi, first_row')
         db.commit()
         db.execute('DETACH DATABASE s')
         stage.unlink(missing_ok=True)

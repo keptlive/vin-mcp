@@ -6,7 +6,8 @@ Reports answer make/model/year recall questions from this file the way NHTSA's r
 (lib/nhtsa-local.mjs); the live API is only the fallback. The flat files carry one row per campaign, vehicle and
 recalled part; the campaign text (defect, consequence, remedy, notes, dates, advisories) is the same on every row
 of a campaign (checked 2026-11-27: 0 of 30,494 campaigns differ), so it is stored once per campaign, and the
-vehicle rows keep only make, model, model year, campaign, component and the row's manufacturer text.
+vehicle rows keep only make, model, model year, campaign, component and the row's manufacturer text (the first
+recall record number of each vehicle and component is kept for ordering).
 
 Usage: import-nhtsa-recalls.py --pre FLAT_RCL_PRE_2010.zip --post FLAT_RCL_POST_2010.zip --out data/nhtsa-recalls.db
        [--last-modified 'Thu, 26 Nov 2026 08:04:00 GMT'] [--previous data/nhtsa-recalls.db]
@@ -39,19 +40,33 @@ def iso(text):
 
 
 def rows_of(path, member):
+    """Records of one archive. A line break inside a free-text field splits a record over several lines: the parts are
+    joined back (with the line break) until the record has all its fields; anything else is a schema error."""
     with zipfile.ZipFile(path) as z:
         files = z.infolist()
         if len(files) != 1 or files[0].filename != member or files[0].file_size > 2_000_000_000:
             raise ValueError(f'Unexpected recall archive layout in {path}')
         with z.open(files[0]) as raw:
+            pending, start = None, 0
             for n, line in enumerate(io.TextIOWrapper(raw, encoding='utf-8', errors='strict', newline=''), 1):
                 line = line.rstrip('\r\n')
-                if not line:
+                if pending is None:
+                    if not line:
+                        continue
+                    pending, start = line, n
+                else:
+                    pending += '\n' + line
+                p = pending.split('\t')
+                if len(p) < FIELDS:
+                    if n - start > 50:
+                        raise ValueError(f'Unexpected recall schema at {member}:{start}')
                     continue
-                p = line.split('\t')
                 if len(p) != FIELDS or not p[0].isdigit() or not re.fullmatch(r'[0-9A-Z]{9}', p[1].strip()):
-                    raise ValueError(f'Unexpected recall schema at {member}:{n}')
+                    raise ValueError(f'Unexpected recall schema at {member}:{start}')
+                pending = None
                 yield p
+            if pending is not None:
+                raise ValueError(f'Unexpected recall schema at {member}:{start} (incomplete last record)')
 
 
 def sha256(path):
@@ -88,7 +103,7 @@ def build(pre, post, target, last_modified=None, previous=None, allow_shrink=Fal
               component TEXT NOT NULL, first_record INTEGER NOT NULL, mfr_text TEXT,
               PRIMARY KEY(make, model, year, campaign, component)) WITHOUT ROWID;
             CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);''')
-        campaigns, vehicles = {}, {}
+        campaigns, vehicles, differing = {}, {}, set()
         rows, types = 0, {}
         latest = ''
         for path, member in ((pre, 'FLAT_RCL_PRE_2010.txt'), (post, 'FLAT_RCL_POST_2010.txt')):
@@ -101,10 +116,16 @@ def build(pre, post, target, last_modified=None, previous=None, allow_shrink=Fal
                 c = (p[F['MFGNAME']].strip(), p[F['MFGCAMPNO']].strip(), t, p[F['DESC_DEFECT']], p[F['CONEQUENCE_DEFECT']],
                      p[F['CORRECTIVE_ACTION']], p[F['NOTES']], iso(p[F['RCDATE']]), iso(p[F['DATEA']]), iso(p[F['ODATE']]),
                      p[F['INFLUENCED_BY']].strip(), yes(p[F['DO_NOT_DRIVE']]), yes(p[F['PARK_OUTSIDE']]))
+                # The campaign text is the same on every row (checked 2026-11-27); should NHTSA ever differ, the
+                # lowest record number's text is kept and the campaign is counted in the metadata.
+                rid = int(p[F['RECORD_ID']])
                 old = campaigns.get(camp)
-                if old is not None and old != c:
-                    raise ValueError(f'Campaign text differs between rows of {camp}')
-                campaigns[camp] = c
+                if old is None or rid < old[0]:
+                    if old is not None and old[1] != c:
+                        differing.add(camp)
+                    campaigns[camp] = (rid, c)
+                elif old[1] != c:
+                    differing.add(camp)
                 rc = p[F['RCDATE']].strip()
                 if re.fullmatch(r'\d{8}', rc):
                     latest = max(latest, rc)
@@ -112,17 +133,16 @@ def build(pre, post, target, last_modified=None, previous=None, allow_shrink=Fal
                 if not make or not model or not year.isdigit():
                     continue
                 key = (make, model, int(year), camp, p[F['COMPNAME']].strip())
-                rid = int(p[F['RECORD_ID']])
                 prev = vehicles.get(key)
                 if prev is None or rid < prev[0]:
                     vehicles[key] = (rid, p[F['MFGTXT']].strip())
         if not campaigns or not vehicles:
             raise ValueError('Empty recall archives')
-        db.executemany('INSERT INTO campaigns VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', ((k, *v) for k, v in sorted(campaigns.items())))
+        db.executemany('INSERT INTO campaigns VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', ((k, *v[1]) for k, v in sorted(campaigns.items())))
         db.executemany('INSERT INTO vehicles VALUES(?,?,?,?,?,?,?)', ((*k, *v) for k, v in sorted(vehicles.items())))
         counts = {'source_rows': rows, 'campaigns': len(campaigns), 'vehicle_rows': len(vehicles),
                   'make_model_years': db.execute('SELECT COUNT(*) FROM (SELECT DISTINCT make, model, year FROM vehicles)').fetchone()[0],
-                  'campaign_types': types}
+                  'campaign_types': types, 'campaigns_with_differing_rows': len(differing)}
         prev = previous_counts(previous)
         if prev and not allow_shrink:
             for k in ('campaigns', 'vehicle_rows'):

@@ -1,0 +1,11 @@
+[Unit]
+Description=mcp.vin: daily refresh of local NHTSA recall and complaint data
+
+[Timer]
+# NHTSA republishes the recall files around 08:00 UTC and the complaint file around 10:15 UTC.
+OnCalendar=*-*-* 11:40:00 UTC
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
