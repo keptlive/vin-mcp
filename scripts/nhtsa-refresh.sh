@@ -58,24 +58,25 @@ check_space() {
 }
 
 # fetch NAME URL MAXBYTES -> prints "changed" or "same"; the file lands in $WORK/dl/NAME only when it is complete,
-# matches its ETag (an MD5 for these files) and, for a zip, tests clean.
+# matches its ETag (an MD5 for these files) and, for a zip, tests clean. static.nhtsa.gov answers If-Modified-Since
+# with 304 but ignores If-None-Match (checked 2026-11-27), so the condition is the stored Last-Modified.
 fetch() {
   local name=$1 url=$2 max=$3 dir=$WORK/dl part code etag md5
   part=$dir/$name.part
   rm -f "$part"
   local cond=()
-  [ -s "$dir/$name" ] && [ -s "$dir/$name.etag" ] && cond=(--etag-compare "$dir/$name.etag")
+  [ -s "$dir/$name" ] && [ -s "$dir/$name.last-modified" ] && cond=(-z "$(cat "$dir/$name.last-modified")")
   code=$(curl -sS -A "$UA" --retry 4 --retry-delay 30 --max-time 3600 --max-filesize "$max" "${cond[@]}" \
-    --etag-save "$dir/$name.etag.new" -D "$dir/$name.headers" -o "$part" -w '%{http_code}' "$url") || { rm -f "$part"; fail "download $name"; }
-  if [ "$code" = 304 ]; then rm -f "$part" "$dir/$name.etag.new"; echo same; return; fi
+    -D "$dir/$name.headers.new" -o "$part" -w '%{http_code}' "$url") || { rm -f "$part"; fail "download $name"; }
+  if [ "$code" = 304 ]; then rm -f "$part" "$dir/$name.headers.new"; echo same; return; fi
   [ "$code" = 200 ] || { rm -f "$part"; fail "download $name: HTTP $code"; }
-  etag=$(tr -d '"\r\n' < "$dir/$name.etag.new")
+  etag=$(grep -i '^etag:' "$dir/$name.headers.new" | tail -1 | cut -d' ' -f2- | tr -d '"\r\n')
   md5=$(md5sum "$part" | cut -d' ' -f1)
   case "$etag" in *-*|'') ;; *) [ "$etag" = "$md5" ] || { rm -f "$part"; fail "$name: MD5 $md5 is not the ETag $etag"; } ;; esac
   case "$name" in *.zip) unzip -tq "$part" > /dev/null || { rm -f "$part"; fail "$name: zip test failed"; } ;; esac
   mv "$part" "$dir/$name"
-  mv "$dir/$name.etag.new" "$dir/$name.etag"
-  grep -i '^last-modified:' "$dir/$name.headers" | cut -d' ' -f2- | tr -d '\r' > "$dir/$name.last-modified"
+  mv "$dir/$name.headers.new" "$dir/$name.headers"
+  grep -i '^last-modified:' "$dir/$name.headers" | tail -1 | cut -d' ' -f2- | tr -d '\r' > "$dir/$name.last-modified"
   echo changed
 }
 

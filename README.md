@@ -215,8 +215,8 @@ See [data sources and scope](docs/data-sources.md) and the machine-readable guid
 Use Node.js 22 or later, run `npm ci`, then `npm start`. Run `npm test` and
 `node --test test/transport.test.mjs` for the application and actual MCP transport checks.
 The Python importer tests use only the standard library:
-`python3 tests/investigations_test.py`, `python3 tests/communications_storage_test.py` and
-`python3 tests/recall_labels_test.py`.
+`python3 tests/investigations_test.py`, `python3 tests/communications_storage_test.py`,
+`python3 tests/recall_labels_test.py` and `python3 tests/nhtsa_local_test.py`.
 
 Install public indexes with `python3 scripts/import-communications.py`,
 `python3 scripts/import-investigations.py` and `python3 scripts/import-recall-labels.py`.
@@ -224,6 +224,11 @@ Use `--refresh` for a new official snapshot. The recall label index (`data/recal
 about 10 MB, built in seconds from NHTSA's two recall flat files) lets reports find campaigns
 NHTSA files under another model name; without it, reports say the related-name list is partial.
 NHTSA updates the flat files daily; refresh the index when convenient (weekly is plenty).
+Recalls, complaints and 5-Star Safety Ratings are answered from local copies of NHTSA's public data when they are
+installed (`data/nhtsa-recalls.db`, about 80 MB; `data/nhtsa-complaints.db`, about 1.7 GB; `data/nhtsa-ratings.db`),
+with NHTSA's live API as the fallback; each answer's `data_source` says which. `scripts/nhtsa-refresh.sh` builds and
+refreshes them (and the recall label index); `deploy/systemd/` holds timers for it, not installed by default. See
+[local NHTSA data](docs/nhtsa-local-data.md).
 The standard bulletin index needs about 3.4 GB plus archives. To reduce storage without
 changing the API, run `python3 scripts/compact-communications.py data/communications.db data/communications-compact.db`.
 The compact target is a separate file, verified row for row; deploy it under the name
