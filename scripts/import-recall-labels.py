@@ -139,6 +139,20 @@ def build(archives, target, urls=URLS):
 
 
 def main():
+    """No arguments: download into operations/free-data (or reuse it) and build data/recall-labels.db.
+    --pre/--post/--out: build from archives already downloaded (scripts/nhtsa-build.sh)."""
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--pre')
+    ap.add_argument('--post')
+    ap.add_argument('--out')
+    ap.add_argument('--refresh', action='store_true', help='download again even when a cached archive exists')
+    a = ap.parse_args()
+    if a.pre or a.post or a.out:
+        if not (a.pre and a.post and a.out):
+            ap.error('--pre, --post and --out go together')
+        print(json.dumps(build({'FLAT_RCL_PRE_2010.zip': Path(a.pre), 'FLAT_RCL_POST_2010.zip': Path(a.post)}, Path(a.out)), indent=2))
+        return
     cache = ROOT / 'operations/free-data'
     cache.mkdir(parents=True, exist_ok=True)
     target = ROOT / 'data/recall-labels.db'
@@ -146,7 +160,7 @@ def main():
     archives = {}
     for name, url in URLS.items():
         archive = cache / name
-        if not archive.exists() or '--refresh' in sys.argv:
+        if not archive.exists() or a.refresh:
             with urlopen(url, timeout=120) as r:
                 payload = r.read(60_000_001)
             if len(payload) > 60_000_000:

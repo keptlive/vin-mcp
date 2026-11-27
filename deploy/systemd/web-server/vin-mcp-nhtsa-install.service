@@ -1,0 +1,14 @@
+[Unit]
+Description=mcp.vin: pull, gate and install new NHTSA data files from the build server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=NHTSA_STATE=/var/lib/vin-mcp-nhtsa
+Environment=NHTSA_DATA=/opt/vin-mcp/data
+ExecStart=/usr/bin/python3 /opt/vin-mcp/scripts/nhtsa-install.py pull
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=700M
+TimeoutStartSec=3h

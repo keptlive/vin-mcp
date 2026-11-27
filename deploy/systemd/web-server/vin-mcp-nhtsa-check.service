@@ -1,0 +1,14 @@
+[Unit]
+Description=mcp.vin: NHTSA data freshness check (mails the owner)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=NHTSA_STATE=/var/lib/vin-mcp-nhtsa
+Environment=NHTSA_DATA=/opt/vin-mcp/data
+ExecStart=/usr/bin/python3 /opt/vin-mcp/scripts/nhtsa_datasets.py check
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=300M
+TimeoutStartSec=10min

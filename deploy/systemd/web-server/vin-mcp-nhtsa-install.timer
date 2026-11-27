@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly pull of new NHTSA data files
+
+[Timer]
+OnCalendar=*-*-* *:35:00 UTC
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

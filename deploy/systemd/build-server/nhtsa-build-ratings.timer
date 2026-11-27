@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly NHTSA ratings crawl
+
+[Timer]
+OnCalendar=Sun *-*-* 05:00:00 UTC
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

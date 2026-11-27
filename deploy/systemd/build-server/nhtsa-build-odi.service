@@ -1,0 +1,13 @@
+[Unit]
+Description=mcp.vin: build + publish NHTSA ODI data (recalls, recall labels, complaints, investigations, communications)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=NHTSA_WORK=/srv/nhtsa-build
+ExecStart=/opt/vin-mcp-builder/scripts/nhtsa-build.sh odi
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=1500M
+TimeoutStartSec=12h

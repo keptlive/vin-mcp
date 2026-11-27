@@ -251,15 +251,22 @@ See [data sources and scope](docs/data-sources.md) and the machine-readable guid
 Use Node.js 22 or later, run `npm ci`, then `npm start`. Run `npm test` and
 `node --test test/transport.test.mjs` for the application and actual MCP transport checks.
 The Python importer tests use only the standard library:
-`python3 tests/investigations_test.py`, `python3 tests/communications_storage_test.py` and
-`python3 tests/recall_labels_test.py`.
+`python3 tests/investigations_test.py`, `python3 tests/communications_storage_test.py`,
+`python3 tests/recall_labels_test.py` and `python3 tests/nhtsa_local_test.py`.
 
 Install public indexes with `python3 scripts/import-communications.py`,
 `python3 scripts/import-investigations.py` and `python3 scripts/import-recall-labels.py`.
 Use `--refresh` for a new official snapshot. The recall label index (`data/recall-labels.db`,
 about 10 MB, built in seconds from NHTSA's two recall flat files) lets reports find campaigns
 NHTSA files under another model name; without it, reports say the related-name list is partial.
-NHTSA updates the flat files daily; refresh the index when convenient (weekly is plenty).
+NHTSA updates the flat files daily; `scripts/nhtsa-build.sh odi` rebuilds the index when they change.
+Recalls, complaints and 5-Star Safety Ratings are answered from local copies of NHTSA's public data when they are
+installed (`data/nhtsa-recalls.db`, about 80 MB; `data/nhtsa-complaints.db`, about 1.7 GB; `data/nhtsa-ratings.db`),
+with NHTSA's live API as the fallback; each answer's `data_source` says which. Every NHTSA-derived file (these three,
+the recall label, investigation and bulletin indexes and `vpic.db`) is rebuilt on the build server when NHTSA changes
+its source (`scripts/nhtsa-build.sh`), gated, and pulled and swapped in by the web server (`scripts/nhtsa-install.py`),
+with a freshness check that mails the owner (`scripts/nhtsa_datasets.py check`); `deploy/systemd/` holds the timers,
+not installed by default. See [local NHTSA data](docs/nhtsa-local-data.md).
 The standard bulletin index needs about 3.4 GB plus archives. To reduce storage without
 changing the API, run `python3 scripts/compact-communications.py data/communications.db data/communications-compact.db`.
 The compact target is a separate file, verified row for row; deploy it under the name
@@ -275,7 +282,7 @@ charting or document tools to create figures and analysis. Custom chart renderin
 in the agent's tools. The API supplies comparisons, scenario calculations, provenance and JSON.
 Configuration/model-year data and VIN-specific facts retain their distinct scopes.
 
-VIN recall repairs: mcp.vin does not check them and does not ask any manufacturer about a VIN. Every report's `recall_status` links to the manufacturer's own recall page (the VIN filled in where the page takes it from the link: Ford, Tesla, Honda, Acura, Subaru, Hyundai) and to NHTSA's VIN recall page, with `open_count` and `completed_count` null (unknown, never zero); `vin_recall_status`, `GET /api/vin/{vin}/recall-status` and `VinClient.recallStatus(vin)` return the same block. Makes without a listed page get NHTSA's link only. `?recall_wait` (REST) and `recall_wait` (MCP) are ignored. NHTSA's complaint list (5-17 s for a common model) can arrive after the report: `complaints.pending: true` with `status_url` `/api/vin/{vin}/complaints`. See the [source and coverage notes](docs/data-sources.md#vin-recall-repairs-links-only-since-18-november-2026).
+VIN recall repairs: mcp.vin does not check them and does not ask any manufacturer about a VIN. Every report's `recall_status` links to the manufacturer's own recall page (the VIN filled in where the page takes it from the link: Ford, Tesla, Honda, Acura, Subaru, Hyundai) and to NHTSA's VIN recall page, with `open_count` and `completed_count` null (unknown, never zero); `vin_recall_status`, `GET /api/vin/{vin}/recall-status` and `VinClient.recallStatus(vin)` return the same block. Makes without a listed page get NHTSA's link only. `?recall_wait` (REST) and `recall_wait` (MCP) are ignored. When NHTSA's API is asked for complaints (the local copy missing or out of date), its list (5-17 s for a common model) can arrive after the report: `complaints.pending: true` with `status_url` `/api/vin/{vin}/complaints`. See the [source and coverage notes](docs/data-sources.md#vin-recall-repairs-links-only-since-18-november-2026).
 
 mcp.vin is an independent free service, not affiliated with or endorsed by NHTSA, EPA, the U.S. Department of Energy, Transport Canada, the Federal Reserve or any vehicle manufacturer. Transport Canada dimensions: contains information licensed under the [Open Government Licence – Canada](https://open.canada.ca/en/open-government-licence-canada).
 

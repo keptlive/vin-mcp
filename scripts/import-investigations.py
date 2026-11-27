@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Index the official NHTSA investigation archive without dropping source variants."""
+"""Index the official NHTSA investigation archive without dropping source variants.
+
+  python3 scripts/import-investigations.py [--refresh]       download FLAT_INV.zip if missing (--refresh: always) -> data/investigations.db
+  python3 scripts/import-investigations.py --zip FLAT_INV.zip --out FILE [--last-modified HTTP-DATE]
+      build from a file on hand (scripts/nhtsa-build.sh); --last-modified is NHTSA's date of that file
+"""
 from pathlib import Path
 from urllib.request import urlopen
-import csv, datetime, hashlib, io, json, os, sqlite3, sys, zipfile
+import argparse, csv, datetime, hashlib, io, json, os, sqlite3, sys, zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 URL = 'https://static.nhtsa.gov/odi/ffdd/inv/FLAT_INV.zip'
 
-def build(archive, target, url=URL):
+def build(archive, target, url=URL, last_modified=None):
     payload = archive.read_bytes()
     temp = target.with_name('investigations-build-' + str(os.getpid()) + '.db')
     db = sqlite3.connect(temp)
@@ -35,6 +40,7 @@ def build(archive, target, url=URL):
         db.executescript('CREATE INDEX vehicle ON applicability(make COLLATE NOCASE,model COLLATE NOCASE,year); CREATE INDEX action ON reports(id);')
         metadata = {'url':url,'sha256':hashlib.sha256(payload).hexdigest(),'source_rows':count,'downloaded_at':datetime.datetime.fromtimestamp(archive.stat().st_mtime,datetime.timezone.utc).isoformat(),'indexed_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
         db.execute('INSERT INTO metadata VALUES(?,?)',('source',json.dumps(metadata)))
+        if last_modified: db.execute('INSERT INTO metadata VALUES(?,?)',('source_last_modified',last_modified))
         db.commit()
         if db.execute('PRAGMA integrity_check').fetchone()[0]!='ok': raise ValueError('Integrity failure')
         metadata['distinct_actions']=db.execute('SELECT count(DISTINCT id) FROM reports').fetchone()[0]
@@ -47,10 +53,16 @@ def build(archive, target, url=URL):
         raise
 
 def main():
+    ap=argparse.ArgumentParser()
+    ap.add_argument('--refresh',action='store_true'); ap.add_argument('--zip',type=Path); ap.add_argument('--out',type=Path)
+    ap.add_argument('--last-modified')
+    args=ap.parse_args()
+    target=args.out or ROOT/'data/investigations.db'; target.parent.mkdir(parents=True,exist_ok=True)
+    if args.zip:
+        print(json.dumps(build(args.zip,target,last_modified=args.last_modified),indent=2)); return
     cache=ROOT/'operations/free-data'; cache.mkdir(parents=True,exist_ok=True)
-    target=ROOT/'data/investigations.db'; target.parent.mkdir(exist_ok=True)
     archive=cache/'FLAT_INV.zip'
-    if not archive.exists() or '--refresh' in sys.argv:
+    if not archive.exists() or args.refresh:
         with urlopen(URL,timeout=60) as r: payload=r.read(30_000_001)
         if len(payload)>30_000_000: raise ValueError('Download size limit')
         staged=archive.with_suffix('.download')
