@@ -31,7 +31,11 @@ answered instead:
 - `not_crawled` (ratings only): the crawl has no clean answer for that make, model and year, or for one of its
   variants.
 
-If the live API then fails, the local copy answers anyway, with `live_api: "failed"` and a note. `NHTSA_RECALLS_DB`,
+If the live API then fails, the local copy answers anyway, with `live_api: "failed"` and a note.
+`NHTSA_COMPLAINTS_FIRST=live` turns the order around for complaints only: the live API first, the local copy when
+it fails (`data_source.mode: "live_first"`). The complaint flat file cannot reproduce which vehicle NHTSA's API
+files every complaint under (see Parity), so this keeps the live lists exact while the API works and still answers
+when it does not; the default is local first. `NHTSA_RECALLS_DB`,
 `NHTSA_COMPLAINTS_DB` and `NHTSA_RATINGS_DB` replace a file path. The server opens the files read-only and reopens a
 file within a minute after the refresh replaces it; no restart is needed. With the recall copy in use, related model
 names come from it too, and NHTSA's products API is not asked.
@@ -87,7 +91,39 @@ variant descriptions, not the API's order, and had not been updated since 7 Augu
 
 ## Parity with the live API
 
-PARITY_SECTION
+Method: 5,500 make/model/year triples drawn from 25,073 vPIC-decoded VINs (4,000 random, 1,500 of the most common
+makes) plus 1,000 recall triples filed under another model name, each asked of the live API by origin/main's own
+code on 27 November 2026 (one request at a time, 1 s apart; items hit by timeouts or errors were retried up to 4
+rounds) and answered by this branch's local lookups with a network that throws. Tools and raw results:
+`/root/vin-mcp-research/nhtsa-local-2026-11-27/` and the storage server's `/root/nhtsa-local/parity/`.
+
+**Complaints** (5,500 triples, flat file of 26 November):
+
+| | Items |
+| --- | --- |
+| Live API answered | 3,032 |
+| ... same complaints listed | 2,163 (71%) |
+| ... live lists complaints the local copy does not | 732 |
+| ... local lists complaints the live API does not | 100 |
+| Live API answered HTTP 400 (shown as unavailable by the live code) | 2,468 |
+| ... local copy also has none | 2,112 |
+| ... local copy has complaints | 356 |
+
+Complaints listed: live 555,524, local 514,094; 50,461 only live (9.1%), 9,031 only local. Why, from the flat
+rows of 3,506 live-only complaints (68 vehicles early in the run): NHTSA's API files complaints under a model the flat file
+does not show: old rows whose model text is the make (`CHEVROLET` `CHEVROLET` 1996, listed by the API under TAHOE),
+odd model text (`TRAILBLAZER EXT 370`, listed under TRAILBLAZER), model families (`MERCEDES BENZ` `GL450`, listed
+under `MERCEDES-BENZ` `GL-CLASS`); some old complaint numbers are listed more than once by the API; a few complaints
+are not in the flat file at all. No matching rule on the flat file reproduces this: allowing longer names, hyphens or
+`-CLASS` families fixes some vehicles and adds wrong complaints to others. Of 505,063 complaints in both lists:
+components are the same set in another order for 68,391 (the API's order follows no rule found) and differ for 222
+(old numbers the API lists twice); texts differ for 1,099 (the flat file cuts texts at 2,048 characters, 1,735
+complaints in all; the API drops `$` and emoji); dates differ for 45 and crash, fire or injury flags for 4 (all old
+numbers the API lists twice). Complaint order differs in 566 of 1,702 lists with the same complaints.
+
+RECALL_PARITY
+
+RATINGS_PARITY
 
 ## Refresh
 
