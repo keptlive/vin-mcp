@@ -144,9 +144,11 @@ tables, row floors, cadence and alert limits, is `scripts/nhtsa_datasets.py`.
 
 - `odi`, daily 12:30 UTC, after NHTSA's morning updates (Last-Modified on 27 Nov: FLAT_RCL 08:03, FLAT_INV 09:05,
   FLAT_CMPL 10:08, the seven TSB archives 11:04-11:10 UTC). Each file is fetched only when it changed: a HEAD request
-  first, and when its ETag (the file's MD5) equals the copy on hand nothing is downloaded (NHTSA re-stamps all seven
-  TSB archives every day, the 1995-1999 one included, so Last-Modified alone would re-download about 400 MB a day);
-  otherwise a GET with If-Modified-Since (static.nhtsa.gov ignores If-None-Match). A download must match its ETag and
+  first, and when its ETag (the file's MD5) equals the copy on hand nothing is downloaded; otherwise a GET with
+  If-Modified-Since (static.nhtsa.gov ignores If-None-Match). NHTSA regenerates all seven TSB zips every day (new
+  timestamps inside, so new MD5s: on 27 Nov every archive differed from the 24 Oct copies, while only the newest one,
+  2025-2026, had gained rows: 814,313 to 854,132), so the bulletin archives (about 88 MB) are downloaded and the
+  bulletin index rebuilt (about 7.5 min) every day. A download must match its ETag and
   test clean as a zip. Then the recall campaign crawl (new, amended and recent campaigns plus 200 older ones, at most
   2,500 a run, 1 s apart), and a rebuild of only the datasets whose files changed. The newest TSB archive is named by
   its end year (`TSBS_RECEIVED_2025-2026.zip`); the build looks for this year's name, then last year's, and fails
@@ -196,7 +198,7 @@ last outcome. Files installed by hand before this refresh are read from their ow
 | nhtsa-recalls, recall-labels | daily | daily build, hourly install | 48 h | 3 days (the site asks NHTSA live first at 7) |
 | nhtsa-complaints | daily | daily build, hourly install | 48 h | 3 days (live first at 7) |
 | investigations | daily | daily build, hourly install | 48 h | 3 days |
-| communications | daily (re-stamped) | daily build when an archive's MD5 changed | 48 h | 3 days |
+| communications | daily (all 7 zips regenerated; the newest gains rows) | daily build | 48 h | 3 days |
 | nhtsa-ratings | a few ratings a month | weekly crawl (current + next model year) | 15 days | 15 days since the last complete crawl (live first at 45) |
 | vpic | monthly | daily release check; build + parity on a new release | 48 h (the daily check) | 63 days since NHTSA's release |
 

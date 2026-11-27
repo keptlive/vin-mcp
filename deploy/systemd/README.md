@@ -11,7 +11,7 @@ install sheet. Nothing here is installed until the owner says "deploy".
 | recall-labels.db | FLAT_RCL_PRE/POST_2010.zip | daily | with recalls | hourly | 48 h; 3 d |
 | nhtsa-complaints.db | FLAT_CMPL.zip | daily | daily 12:30 UTC | hourly | 48 h; 3 d |
 | investigations.db | FLAT_INV.zip | daily | daily 12:30 UTC | hourly | 48 h; 3 d |
-| communications.db | TSBS_RECEIVED_*.zip (7 archives) | daily (re-stamped daily; content checked by MD5) | daily 12:30 UTC | hourly | 48 h; 3 d |
+| communications.db | TSBS_RECEIVED_*.zip (7 archives, ~88 MB) | daily (all 7 regenerated; the newest gains rows) | daily 12:30 UTC | hourly | 48 h; 3 d |
 | nhtsa-ratings.db | SafetyRatings API crawl (current + next model year) | a few new ratings a month | Sundays 05:00 UTC | hourly | crawl older than 15 d |
 | vpic.db | vPICList_lite_YYYY_MM.plain.zip | monthly (mid-month) | release check daily 06:10 UTC; build + parity on a new release | hourly | not confirmed for 48 h; release older than 63 d; parity not exact |
 
