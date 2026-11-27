@@ -180,3 +180,13 @@ test('safety ratings answer locally in the API order; an uncrawled variant goes 
   assert.deepEqual([pilot.rated, pilot.overall, pilot.data_source.source, pilot.data_source.fallback_reason], [true, 5, 'nhtsa_api', 'not_crawled']);
   assert.equal(urls.length, 2);
 });
+
+test('complaints, live first (NHTSA_COMPLAINTS_FIRST=live): the live list while the API works, the local copy when it fails', async () => {
+  const live = async () => json({ count: 1, results: [{ odiNumber: 99, components: 'ENGINE', summary: 'LIVE.', dateComplaintFiled: '01/02/2024', dateOfIncident: null, crash: false, fire: false, numberOfInjuries: 0, numberOfDeaths: 0 }] });
+  const up = await getComplaints('HONDA', 'CR-V', 2024, { file: files.complaints, fetch: live, now: NOW, first: 'live' });
+  assert.deepEqual([up.count, up.complaints[0].odi_number, up.data_source.source, up.data_source.fallback_reason], [1, 99, 'nhtsa_api', 'live_first']);
+  const down = await getComplaints('HONDA', 'CR-V', 2024, { file: files.complaints, fetch: async () => json({}, 503), now: NOW, first: 'live' });
+  assert.deepEqual([down.count, down.data_source.source, down.data_source.live_api, down.data_source.mode, down.data_source.fallback_reason], [3, 'mcp_vin_nhtsa_local', 'failed', 'live_first', null]);
+  const neither = await getComplaints('HONDA', 'CR-V', 2024, { file: join(dir, 'absent.db'), fetch: async () => json({}, 503), now: NOW, first: 'live' });
+  assert.deepEqual([neither.available, neither.data_source.source], [false, 'nhtsa_api']);
+});
