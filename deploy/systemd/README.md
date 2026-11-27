@@ -6,7 +6,7 @@ current (docs/nhtsa-local-data.md). These units run it on the web server. Nothin
 | Unit | When | What | Typical run |
 | --- | --- | --- | --- |
 | `vin-mcp-nhtsa-flat.timer` | daily 11:40 UTC (+ up to 20 min) | recall + complaint flat files, recall campaign crawl (at most 2,500 campaigns) | 5-10 min; up to about an hour while the campaign crawl fills |
-| `vin-mcp-nhtsa-ratings.timer` | Sundays 05:00 UTC (+ up to 30 min) | 5-Star Safety Ratings crawl: recent model years weekly, every model year every 90 days | 2-3 h; about 15 h every 90 days |
+| `vin-mcp-nhtsa-ratings.timer` | Sundays 05:00 UTC (+ up to 30 min) | 5-Star Safety Ratings crawl: recent model years weekly, every model year every 90 days | about 2 h; about 11 h every 90 days |
 
 NHTSA republishes the recall files around 08:00 UTC and the complaint file around 10:15 UTC (Last-Modified headers,
 November 2026). Requests to api.nhtsa.gov go one at a time, 1 s apart. Both services run at the lowest CPU and disk
