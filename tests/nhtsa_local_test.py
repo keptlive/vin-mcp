@@ -300,6 +300,7 @@ class RatingsCrawlTest(unittest.TestCase):
         years = [2027, 2026, 2025, 2024, 2023, 1990]
         today = datetime.date(2026, 11, 27)
         self.assertEqual(harvest.year_scope('recent', years, today), {2027, 2026, 2025, 2024})
+        self.assertEqual(harvest.year_scope('current', years, today), {2027, 2026})
         self.assertEqual(harvest.year_scope('2023-2024', years, today), {2023, 2024})
         self.assertEqual(harvest.year_scope('none', years, today), set())
 

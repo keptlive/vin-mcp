@@ -140,7 +140,7 @@ def build(archives, target, urls=URLS):
 
 def main():
     """No arguments: download into operations/free-data (or reuse it) and build data/recall-labels.db.
-    --pre/--post/--out: build from archives already downloaded (scripts/nhtsa-refresh.sh)."""
+    --pre/--post/--out: build from archives already downloaded (scripts/nhtsa-build.sh)."""
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument('--pre')

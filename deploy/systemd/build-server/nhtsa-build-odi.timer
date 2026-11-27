@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily NHTSA ODI build, after NHTSA's morning updates (08:00-11:10 UTC)
+
+[Timer]
+OnCalendar=*-*-* 12:30:00 UTC
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

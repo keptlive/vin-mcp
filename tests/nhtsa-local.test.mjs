@@ -190,3 +190,20 @@ test('complaints, live first (NHTSA_COMPLAINTS_FIRST=live): the live list while 
   const neither = await getComplaints('HONDA', 'CR-V', 2024, { file: join(dir, 'absent.db'), fetch: async () => json({}, 503), now: NOW, first: 'live' });
   assert.deepEqual([neither.available, neither.data_source.source], [false, 'nhtsa_api']);
 });
+
+test('the refresh can check a new file through the site code: lookups take another file; known answers fail closed', async () => {
+  const { communications } = await import('../lib/communications.mjs');
+  const { investigations } = await import('../lib/investigations.mjs');
+  const { runChecks } = await import('../scripts/nhtsa-known-answers.mjs');
+  const absent = join(dir, 'absent.db');
+  assert.equal(communications({ make: 'FORD', model: 'F-150', year: 2015 }, { file: absent }).reason, 'dataset_not_indexed');
+  assert.equal(investigations({ make: 'DODGE', model: 'DURANGO', year: 2011 }, { file: absent }).reason, 'dataset_not_indexed');
+  // the fixture copies hold none of the real-world known answers, so every check must fail, never throw
+  for (const [name, file] of [['nhtsa-recalls', files.recalls], ['nhtsa-complaints', files.complaints], ['nhtsa-ratings', files.ratings],
+    ['recall-labels', absent], ['investigations', absent], ['communications', absent], ['vpic', absent]]) {
+    const r = runChecks(name, file);
+    assert.equal(r.ok, false, name);
+    assert.ok(r.checks.length > 0 || r.error, name);
+  }
+  assert.equal(runChecks('nope', absent).ok, false);
+});

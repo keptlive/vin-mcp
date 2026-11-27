@@ -18,8 +18,9 @@ Re-running resumes: a path already fetched cleanly is not fetched again unless i
 A path that fails is retried with back-off; at the end every failed path is tried once more, and paths that never
 ran clean are listed in the summary (--summary) so the build can leave them to the live API.
 
-Scheduled use (scripts/nhtsa-refresh.sh): `--refresh-years recent` re-fetches the lists and ratings of the last
-model years (new ratings appear there); `--refresh-years all` re-crawls everything (quarterly).
+Scheduled use (scripts/nhtsa-build.sh ratings, weekly): `--years current --refresh-years current` re-fetches the
+lists and ratings of the current and next model years, where new ratings appear; older years keep their stored
+answers. `--refresh-years all` re-crawls everything (NHTSA_FULL_CRAWL_DAYS, off by default).
 """
 import argparse, datetime, json, os, sqlite3, sys, time, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
@@ -138,7 +139,8 @@ class Crawler:
 
 
 def year_scope(spec, years, today=None):
-    """'all' -> every year; 'recent' -> current year - 2 and later; 'none' -> no year; '2024-2027' -> that range."""
+    """'all' -> every year; 'recent' -> current year - 2 and later; 'current' -> this calendar year and later (the
+    current and next model years); 'none' -> no year; '2024-2027' -> that range."""
     today = today or datetime.date.today()
     if spec == 'all':
         return set(years)
@@ -146,6 +148,8 @@ def year_scope(spec, years, today=None):
         return set()
     if spec == 'recent':
         return {y for y in years if y >= today.year - 2}
+    if spec == 'current':
+        return {y for y in years if y >= today.year}
     lo, _, hi = spec.partition('-')
     lo, hi = int(lo), int(hi or lo)
     return {y for y in years if lo <= y <= hi}
@@ -213,8 +217,8 @@ def final_pass(db, crawler, log):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--state', required=True, help='SQLite state file (created when missing)')
-    ap.add_argument('--years', default='all', help="model years to crawl: all | recent | 2024-2027")
-    ap.add_argument('--refresh-years', default='none', help='model years whose stored answers are fetched again: none | recent | all | range')
+    ap.add_argument('--years', default='all', help="model years to crawl: all | recent | current | 2024-2027")
+    ap.add_argument('--refresh-years', default='none', help='model years whose stored answers are fetched again: none | recent | current | all | range')
     ap.add_argument('--pause', type=float, default=1.0, help='seconds between requests (default 1.0)')
     ap.add_argument('--timeout', type=float, default=30.0)
     ap.add_argument('--summary', help='write a JSON summary here')

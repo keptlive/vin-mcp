@@ -4,7 +4,8 @@ Reports answer recall, complaint and 5-Star Safety Rating questions from mcp.vin
 the same way VINs are decoded from a local vPIC database. NHTSA's live API (api.nhtsa.gov) is only the fallback.
 Why: api.nhtsa.gov timed out about 60 times a day on 24-26 November 2026, and every timeout dropped a section from a
 report. Code: `lib/nhtsa-local.mjs` (lookups), `lib/nhtsa.mjs` (local first, live fallback), `scripts/import-nhtsa-*.py`
-and `scripts/harvest-nhtsa-*.py` (the data), `scripts/nhtsa-refresh.sh` and `deploy/systemd/` (refresh, not installed).
+and `scripts/harvest-nhtsa-*.py` (the data), `scripts/nhtsa-build.sh`, `scripts/nhtsa-install.py`, `scripts/nhtsa_datasets.py`
+and `deploy/systemd/` (refresh of every NHTSA-derived file, not installed).
 
 ## What is kept
 
@@ -133,19 +134,78 @@ HTTP 400 too. Many vehicles show no rating on both sides because NCAP names mode
 
 ## Refresh
 
-`scripts/nhtsa-refresh.sh flat` (daily) downloads the three flat files only when NHTSA changed them (static.nhtsa.gov
-answers If-Modified-Since with 304; it ignores If-None-Match), checks each download against its ETag (an MD5) and
-tests the zip, crawls the recall campaigns that are new, amended (their flat-file values changed), recent (reported
-in the last 120 days, again every 14 days) or longest unchecked (200 a day), at most 2,500 a run, and rebuilds what
-changed. `scripts/nhtsa-refresh.sh ratings` (weekly) re-crawls the model years from two years back onward and,
-every 90 days, every model year. Every build writes a new file and renames it over the old one, refuses a result
-with over 1% fewer campaigns, complaints or rated variants than the file it replaces, and the script refuses to start
-with less than 8 GB free. Outcomes go to `/var/lib/vin-mcp-nhtsa/status.json` and the journal. Timers and install
-steps: `deploy/systemd/README.md` (not installed).
+The refresh covers every NHTSA-derived file the site serves, not only the three above: `nhtsa-recalls.db`,
+`recall-labels.db`, `nhtsa-complaints.db`, `investigations.db`, `communications.db`, `nhtsa-ratings.db` and `vpic.db`.
+Until this branch none of them refreshed (on 27 Nov 2026 the web server's `investigations.db` and `communications.db`
+dated from 24 Oct, `recall-labels.db` from 17 Nov, `vpic.db` from 18 Nov). The registry of all seven, with each one's
+tables, row floors, cadence and alert limits, is `scripts/nhtsa_datasets.py`.
 
-First deploy (with the owner's go): copy the three `.db` files built on the storage server into `/opt/vin-mcp/data/`
-(the server picks them up within a minute), and seed `/var/lib/vin-mcp-nhtsa/` with the crawl states
-(`recall-campaigns.db`, `ratings-crawl.db`) so the timers continue the crawls instead of starting over.
+**Build on the build server, never on the web server.** `scripts/nhtsa-build.sh` runs on storage (104.37.188.237):
+
+- `odi`, daily 12:30 UTC, after NHTSA's morning updates (Last-Modified on 27 Nov: FLAT_CMPL 08:03, FLAT_INV 09:05,
+  FLAT_RCL 10:08, the seven TSB archives 11:04-11:10 UTC). Each file is fetched only when it changed: a HEAD request
+  first, and when its ETag (the file's MD5) equals the copy on hand nothing is downloaded (NHTSA re-stamps all seven
+  TSB archives every day, the 1995-1999 one included, so Last-Modified alone would re-download about 400 MB a day);
+  otherwise a GET with If-Modified-Since (static.nhtsa.gov ignores If-None-Match). A download must match its ETag and
+  test clean as a zip. Then the recall campaign crawl (new, amended and recent campaigns plus 200 older ones, at most
+  2,500 a run, 1 s apart), and a rebuild of only the datasets whose files changed. The newest TSB archive is named by
+  its end year (`TSBS_RECEIVED_2025-2026.zip`); the build looks for this year's name, then last year's, and fails
+  loudly (with the fix: `NHTSA_TSB_PERIODS`) if NHTSA renames it some other way.
+- `ratings`, Sundays 05:00 UTC: the ratings crawl of the current and next model years (about 2,200 requests, under
+  an hour); older years keep their stored answers. `NHTSA_FULL_CRAWL_DAYS` (off) can re-crawl every year.
+  `Safercar_data.csv` is not used: it had not changed since 7 Aug 2026.
+- `vpic`, daily 06:10 UTC: two HEAD requests for this and last month's `vPICList_lite_YYYY_MM.plain.zip`. On a new
+  release, `scripts/vpic-refresh.sh` builds it and compares 20,000 decodes with NHTSA's own `spvindecode`; a release
+  whose parity is not exact or whose rule fixes need review is not published and mails instead.
+- One build at a time on that box (1 CPU, 3 GB): a mode waits up to 6 h for another.
+
+**Gate before anything is published, and again before anything is installed** (`nhtsa_datasets.py gate`): the file
+opens and passes `PRAGMA quick_check`; every table and column the site reads exists; row counts are above a floor and
+not down more than 3% from the copy it would replace (the importers' own guard is 1%); and the site's own lookup code
+gives known answers from it (`scripts/nhtsa-known-answers.mjs`: the 2003 Honda Accord's Takata recall 15V320000 and
+1,800+ complaints, the 2005 Cobalt's 14V047000, a 5-star 2020 Camry, EA14001 on the 2011 Durango, 200+ bulletins for
+the 2015 F-150, 1HGCM82633A004352 decoding to a 2003 Accord). The web server runs the gate with its own deployed code,
+so a file built by newer or older code than the site runs is refused instead of breaking the site. A failed gate
+keeps the live copy.
+
+**Publish and pull.** A passing build is published on storage as `publish/<name>.<sha256-12>.db` with a manifest
+`publish/<dataset>.json` (sha256, size, rows, NHTSA source files with Last-Modified and ETag, source date, built date,
+builder commit); the previous version stays for pulls in flight. Every outcome (published, unchanged, failed,
+gate_failed, needs_review, with NHTSA's newest Last-Modified seen) goes to `publish/builder-status.json`. The web
+server pulls hourly (`scripts/nhtsa-install.py pull`) over WireGuard with a read-only rsync key (`rrsync -ro`, like
+the write-only key the listing crawler ships with): the manifests first, then only a dataset whose published sha256
+differs from the installed one. The file is copied by rsync against a hard link of the live file, so only changed
+blocks travel, then checked against the manifest's sha256 and gated.
+
+**Atomic swap, one-step rollback.** The live file is hard-linked to `data/<file>.prev`, then the new file is renamed
+over `data/<file>` (one `rename`, so a reader sees the old or the new file, never half of one). The site needs no
+restart: the research lookups open the file per request; recalls, complaints, ratings and vPIC notice a replaced file
+within a minute. `nhtsa-install.py rollback <dataset>` renames `.prev` back and marks the rolled-back build so it is
+never pulled again; the next build is.
+
+**Status lines.** `/var/lib/vin-mcp-nhtsa/status.jsonl` on the web server: one line per dataset with its state
+(installed, manual = put there by hand, missing), source date, built date, installed date, rows, sha256 and
+`confirmed_at` (the last time the build server checked NHTSA and found this copy current), plus the build server's
+last outcome. Files installed by hand before this refresh are read from their own metadata.
+
+**Freshness alert.** `nhtsa_datasets.py check` (web server, every 6 h) mails the owner through
+`/opt/host-alert/notify.py`, each problem at most once per 20 h, when:
+
+| Dataset | NHTSA changes it | Refresh | Stale (not confirmed against NHTSA for) | Source alert (NHTSA's file unchanged for) |
+| --- | --- | --- | --- | --- |
+| nhtsa-recalls, recall-labels | daily | daily build, hourly install | 48 h | 3 days (the site asks NHTSA live first at 7) |
+| nhtsa-complaints | daily | daily build, hourly install | 48 h | 3 days (live first at 7) |
+| investigations | daily | daily build, hourly install | 48 h | 3 days |
+| communications | daily (re-stamped) | daily build when an archive's MD5 changed | 48 h | 3 days |
+| nhtsa-ratings | a few ratings a month | weekly crawl (current + next model year) | 15 days | 15 days since the last complete crawl (live first at 45) |
+| vpic | monthly | daily release check; build + parity on a new release | 48 h (the daily check) | 63 days since NHTSA's release |
+
+and also at once when a download, build or gate failed or a vPIC release needs review (build server report), when the
+web server refused or could not install a published build for 6 h, when pulls from the build server failed for 6 h,
+or when the build server has not reported for 36 h. `check --dry-run` prints what it would mail.
+
+Install steps, schedules and rollback: `deploy/systemd/README.md` (not installed). The first install brings the
+three new files to the web server (about 1.8 GB) and replaces the four existing ones with fresh builds.
 
 ## Still asked live
 
