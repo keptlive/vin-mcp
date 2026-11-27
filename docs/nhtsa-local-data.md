@@ -11,9 +11,13 @@ and `deploy/systemd/` (refresh of every NHTSA-derived file, not installed).
 
 | File | Built from | Size (27 Nov 2026) | Build |
 | --- | --- | --- | --- |
-| `data/nhtsa-recalls.db` | NHTSA's recall flat files `FLAT_RCL_PRE_2010.zip` and `FLAT_RCL_POST_2010.zip` (static.nhtsa.gov/odi/ffdd/rcl/, republished daily around 08:00 UTC; 22.6 MB zipped, 314 MB of text, 330,408 rows), plus one record per campaign from NHTSA's recall API (below) | 79 MB: 30,494 campaigns, 196,260 vehicle and component rows, 85,252 make/model/years | about 40 s |
+| `data/nhtsa-recalls.db` | NHTSA's recall flat files `FLAT_RCL_PRE_2010.zip` and `FLAT_RCL_POST_2010.zip` (static.nhtsa.gov/odi/ffdd/rcl/, republished daily around 08:00 UTC; 22.6 MB zipped, 314 MB of text, 330,408 rows), plus one record per campaign from NHTSA's recall API (below) | 86 MB with the campaign records (79 MB without): 30,494 campaigns, 196,260 vehicle and component rows, 85,252 make/model/years; the campaign crawl's state file is 35 MB | about 40 s |
 | `data/nhtsa-complaints.db` | NHTSA's complaint flat file `FLAT_CMPL.zip` (static.nhtsa.gov/odi/ffdd/cmpl/, republished daily around 10:15 UTC; 378 MB zipped, 1.63 GB of text, 2,270,753 rows) | 1.72 GB: 1,710,088 complaints under 1,635,489 complaint numbers, 36,992 make/model/years | about 2-3 min, 720 MB of memory, about 4 GB of temporary files |
 | `data/nhtsa-ratings.db` | a crawl of NHTSA's 5-Star Safety Ratings API (no bulk file has what the API answers) | 22 MB: 17,721 rated variants of 12,627 models, model years 1990-2027 (31,767 requests, 10.7 hours) | 3 s |
+
+The other NHTSA-derived files, refreshed by the same chain (below): `recall-labels.db` 17 MB, `investigations.db`
+52 MB (5,741 investigation reports), `communications.db` 594 MB (261,713 manufacturer communications, 5,873,616
+vehicle rows), `vpic.db` 97 MB.
 
 The files are not in git. They are built on a server, never on the phone. The complaint copy keeps only what a report
 shows: make, model, year, complaint number, crash, fire, injuries, deaths, incident and received dates, components and
