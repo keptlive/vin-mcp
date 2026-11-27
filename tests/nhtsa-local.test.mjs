@@ -41,7 +41,15 @@ with zipfile.ZipFile(d / 'post.zip', 'w') as z:
         rcl('14', '24V744000', 'HONDA', 'CR-V HYBRID', '2024', 'STEERING', dnd='Yes'),
         rcl('15', '24E001000', 'HONDA', 'CR-V', '2024', 'EQUIPMENT', rtype='E', rcdate='20240101'),
     ]) + '\r\n')
-load('r', 'import-nhtsa-recalls.py').build(d / 'pre.zip', d / 'post.zip', d / 'nhtsa-recalls.db', 'Thu, 26 Nov 2026 08:04:00 GMT')
+cc = load('cc', 'harvest-nhtsa-recall-campaigns.py')
+cs = cc.open_state(d / 'campaigns.db')
+def api_row(model, comp, date, ota):
+    return {'NHTSACampaignNumber': '24V744000', 'Component': comp, 'ReportReceivedDate': date, 'overTheAirUpdate': ota, 'parkIt': True, 'parkOutSide': False,
+            'Summary': 'Defect.', 'Consequence': 'Crash risk.', 'Remedy': 'Dealers will\r\nfix it.', 'Notes': 'Call NHTSA.', 'Make': 'HONDA', 'Model': model, 'ModelYear': '2024'}
+h = cc.Harvester(cs, 0, 5, 'fixture', lambda m: None)
+h._store('24V744000', 'x', cc.sheet({'results': [api_row('CR-V', 'ELECTRICAL SYSTEM', '04/10/2024', True), api_row('CR-V HYBRID', 'ELECTRICAL SYSTEM', '04/10/2024', True)]}), 1)
+cs.close()
+load('r', 'import-nhtsa-recalls.py').build(d / 'pre.zip', d / 'post.zip', d / 'nhtsa-recalls.db', 'Thu, 26 Nov 2026 08:04:00 GMT', campaign_sheets=d / 'campaigns.db')
 with zipfile.ZipFile(d / 'cmpl.zip', 'w') as z:
     z.writestr('FLAT_CMPL.txt', '\r\n'.join([
         cmpl(1, 11000001, 'HONDA', 'CR-V', '2024', 'SERVICE BRAKES:DISC', 'BRAKES SQUEAL.', '20240110'),
@@ -80,16 +88,18 @@ test('recalls answer locally in the live shape, newest report first, without net
   assert.equal(r.available, true);
   assert.equal(r.count, 3);
   assert.deepEqual(r.recalls.map(c => c.campaign_number), ['24V744000', '24V508000', '24E001000']);
-  const steering = r.recalls[0];
-  assert.equal(steering.component, 'STEERING');                       // first recalled component in file order
-  assert.deepEqual(steering.components, ['STEERING', 'ELECTRICAL SYSTEM']);
-  assert.equal(steering.report_date, '03/10/2024');                  // day first, like the API
-  assert.equal(steering.report_received_date, '2024-10-03');
-  assert.equal(steering.manufacturer, 'Honda (American Honda Motor Co.)');
-  assert.equal(steering.park_it, true);
-  assert.equal(steering.park_outside, false);
-  assert.equal(steering.over_the_air_update, null);                  // not in the flat files: unknown, never false
-  assert.equal(r.recalls[1].components, undefined);
+  const crawled = r.recalls[0];                                      // crawled campaign answer: the API's own values
+  assert.equal(crawled.component, 'ELECTRICAL SYSTEM');               // the API's one component, not the file's first
+  assert.deepEqual(crawled.components, ['STEERING', 'ELECTRICAL SYSTEM']);
+  assert.equal(crawled.report_date, '04/10/2024');                    // the API's date (a day after the flat file's), day first
+  assert.equal(crawled.report_received_date, '2024-10-04');
+  assert.equal(crawled.remedy, 'Dealers will\r\nfix it.');             // the API's line break; same words as the flat file
+  assert.equal(crawled.over_the_air_update, true);
+  assert.equal(crawled.manufacturer, 'Honda (American Honda Motor Co.)');
+  assert.equal(crawled.park_it, true);
+  assert.equal(crawled.park_outside, false);
+  const flatOnly = r.recalls[1];                                      // not crawled yet: the flat files' values
+  assert.deepEqual([flatOnly.component, flatOnly.report_date, flatOnly.over_the_air_update, flatOnly.components], ['TIRES:MARKINGS', '02/07/2024', null, undefined]);
   const equipment = r.recalls[2];
   assert.equal(equipment.park_it, null);                             // the API carries no advisories on equipment campaigns
   assert.equal(r.scope, 'make_model_year');

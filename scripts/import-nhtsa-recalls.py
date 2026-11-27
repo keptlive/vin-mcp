@@ -9,8 +9,12 @@ of a campaign (checked 2026-11-27: 0 of 30,494 campaigns differ), so it is store
 vehicle rows keep only make, model, model year, campaign, component and the row's manufacturer text (the first
 recall record number of each vehicle and component is kept for ordering).
 
+The values only NHTSA's API has (the over-the-air flag, the one component the API names per campaign, its report
+date, the texts' line breaks) come from --campaign-sheets, the state file of scripts/harvest-nhtsa-recall-campaigns.py,
+and are used only where they still fit the flat files (merge_sheets); without it those stay as the flat files say.
+
 Usage: import-nhtsa-recalls.py --pre FLAT_RCL_PRE_2010.zip --post FLAT_RCL_POST_2010.zip --out data/nhtsa-recalls.db
-       [--last-modified 'Thu, 26 Nov 2026 08:04:00 GMT'] [--previous data/nhtsa-recalls.db]
+       [--campaign-sheets recall-campaigns.db] [--last-modified 'Thu, 26 Nov 2026 08:04:00 GMT'] [--previous data/nhtsa-recalls.db]
 The build is atomic (a temp file renamed over --out) and refuses a result that lost more than 1% of the previous
 file's campaigns or vehicle rows (--allow-shrink overrides)."""
 import argparse, datetime, email.utils, hashlib, io, json, os, re, sqlite3, sys, zipfile
@@ -89,7 +93,86 @@ def previous_counts(path):
         return None
 
 
-def build(pre, post, target, last_modified=None, previous=None, allow_shrink=False):
+def ws(text):
+    return ' '.join(str(text or '').split())
+
+
+def api_date(text):
+    """dd/mm/yyyy (the API's report date) -> ISO, or None."""
+    m = re.fullmatch(r'(\d{2})/(\d{2})/(\d{4})', str(text or '').strip())
+    if not m:
+        return None
+    try:
+        return datetime.date(int(m[3]), int(m[2]), int(m[1])).isoformat()
+    except ValueError:
+        return None
+
+
+def merge_sheets(path, campaigns, comps_by_campaign, vehicle_keys):
+    """API values per campaign from the campaign crawl, each kept only where it still fits the flat files:
+      - component: the API's one component when the flat files recall it in that campaign (else the flat pick);
+        per-vehicle components only for campaigns where the API names several;
+      - over-the-air flag: as the API says (null for campaign types the API gives none);
+      - report date: the API's when within 3 days of the flat file's (it is one day later on ~6% of campaigns);
+      - texts: the API's when they differ from the flat files' only in whitespace (line breaks).
+    Returns ({campaign: (api_component, ota, api_report_received, texts)}, [(campaign, make, model, year, component)], stats)."""
+    db = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+    out, per_vehicle = {}, []
+    st = {'campaigns_with_sheet': 0, 'api_absent': 0, 'ota_known': 0, 'ota_true': 0, 'component_from_api': 0,
+          'component_api_not_in_flat': 0, 'vehicle_component_rows': 0, 'date_from_api': 0, 'date_api_differs': 0,
+          'date_api_too_far': 0, 'texts_from_api': 0, 'texts_api_differ': 0, 'inconsistent_sheets': 0}
+    last = None
+    for row in db.execute("SELECT campaign, status, component, vehicle_components, ota, report_date, summary, consequence, remedy, notes, "
+                          "consistent, fetched_at FROM campaigns WHERE status IN ('ok', 'absent')"):
+        camp, status, comp, vcomps, ota, rdate, *texts, consistent, fetched = row
+        if camp not in campaigns:
+            continue
+        last = max(last or '', fetched or '')
+        if status == 'absent':
+            st['api_absent'] += 1
+            continue
+        st['campaigns_with_sheet'] += 1
+        st['inconsistent_sheets'] += 0 if consistent else 1
+        flat = campaigns[camp][1]
+        flat_comps = comps_by_campaign.get(camp, set())
+        api_comp = comp.strip() if isinstance(comp, str) and comp.strip() in flat_comps else None
+        st['component_from_api' if api_comp else 'component_api_not_in_flat'] += 1 if comp else 0
+        if vcomps:
+            for key, c in json.loads(vcomps).items():
+                make, model, year = key.split('|')
+                k = (norm(make), norm(model), int(year) if year.isdigit() else None)
+                if c and str(c).strip() in flat_comps and (k[0], k[1], k[2], camp) in vehicle_keys:
+                    per_vehicle.append((camp, *k, str(c).strip()))
+        if ota is not None:
+            st['ota_known'] += 1
+            st['ota_true'] += ota
+        a, f = api_date(rdate), flat[7]
+        use_date = None
+        if a and f and a != f:
+            st['date_api_differs'] += 1
+            if abs((datetime.date.fromisoformat(a) - datetime.date.fromisoformat(f)).days) <= 3:
+                use_date = a
+            else:
+                st['date_api_too_far'] += 1
+        st['date_from_api'] += 1 if use_date else 0
+        new_texts = []
+        for api, old in zip(texts, flat[3:7]):
+            if isinstance(api, str) and api != old and ws(api) == ws(old):
+                new_texts.append(api)
+                st['texts_from_api'] += 1
+            else:
+                if isinstance(api, str) and ws(api) != ws(old):
+                    st['texts_api_differ'] += 1
+                new_texts.append(old)
+        out[camp] = (api_comp, ota, use_date, tuple(new_texts))
+    db.close()
+    st['vehicle_component_rows'] = len(per_vehicle)
+    st['flat_campaigns_without_sheet'] = len(campaigns) - st['campaigns_with_sheet'] - st['api_absent']
+    st['last_fetched_at'] = last
+    return out, per_vehicle, st
+
+
+def build(pre, post, target, last_modified=None, previous=None, allow_shrink=False, campaign_sheets=None):
     target = Path(target)
     temp = target.with_name(f'.{target.name}.build-{os.getpid()}')
     temp.unlink(missing_ok=True)
@@ -98,12 +181,15 @@ def build(pre, post, target, last_modified=None, previous=None, allow_shrink=Fal
         db.executescript('''PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF;
             CREATE TABLE campaigns(campaign TEXT PRIMARY KEY, manufacturer TEXT, mfr_campaign TEXT, type TEXT,
               summary TEXT, consequence TEXT, remedy TEXT, notes TEXT, report_received TEXT, record_created TEXT,
-              owners_notified TEXT, influenced_by TEXT, do_not_drive INTEGER, park_outside INTEGER) WITHOUT ROWID;
+              owners_notified TEXT, influenced_by TEXT, do_not_drive INTEGER, park_outside INTEGER,
+              api_component TEXT, ota INTEGER, api_report_received TEXT) WITHOUT ROWID;
+            CREATE TABLE api_components(campaign TEXT NOT NULL, make TEXT NOT NULL, model TEXT NOT NULL, year INTEGER NOT NULL,
+              component TEXT NOT NULL, PRIMARY KEY(campaign, make, model, year)) WITHOUT ROWID;
             CREATE TABLE vehicles(make TEXT NOT NULL, model TEXT NOT NULL, year INTEGER NOT NULL, campaign TEXT NOT NULL,
               component TEXT NOT NULL, first_record INTEGER NOT NULL, mfr_text TEXT,
               PRIMARY KEY(make, model, year, campaign, component)) WITHOUT ROWID;
             CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);''')
-        campaigns, vehicles, differing = {}, {}, set()
+        campaigns, vehicles, differing, comps_by_campaign = {}, {}, set(), {}
         rows, types = 0, {}
         latest = ''
         for path, member in ((pre, 'FLAT_RCL_PRE_2010.txt'), (post, 'FLAT_RCL_POST_2010.txt')):
@@ -126,6 +212,7 @@ def build(pre, post, target, last_modified=None, previous=None, allow_shrink=Fal
                     campaigns[camp] = (rid, c)
                 elif old[1] != c:
                     differing.add(camp)
+                comps_by_campaign.setdefault(camp, set()).add(p[F['COMPNAME']].strip())
                 rc = p[F['RCDATE']].strip()
                 if re.fullmatch(r'\d{8}', rc):
                     latest = max(latest, rc)
@@ -138,11 +225,23 @@ def build(pre, post, target, last_modified=None, previous=None, allow_shrink=Fal
                     vehicles[key] = (rid, p[F['MFGTXT']].strip())
         if not campaigns or not vehicles:
             raise ValueError('Empty recall archives')
-        db.executemany('INSERT INTO campaigns VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', ((k, *v[1]) for k, v in sorted(campaigns.items())))
+        sheets, per_vehicle, sheet_stats = ({}, [], None)
+        if campaign_sheets:
+            sheets, per_vehicle, sheet_stats = merge_sheets(campaign_sheets, campaigns, comps_by_campaign,
+                                                            {(k[0], k[1], k[2], k[3]) for k in vehicles})
+
+        def campaign_row(k, c):
+            s = sheets.get(k)
+            if not s:
+                return (k, *c, None, None, None)
+            comp, ota, date, texts = s
+            return (k, *c[:3], *texts, *c[7:], comp, ota, date)
+        db.executemany('INSERT INTO campaigns VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (campaign_row(k, v[1]) for k, v in sorted(campaigns.items())))
+        db.executemany('INSERT INTO api_components VALUES(?,?,?,?,?)', sorted(set(per_vehicle)))
         db.executemany('INSERT INTO vehicles VALUES(?,?,?,?,?,?,?)', ((*k, *v) for k, v in sorted(vehicles.items())))
         counts = {'source_rows': rows, 'campaigns': len(campaigns), 'vehicle_rows': len(vehicles),
                   'make_model_years': db.execute('SELECT COUNT(*) FROM (SELECT DISTINCT make, model, year FROM vehicles)').fetchone()[0],
-                  'campaign_types': types, 'campaigns_with_differing_rows': len(differing)}
+                  'campaign_types': types, 'campaigns_with_differing_rows': len(differing), 'campaign_sheets': sheet_stats}
         prev = previous_counts(previous)
         if prev and not allow_shrink:
             for k in ('campaigns', 'vehicle_rows'):
@@ -173,10 +272,11 @@ def main(argv=None):
     ap.add_argument('--post', required=True)
     ap.add_argument('--out', required=True)
     ap.add_argument('--last-modified', help="the files' HTTP Last-Modified (the later of the two)")
+    ap.add_argument('--campaign-sheets', help='state file of scripts/harvest-nhtsa-recall-campaigns.py (optional)')
     ap.add_argument('--previous', help='file whose counts the new build must not fall below (default: --out)')
     ap.add_argument('--allow-shrink', action='store_true')
     a = ap.parse_args(argv)
-    meta = build(a.pre, a.post, a.out, a.last_modified, a.previous or a.out, a.allow_shrink)
+    meta = build(a.pre, a.post, a.out, a.last_modified, a.previous or a.out, a.allow_shrink, a.campaign_sheets)
     print(json.dumps(meta, indent=1))
 
 

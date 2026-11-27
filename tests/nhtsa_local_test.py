@@ -1,5 +1,5 @@
 """Importers for the local NHTSA copies: recall and complaint flat files, the ratings crawl and its build."""
-import importlib.util, io, json, pathlib, sqlite3, tempfile, unittest, urllib.error, zipfile
+import datetime, importlib.util, io, json, pathlib, sqlite3, tempfile, unittest, urllib.error, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -14,6 +14,7 @@ def load(name, file):
 recalls = load('recalls', 'import-nhtsa-recalls.py')
 complaints = load('complaints', 'import-nhtsa-complaints.py')
 harvest = load('harvest', 'harvest-nhtsa-ratings.py')
+campaign_crawl = load('campaign_crawl', 'harvest-nhtsa-recall-campaigns.py')
 ratings = load('ratings', 'import-nhtsa-ratings.py')
 
 
@@ -81,6 +82,101 @@ class RecallImportTest(unittest.TestCase):
                 recalls.build(pre, post, out, allow_shrink=True)
             self.assertEqual(out.read_bytes(), before)
             self.assertEqual([p.name for p in d.glob('.nhtsa-recalls.db.*')], [])
+
+
+class RecallCampaignCrawlTest(unittest.TestCase):
+    """The per-campaign API crawl and its merge into the recall build: only values that still fit the flat files."""
+
+    def api_row(self, make, model, year, component, **extra):
+        return {'Manufacturer': 'Honda (American Honda Motor Co.)', 'NHTSACampaignNumber': extra.pop('campaign', '24V744000'),
+                'ReportReceivedDate': '04/10/2024', 'Component': component, 'Summary': 'Defect.\r\nMore.', 'Consequence': 'Crash risk.',
+                'Remedy': 'Dealers fix.', 'Notes': 'Notes.', 'ModelYear': str(year), 'Make': make, 'Model': model, **extra}
+
+    def test_crawl_merge_and_change_detection(self):
+        C = campaign_crawl
+        C.RETRY_WAITS, C.FINAL_PASS_WAIT = (0, 0, 0), 0
+        url = lambda c: C.URL.format(c).replace('https://api.nhtsa.gov', '')
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d)
+            pre, post = d / 'FLAT_RCL_PRE_2010.zip', d / 'FLAT_RCL_POST_2010.zip'
+            zip_text(pre, 'FLAT_RCL_PRE_2010.txt', [rcl('1', '04V001000', 'FORD', 'TAURUS', '2004', rcdate='20040105')])
+            zip_text(post, 'FLAT_RCL_POST_2010.txt', [
+                rcl('10', '24V744000', 'HONDA', 'CR-V', '2024', component='STEERING', summary='Defect. More.'),
+                rcl('11', '24V744000', 'HONDA', 'CR-V', '2024', component='ELECTRICAL SYSTEM', summary='Defect. More.'),
+                rcl('12', '24V744000', 'HONDA', 'CR-V HYBRID', '2024', component='STEERING', summary='Defect. More.'),
+                rcl('13', '24E001000', 'ACME', 'WIDGET', '2024', component='EQUIPMENT', rtype='E', rcdate='20240101'),
+                rcl('14', '24V500000', 'HONDA', 'CR-V', '2024', component='WHEELS', rcdate='20240601'),
+            ])
+            routes = {
+                url('24V744000'): {'Count': 2, 'results': [
+                    self.api_row('HONDA', 'CR-V', 2024, 'ELECTRICAL SYSTEM', overTheAirUpdate=True, parkIt=False, parkOutSide=False),
+                    self.api_row('HONDA', 'CR-V HYBRID', 2024, 'STEERING', overTheAirUpdate=True, parkIt=False, parkOutSide=False)]},
+                url('24E001000'): {'Count': 1, 'results': [self.api_row('ACME', 'WIDGET', 2024, 'EQUIPMENT', campaign='24E001000',
+                                                                        ReportReceivedDate='01/01/2024', Summary='Defect.')]},
+                url('04V001000'): {'Count': 0, 'results': []},
+                # The API names a component the flat files do not recall in this campaign and a date far off: neither is used.
+                url('24V500000'): {'Count': 1, 'results': [self.api_row('HONDA', 'CR-V', 2024, 'ENGINE', campaign='24V500000',
+                                                                        ReportReceivedDate='01/07/2024', Summary='Other text.', overTheAirUpdate=False)]},
+            }
+            state = C.open_state(d / 'campaigns.db')
+            flat = C.flat_campaigns(pre, post)
+            today = datetime.date(2026, 11, 27)
+            work = C.due(state, flat, today)
+            self.assertEqual([c for c, _, _ in work], ['24V744000', '24V500000', '24E001000', '04V001000'])  # newest report first
+            api = FakeApi(routes, fail={url('24V500000')})
+            h = C.Harvester(state, 0, 5, 'run1', lambda m: None, opener=api)
+            result = C.harvest(state, h, work)
+            self.assertEqual((result['clean'], result['failed']), (3, 1))
+            self.assertEqual(dict(state.execute('SELECT campaign, status FROM campaigns').fetchall()),
+                             {'24V744000': 'ok', '24E001000': 'ok', '04V001000': 'absent', '24V500000': 'failed'})
+            self.assertEqual(state.execute("SELECT ota, park_it, component, vehicle_components IS NOT NULL FROM campaigns WHERE campaign='24E001000'").fetchone(),
+                             (None, None, 'EQUIPMENT', 0))
+            # Next run: only the failed campaign is due; a capped run stops cleanly.
+            self.assertEqual([(c, why) for c, _, why in C.due(state, flat, today)], [('24V500000', 'missing')])
+            capped = C.harvest(state, h, C.due(state, flat, today) * 2, max_requests=1)
+            self.assertEqual((capped['complete'], capped['reason'], capped['fetched']), (False, 'request cap', 1))
+            # An amended campaign (new text in the flat files) is due again; a failed re-fetch keeps the clean answer.
+            zip_text(post, 'FLAT_RCL_POST_2010.txt', [
+                rcl('10', '24V744000', 'HONDA', 'CR-V', '2024', component='STEERING', summary='Defect. More. Amended.'),
+                rcl('11', '24V744000', 'HONDA', 'CR-V', '2024', component='ELECTRICAL SYSTEM', summary='Defect. More. Amended.'),
+                rcl('12', '24V744000', 'HONDA', 'CR-V HYBRID', '2024', component='STEERING', summary='Defect. More. Amended.'),
+                rcl('13', '24E001000', 'ACME', 'WIDGET', '2024', component='EQUIPMENT', rtype='E', rcdate='20240101'),
+                rcl('14', '24V500000', 'HONDA', 'CR-V', '2024', component='WHEELS', rcdate='20240601'),
+            ])
+            flat2 = C.flat_campaigns(pre, post)
+            self.assertEqual([(c, why) for c, _, why in C.due(state, flat2, today)], [('24V744000', 'changed'), ('24V500000', 'missing')])
+            C.harvest(state, C.Harvester(state, 0, 5, 'run2', lambda m: None, opener=FakeApi(routes, fail={url('24V744000')})), C.due(state, flat2, today))
+            self.assertEqual(state.execute("SELECT status, flat_hash = ? FROM campaigns WHERE campaign='24V744000'", (flat[('24V744000')][1],)).fetchone(), ('ok', 1))
+            # Rolling re-checks pick the campaigns checked longest ago.
+            self.assertEqual([why for _, _, why in C.due(state, flat2, today, rolling=2)], ['changed', 'rolling', 'rolling'])
+            state.close()
+
+            # Merge into the build (with the original flat files).
+            zip_text(post, 'FLAT_RCL_POST_2010.txt', [
+                rcl('10', '24V744000', 'HONDA', 'CR-V', '2024', component='STEERING', summary='Defect. More.'),
+                rcl('11', '24V744000', 'HONDA', 'CR-V', '2024', component='ELECTRICAL SYSTEM', summary='Defect. More.'),
+                rcl('12', '24V744000', 'HONDA', 'CR-V HYBRID', '2024', component='STEERING', summary='Defect. More.'),
+                rcl('13', '24E001000', 'ACME', 'WIDGET', '2024', component='EQUIPMENT', rtype='E', rcdate='20240101'),
+                rcl('14', '24V500000', 'HONDA', 'CR-V', '2024', component='WHEELS', rcdate='20240601'),
+            ])
+            st = C.open_state(d / 'campaigns.db')
+            C.harvest(st, C.Harvester(st, 0, 5, 'run3', lambda m: None, opener=FakeApi(routes)), [('24V500000', flat['24V500000'][1], 'missing')])
+            st.close()
+            out = d / 'nhtsa-recalls.db'
+            meta = recalls.build(pre, post, out, campaign_sheets=d / 'campaigns.db')
+            s = meta['counts']['campaign_sheets']
+            self.assertEqual((s['campaigns_with_sheet'], s['api_absent'], s['ota_known'], s['ota_true']), (3, 1, 2, 1))
+            self.assertEqual((s['component_from_api'], s['component_api_not_in_flat'], s['vehicle_component_rows']), (2, 1, 2))
+            self.assertEqual((s['date_from_api'], s['date_api_too_far'], s['texts_from_api'], s['flat_campaigns_without_sheet']), (1, 1, 1, 0))
+            db = sqlite3.connect(out)
+            self.assertEqual(db.execute("SELECT api_component, ota, api_report_received, summary FROM campaigns WHERE campaign='24V744000'").fetchone(),
+                             ('ELECTRICAL SYSTEM', 1, '2024-10-04', 'Defect.\r\nMore.'))
+            self.assertEqual(db.execute("SELECT api_component, ota, api_report_received, summary FROM campaigns WHERE campaign='24V500000'").fetchone(),
+                             (None, 0, None, 'Defect.'))
+            self.assertEqual(db.execute("SELECT model, component FROM api_components WHERE campaign='24V744000' ORDER BY model").fetchall(),
+                             [('CR-V', 'ELECTRICAL SYSTEM'), ('CR-V HYBRID', 'STEERING')])
+            self.assertEqual(db.execute("SELECT ota FROM campaigns WHERE campaign='24E001000'").fetchone(), (None,))
+            db.close()
 
 
 class ComplaintImportTest(unittest.TestCase):

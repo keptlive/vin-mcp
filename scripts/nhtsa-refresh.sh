@@ -3,14 +3,19 @@
 # see deploy/systemd/README.md for the timers and docs/nhtsa-local-data.md for the data.
 #
 #   scripts/nhtsa-refresh.sh flat      daily: recall + complaint flat files -> data/nhtsa-recalls.db,
-#                                      data/recall-labels.db, data/nhtsa-complaints.db (only when NHTSA changed a file)
+#                                      data/recall-labels.db, data/nhtsa-complaints.db (only when NHTSA changed a file);
+#                                      plus the recall campaign crawl (API-only values of new, amended and recent
+#                                      campaigns and a few hundred others, at most NHTSA_CAMPAIGN_MAX per run)
 #   scripts/nhtsa-refresh.sh ratings   weekly: crawl the 5-Star Safety Ratings API for recent model years (every
 #                                      model year when the last full crawl is over 90 days old) -> data/nhtsa-ratings.db
 #   add --force to rebuild from the files on hand even when NHTSA's files did not change
 #
 # Environment: NHTSA_WORK (downloads, crawl state, status; default /var/lib/vin-mcp-nhtsa), NHTSA_DATA (where the
 # .db files go; default <repo>/data), NHTSA_MIN_FREE_GB (default 8: the complaint build stages about 4 GB), NHTSA_RATINGS_PAUSE (seconds between API
-# requests, default 1.0), NHTSA_FULL_CRAWL_DAYS (default 90).
+# requests, default 1.0; also used by the campaign crawl), NHTSA_FULL_CRAWL_DAYS (default 90), NHTSA_CAMPAIGN_MAX
+# (campaigns fetched per daily run, default 2500: about an hour), NHTSA_CAMPAIGN_ROLLING (older campaigns re-checked per
+# run, default 200). A first run with no crawl state fills it over about two weeks; copying a crawl state file from
+# another machine into $NHTSA_WORK/recall-campaigns.db skips that.
 #
 # Every build writes a new file and renames it over the old one (the server reopens a changed file within a minute)
 # and refuses a result with over 1% fewer campaigns, complaints or rated vehicles than the file it replaces, so a
@@ -76,14 +81,30 @@ fetch() {
 
 refresh_flat() {
   check_space
-  local pre post cmpl lm
+  local pre post cmpl lm rc
   pre=$(fetch FLAT_RCL_PRE_2010.zip https://static.nhtsa.gov/odi/ffdd/rcl/FLAT_RCL_PRE_2010.zip 200000000) || exit 1
   post=$(fetch FLAT_RCL_POST_2010.zip https://static.nhtsa.gov/odi/ffdd/rcl/FLAT_RCL_POST_2010.zip 400000000) || exit 1
   log "recall files: pre $pre, post $post"
-  if [ "$pre" = changed ] || [ "$post" = changed ] || [ "$FORCE" = --force ] || [ ! -s "$DATA/nhtsa-recalls.db" ]; then
+  # Values only the API has (over-the-air flag, the API's component and date per campaign): a capped, gentle crawl.
+  # A failed or partial crawl is not fatal: the build uses the answers on hand and the next run continues.
+  local sheets=0
+  python3 "$REPO/scripts/harvest-nhtsa-recall-campaigns.py" --state "$WORK/recall-campaigns.db" \
+    --pre "$WORK/dl/FLAT_RCL_PRE_2010.zip" --post "$WORK/dl/FLAT_RCL_POST_2010.zip" --pause "${NHTSA_RATINGS_PAUSE:-1.0}" \
+    --max-requests "${NHTSA_CAMPAIGN_MAX:-2500}" --rolling "${NHTSA_CAMPAIGN_ROLLING:-200}" \
+    --summary "$WORK/recall-campaigns-summary.json" --stop-file "$WORK/STOP-campaigns" > "$WORK/recall-campaigns.log" 2>&1
+  rc=$?
+  if [ $rc -eq 0 ] || [ $rc -eq 3 ]; then
+    sheets=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["values_changed"])' "$WORK/recall-campaigns-summary.json" 2>/dev/null || echo 0)
+    log "campaign crawl exit $rc: $sheets campaigns with new values"
+  else
+    log "campaign crawl failed (exit $rc, see $WORK/recall-campaigns.log); building with the answers on hand"
+  fi
+  if [ "$pre" = changed ] || [ "$post" = changed ] || [ "$sheets" != 0 ] || [ "$FORCE" = --force ] || [ ! -s "$DATA/nhtsa-recalls.db" ]; then
     lm=$(cat "$WORK/dl/FLAT_RCL_POST_2010.zip.last-modified" 2>/dev/null)
+    local sheet_args=()
+    [ -s "$WORK/recall-campaigns.db" ] && sheet_args=(--campaign-sheets "$WORK/recall-campaigns.db")
     python3 "$REPO/scripts/import-nhtsa-recalls.py" --pre "$WORK/dl/FLAT_RCL_PRE_2010.zip" --post "$WORK/dl/FLAT_RCL_POST_2010.zip" \
-      --out "$DATA/nhtsa-recalls.db" ${lm:+--last-modified "$lm"} > "$WORK/recalls-build.json" || fail "recalls build (see journal)"
+      --out "$DATA/nhtsa-recalls.db" "${sheet_args[@]}" ${lm:+--last-modified "$lm"} > "$WORK/recalls-build.json" || fail "recalls build (see journal)"
     python3 "$REPO/scripts/import-recall-labels.py" --pre "$WORK/dl/FLAT_RCL_PRE_2010.zip" --post "$WORK/dl/FLAT_RCL_POST_2010.zip" \
       --out "$DATA/recall-labels.db" > "$WORK/recall-labels-build.json" || fail "recall labels build (see journal)"
     log "recalls built: $(python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print(m["counts"]["campaigns"], "campaigns, latest report", m["latest_report_date"])' "$WORK/recalls-build.json")"
