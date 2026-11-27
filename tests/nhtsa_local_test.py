@@ -104,7 +104,7 @@ class RecallCampaignCrawlTest(unittest.TestCase):
                 rcl('10', '24V744000', 'HONDA', 'CR-V', '2024', component='STEERING', summary='Defect. More.'),
                 rcl('11', '24V744000', 'HONDA', 'CR-V', '2024', component='ELECTRICAL SYSTEM', summary='Defect. More.'),
                 rcl('12', '24V744000', 'HONDA', 'CR-V HYBRID', '2024', component='STEERING', summary='Defect. More.'),
-                rcl('13', '24E001000', 'ACME', 'WIDGET', '2024', component='EQUIPMENT', rtype='E', rcdate='20240101'),
+                rcl('13', '24E001000', 'ACME', 'WIDGET', '2024', component='EQUIPMENT', rtype='E', rcdate='20240101', summary='Driver\x92s defect.'),
                 rcl('14', '24V500000', 'HONDA', 'CR-V', '2024', component='WHEELS', rcdate='20240601'),
             ])
             routes = {
@@ -112,9 +112,10 @@ class RecallCampaignCrawlTest(unittest.TestCase):
                     self.api_row('HONDA', 'CR-V', 2024, 'ELECTRICAL SYSTEM', overTheAirUpdate=True, parkIt=False, parkOutSide=False),
                     self.api_row('HONDA', 'CR-V HYBRID', 2024, 'STEERING', overTheAirUpdate=True, parkIt=False, parkOutSide=False)]},
                 url('24E001000'): {'Count': 1, 'results': [self.api_row('ACME', 'WIDGET', 2024, 'EQUIPMENT', campaign='24E001000',
-                                                                        ReportReceivedDate='01/01/2024', Summary='Defect.')]},
+                                                                        ReportReceivedDate='01/01/2024', Summary='Driver?s defect.')]},
                 url('04V001000'): {'Count': 0, 'results': []},
-                # The API names a component the flat files do not recall in this campaign and a date far off: neither is used.
+                # The API names a component the flat files do not recall in this campaign (used: it is what the live
+                # answer shows) and a date far off (not used).
                 url('24V500000'): {'Count': 1, 'results': [self.api_row('HONDA', 'CR-V', 2024, 'ENGINE', campaign='24V500000',
                                                                         ReportReceivedDate='01/07/2024', Summary='Other text.', overTheAirUpdate=False)]},
             }
@@ -140,7 +141,7 @@ class RecallCampaignCrawlTest(unittest.TestCase):
                 rcl('10', '24V744000', 'HONDA', 'CR-V', '2024', component='STEERING', summary='Defect. More. Amended.'),
                 rcl('11', '24V744000', 'HONDA', 'CR-V', '2024', component='ELECTRICAL SYSTEM', summary='Defect. More. Amended.'),
                 rcl('12', '24V744000', 'HONDA', 'CR-V HYBRID', '2024', component='STEERING', summary='Defect. More. Amended.'),
-                rcl('13', '24E001000', 'ACME', 'WIDGET', '2024', component='EQUIPMENT', rtype='E', rcdate='20240101'),
+                rcl('13', '24E001000', 'ACME', 'WIDGET', '2024', component='EQUIPMENT', rtype='E', rcdate='20240101', summary='Driver\x92s defect.'),
                 rcl('14', '24V500000', 'HONDA', 'CR-V', '2024', component='WHEELS', rcdate='20240601'),
             ])
             flat2 = C.flat_campaigns(pre, post)
@@ -156,7 +157,7 @@ class RecallCampaignCrawlTest(unittest.TestCase):
                 rcl('10', '24V744000', 'HONDA', 'CR-V', '2024', component='STEERING', summary='Defect. More.'),
                 rcl('11', '24V744000', 'HONDA', 'CR-V', '2024', component='ELECTRICAL SYSTEM', summary='Defect. More.'),
                 rcl('12', '24V744000', 'HONDA', 'CR-V HYBRID', '2024', component='STEERING', summary='Defect. More.'),
-                rcl('13', '24E001000', 'ACME', 'WIDGET', '2024', component='EQUIPMENT', rtype='E', rcdate='20240101'),
+                rcl('13', '24E001000', 'ACME', 'WIDGET', '2024', component='EQUIPMENT', rtype='E', rcdate='20240101', summary='Driver\x92s defect.'),
                 rcl('14', '24V500000', 'HONDA', 'CR-V', '2024', component='WHEELS', rcdate='20240601'),
             ])
             st = C.open_state(d / 'campaigns.db')
@@ -166,13 +167,14 @@ class RecallCampaignCrawlTest(unittest.TestCase):
             meta = recalls.build(pre, post, out, campaign_sheets=d / 'campaigns.db')
             s = meta['counts']['campaign_sheets']
             self.assertEqual((s['campaigns_with_sheet'], s['api_absent'], s['ota_known'], s['ota_true']), (3, 1, 2, 1))
-            self.assertEqual((s['component_from_api'], s['component_api_not_in_flat'], s['vehicle_component_rows']), (2, 1, 2))
-            self.assertEqual((s['date_from_api'], s['date_api_too_far'], s['texts_from_api'], s['flat_campaigns_without_sheet']), (1, 1, 1, 0))
+            self.assertEqual((s['component_from_api'], s['component_api_not_in_flat'], s['vehicle_component_rows']), (3, 1, 2))
+            self.assertEqual((s['date_from_api'], s['date_api_too_far'], s['texts_from_api'], s['flat_campaigns_without_sheet']), (1, 1, 2, 0))
             db = sqlite3.connect(out)
             self.assertEqual(db.execute("SELECT api_component, ota, api_report_received, summary FROM campaigns WHERE campaign='24V744000'").fetchone(),
                              ('ELECTRICAL SYSTEM', 1, '2024-10-04', 'Defect.\r\nMore.'))
             self.assertEqual(db.execute("SELECT api_component, ota, api_report_received, summary FROM campaigns WHERE campaign='24V500000'").fetchone(),
-                             (None, 0, None, 'Defect.'))
+                             ('ENGINE', 0, None, 'Defect.'))
+            self.assertEqual(db.execute("SELECT summary FROM campaigns WHERE campaign='24E001000'").fetchone(), ('Driver?s defect.',))
             self.assertEqual(db.execute("SELECT model, component FROM api_components WHERE campaign='24V744000' ORDER BY model").fetchall(),
                              [('CR-V', 'ELECTRICAL SYSTEM'), ('CR-V HYBRID', 'STEERING')])
             self.assertEqual(db.execute("SELECT ota FROM campaigns WHERE campaign='24E001000'").fetchone(), (None,))

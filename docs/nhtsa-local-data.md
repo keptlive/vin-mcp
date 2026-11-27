@@ -59,10 +59,13 @@ below).
   campaign (`scripts/harvest-nhtsa-recall-campaigns.py`): the over-the-air flag (in no NHTSA bulk file, not in DOT's
   datahub copy either), the API's one component, its report date (one day after the flat file's on about 6% of
   campaigns; the flat file and DOT's datahub agree with each other) and the texts' line breaks (the flat files turn
-  them into spaces). The build uses each crawled value only where it still fits the flat files: the component only
-  when the flat files recall it in that campaign, the date only within 3 days of the flat file's, a text only when it
-  differs from the flat file's in whitespace alone. A campaign the crawl has not reached yet shows the first recalled
-  component in file order and the flat file's date, and has no over-the-air flag (null, never false).
+  them into spaces) and its `?` for characters outside ASCII (the flat files carry the raw Windows-1252 byte). The
+  build takes the API's component as it is (on 3 of 30,152 campaigns it is a component the flat files do not recall
+  in that campaign, e.g. 22V037000), its date only within 3 days of the flat file's (all 634 differing dates are), and
+  a text only when it differs from the flat file's in whitespace or non-ASCII characters alone. A campaign the crawl
+  has not reached yet shows the first recalled component in file order and the flat file's date, and has no
+  over-the-air flag (null, never false). The first full crawl (27 Nov 2026, 0.5 s apart, 4 h 57 min) fetched all
+  30,494 campaigns: 30,152 answered, 342 absent from the API (equipment and old campaigns), 0 failed.
 - `components` (not in the API) lists every component the flat files recall for that vehicle when there are several.
 - Order: the API's campaign order follows no rule found (not by date, number or component). Local rows are newest
   report first.
@@ -122,7 +125,28 @@ components are the same set in another order for 68,391 (the API's order follows
 complaints in all; the API drops `$` and emoji); dates differ for 45 and crash, fire or injury flags for 4 (all old
 numbers the API lists twice). Complaint order differs in 566 of 1,702 lists with the same complaints.
 
-RECALL_PARITY
+**Recalls** (6,500 triples: 4,000 random, 1,500 common makes, 1,000 filed under another model name; flat files of 26
+November with the campaign crawl of 27 November):
+
+| | Items |
+| --- | --- |
+| Same campaigns listed | 6,424 (98.8%) |
+| ... and in the same order too | 4,351 |
+| Live lists campaigns the local copy does not | 48 (39 none at all locally, 9 more) |
+| Local lists campaigns the live API does not | 28 (11 none at all live, 17 more) |
+
+Every field of every campaign both sides list is identical: 14,662 of 14,662 campaign rows equal in campaign number,
+component, summary, consequence, remedy, report date, manufacturer, park-it, park-outside and over-the-air flag.
+Before the campaign crawl the same rows differed in the over-the-air flag (null locally on 12,929), the component of
+multi-component campaigns (948), the report date (one day earlier on 766), whitespace in texts (1,069) and one
+Windows-1252 character. The 76 items whose campaign lists differ come from the API's own model assignment, which
+the flat files do not show: models the flat files file under `REDUNDANT` names (`YAMAHA` `redundant YZF-R3`), model
+families and spellings (`MERCEDES-BENZ` `GLA 250` and `C 300`, `THOR MOTOR COACH` `FOUR WINDS` against `FOUR WINDS
+5000`), recent campaigns the flat file of 26 November did not have yet (`LAND ROVER` `Range Rover Sport` 2026), and
+two campaigns the API lists that no flat file holds (96V178010, 19V762000). A rule mapping `REDUNDANT` names fixed 12
+items and broke 4, so it is not used. Order: in 2,073 of 2,580 lists with the same two or more campaigns the API's
+order differs from the local newest-report-first order; no simple rule reproduces the API's (campaign number
+ascending, the best, fits 762; flat-file record order 524).
 
 **5-Star Safety Ratings** (5,500 triples): all 5,453 that the live API answered are identical, field for field and in
 variant order (2,318 rated, 3,135 not rated). The other 47 are model names with `/` (`C/K Pickup`, trailers, golf

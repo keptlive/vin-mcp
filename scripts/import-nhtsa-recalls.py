@@ -10,8 +10,8 @@ vehicle rows keep only make, model, model year, campaign, component and the row'
 recall record number of each vehicle and component is kept for ordering).
 
 The values only NHTSA's API has (the over-the-air flag, the one component the API names per campaign, its report
-date, the texts' line breaks) come from --campaign-sheets, the state file of scripts/harvest-nhtsa-recall-campaigns.py,
-and are used only where they still fit the flat files (merge_sheets); without it those stay as the flat files say.
+date, the texts' line breaks and '?' characters) come from --campaign-sheets, the state file of
+scripts/harvest-nhtsa-recall-campaigns.py, under the rules in merge_sheets; without it those stay as the flat files say.
 
 Usage: import-nhtsa-recalls.py --pre FLAT_RCL_PRE_2010.zip --post FLAT_RCL_POST_2010.zip --out data/nhtsa-recalls.db
        [--campaign-sheets recall-campaigns.db] [--last-modified 'Thu, 26 Nov 2026 08:04:00 GMT'] [--previous data/nhtsa-recalls.db]
@@ -97,6 +97,11 @@ def ws(text):
     return ' '.join(str(text or '').split())
 
 
+def ascii_q(text):
+    """Every character outside printable ASCII as '?', as NHTSA's API prints them."""
+    return re.sub(r'[^\x20-\x7e]', '?', text)
+
+
 def api_date(text):
     """dd/mm/yyyy (the API's report date) -> ISO, or None."""
     m = re.fullmatch(r'(\d{2})/(\d{2})/(\d{4})', str(text or '').strip())
@@ -110,11 +115,13 @@ def api_date(text):
 
 def merge_sheets(path, campaigns, comps_by_campaign, vehicle_keys):
     """API values per campaign from the campaign crawl, each kept only where it still fits the flat files:
-      - component: the API's one component when the flat files recall it in that campaign (else the flat pick);
+      - component: the API's one component, as the live answer shows it; on 3 of 30,152 campaigns (27 Nov 2026) the
+        API names a component the flat files do not recall in that campaign (counted: component_api_not_in_flat);
         per-vehicle components only for campaigns where the API names several;
       - over-the-air flag: as the API says (null for campaign types the API gives none);
       - report date: the API's when within 3 days of the flat file's (it is one day later on ~6% of campaigns);
-      - texts: the API's when they differ from the flat files' only in whitespace (line breaks).
+      - texts: the API's when they differ from the flat files' only in whitespace (line breaks) or in characters
+        outside printable ASCII, which the API prints as '?' (the flat files carry the raw Windows-1252 byte).
     Returns ({campaign: (api_component, ota, api_report_received, texts)}, [(campaign, make, model, year, component)], stats)."""
     db = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
     out, per_vehicle = {}, []
@@ -135,13 +142,14 @@ def merge_sheets(path, campaigns, comps_by_campaign, vehicle_keys):
         st['inconsistent_sheets'] += 0 if consistent else 1
         flat = campaigns[camp][1]
         flat_comps = comps_by_campaign.get(camp, set())
-        api_comp = comp.strip() if isinstance(comp, str) and comp.strip() in flat_comps else None
-        st['component_from_api' if api_comp else 'component_api_not_in_flat'] += 1 if comp else 0
+        api_comp = comp.strip() if isinstance(comp, str) and comp.strip() else None
+        st['component_from_api'] += 1 if api_comp else 0
+        st['component_api_not_in_flat'] += 1 if api_comp and api_comp not in flat_comps else 0
         if vcomps:
             for key, c in json.loads(vcomps).items():
                 make, model, year = key.split('|')
                 k = (norm(make), norm(model), int(year) if year.isdigit() else None)
-                if c and str(c).strip() in flat_comps and (k[0], k[1], k[2], camp) in vehicle_keys:
+                if c and str(c).strip() and (k[0], k[1], k[2], camp) in vehicle_keys:
                     per_vehicle.append((camp, *k, str(c).strip()))
         if ota is not None:
             st['ota_known'] += 1
@@ -157,11 +165,11 @@ def merge_sheets(path, campaigns, comps_by_campaign, vehicle_keys):
         st['date_from_api'] += 1 if use_date else 0
         new_texts = []
         for api, old in zip(texts, flat[3:7]):
-            if isinstance(api, str) and api != old and ws(api) == ws(old):
+            if isinstance(api, str) and api != old and ascii_q(ws(api)) == ascii_q(ws(old)):
                 new_texts.append(api)
                 st['texts_from_api'] += 1
             else:
-                if isinstance(api, str) and ws(api) != ws(old):
+                if isinstance(api, str) and ascii_q(ws(api)) != ascii_q(ws(old)):
                     st['texts_api_differ'] += 1
                 new_texts.append(old)
         out[camp] = (api_comp, ota, use_date, tuple(new_texts))
