@@ -13,7 +13,7 @@
 # Environment: NHTSA_WORK (downloads, crawl state, status; default /var/lib/vin-mcp-nhtsa), NHTSA_DATA (where the
 # .db files go; default <repo>/data), NHTSA_MIN_FREE_GB (default 8: the complaint build stages about 4 GB), NHTSA_RATINGS_PAUSE (seconds between API
 # requests, default 1.0; also used by the campaign crawl), NHTSA_FULL_CRAWL_DAYS (default 90), NHTSA_CAMPAIGN_MAX
-# (campaigns fetched per daily run, default 2500: about an hour), NHTSA_CAMPAIGN_ROLLING (older campaigns re-checked per
+# (campaigns fetched per daily run, default 2500: about an hour; 0 turns the crawl off), NHTSA_CAMPAIGN_ROLLING (older campaigns re-checked per
 # run, default 200). A first run with no crawl state fills it over about two weeks; copying a crawl state file from
 # another machine into $NHTSA_WORK/recall-campaigns.db skips that.
 #
@@ -89,12 +89,17 @@ refresh_flat() {
   # Values only the API has (over-the-air flag, the API's component and date per campaign): a capped, gentle crawl.
   # A failed or partial crawl is not fatal: the build uses the answers on hand and the next run continues.
   local sheets=0
-  python3 "$REPO/scripts/harvest-nhtsa-recall-campaigns.py" --state "$WORK/recall-campaigns.db" \
-    --pre "$WORK/dl/FLAT_RCL_PRE_2010.zip" --post "$WORK/dl/FLAT_RCL_POST_2010.zip" --pause "${NHTSA_RATINGS_PAUSE:-1.0}" \
-    --max-requests "${NHTSA_CAMPAIGN_MAX:-2500}" --rolling "${NHTSA_CAMPAIGN_ROLLING:-200}" \
-    --summary "$WORK/recall-campaigns-summary.json" --stop-file "$WORK/STOP-campaigns" > "$WORK/recall-campaigns.log" 2>&1
-  rc=$?
-  if [ $rc -eq 0 ] || [ $rc -eq 3 ]; then
+  if [ "${NHTSA_CAMPAIGN_MAX:-2500}" = 0 ]; then
+    log "campaign crawl off (NHTSA_CAMPAIGN_MAX=0)"; rc=-1
+  else
+    python3 "$REPO/scripts/harvest-nhtsa-recall-campaigns.py" --state "$WORK/recall-campaigns.db" \
+      --pre "$WORK/dl/FLAT_RCL_PRE_2010.zip" --post "$WORK/dl/FLAT_RCL_POST_2010.zip" --pause "${NHTSA_RATINGS_PAUSE:-1.0}" \
+      --max-requests "${NHTSA_CAMPAIGN_MAX:-2500}" --rolling "${NHTSA_CAMPAIGN_ROLLING:-200}" \
+      --summary "$WORK/recall-campaigns-summary.json" --stop-file "$WORK/STOP-campaigns" > "$WORK/recall-campaigns.log" 2>&1
+    rc=$?
+  fi
+  if [ $rc -eq -1 ]; then :
+  elif [ $rc -eq 0 ] || [ $rc -eq 3 ]; then
     sheets=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["values_changed"])' "$WORK/recall-campaigns-summary.json" 2>/dev/null || echo 0)
     log "campaign crawl exit $rc: $sheets campaigns with new values"
   else
