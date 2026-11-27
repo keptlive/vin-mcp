@@ -61,6 +61,7 @@ The site code that reads these files must be deployed first: the web server's ga
     cat /var/lib/vin-mcp-nhtsa/status.jsonl                          # one line per dataset: source date, built, rows, confirmed
     python3 /opt/vin-mcp/scripts/nhtsa_datasets.py check --dry-run   # what would be mailed now
     python3 /opt/vin-mcp/scripts/nhtsa-install.py rollback nhtsa-complaints   # put data/<file>.prev back (that build is never re-installed)
+    systemctl restart vin-mcp                                        # optional: drop cached answers now (reports 1 h, recall/complaint lists 6 h)
     journalctl -u vin-mcp-nhtsa-install --since -1d                  # web side
     cat /srv/nhtsa-build/publish/builder-status.json                 # build side (storage); logs in /srv/nhtsa-build/logs
     touch /srv/nhtsa-build/STOP-ratings /srv/nhtsa-build/STOP-campaigns   # a running crawl stops cleanly and builds what it has

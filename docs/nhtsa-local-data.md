@@ -210,7 +210,8 @@ blocks travel, then checked against the manifest's sha256 and gated.
 **Atomic swap, one-step rollback.** The live file is hard-linked to `data/<file>.prev`, then the new file is renamed
 over `data/<file>` (one `rename`, so a reader sees the old or the new file, never half of one). The site needs no
 restart: the research lookups open the file per request; recalls, complaints, ratings and vPIC notice a replaced file
-within a minute. `nhtsa-install.py rollback <dataset>` renames `.prev` back and marks the rolled-back build so it is
+within a minute. Answers the server already cached stay until they expire (whole reports 1 hour; recall and complaint
+lists 6 hours, lib/cache.mjs); restart the service to drop them at once, e.g. after a rollback. `nhtsa-install.py rollback <dataset>` renames `.prev` back and marks the rolled-back build so it is
 never pulled again; the next build is.
 
 **Status lines.** `/var/lib/vin-mcp-nhtsa/status.jsonl` on the web server: one line per dataset with its state
