@@ -339,10 +339,15 @@ def note(publish, name, result, message='', confirmed=False, source_modified=Non
 
 
 def git_commit(repo=ROOT):
+    """The builder's code version: its git commit, or (a file-copy deploy has no .git) package.json's version."""
     try:
-        return subprocess.run(['git', '-C', str(repo), 'rev-parse', '--short=12', 'HEAD'], capture_output=True, text=True, timeout=10).stdout.strip() or None
+        c = subprocess.run(['git', '-C', str(repo), 'rev-parse', '--short=12', 'HEAD'], capture_output=True, text=True, timeout=10).stdout.strip()
+        if c:
+            return c
     except (OSError, subprocess.TimeoutExpired):
-        return None
+        pass
+    v = (read_json(Path(repo) / 'package.json', {}) or {}).get('version')
+    return 'v' + v if v else None
 
 
 def publish(name, built, publish_dir, dl=None, source_date=None, extra=None, max_drop=0.03, known=True, repo=ROOT, keep=2):
@@ -432,7 +437,7 @@ def write_status(data, state):
     lines = status_lines(data, state)
     path = Path(state) / 'status.jsonl'
     tmp = path.with_name('.status.jsonl.tmp')
-    tmp.write_text(''.join(json.dumps(l, sort_keys=True) + '\n' for l in lines))
+    tmp.write_text(''.join(json.dumps(l) + '\n' for l in lines))
     os.replace(tmp, path)
     return lines
 
@@ -545,7 +550,7 @@ def main(argv=None):
         return 0
     if a.cmd == 'status':
         for line in write_status(a.data, a.state) if os.access(a.state, os.W_OK) else status_lines(a.data, a.state):
-            print(json.dumps(line, sort_keys=True))
+            print(json.dumps(line))
         return 0
     if a.cmd == 'check':
         check(a.data, a.state, a.dry_run, parse_date(a.now) if a.now else None)

@@ -27,6 +27,8 @@ refuses, pulls failing for 6 h, or no build report for 36 h. Each problem mails 
     mkdir -p /srv/nhtsa-build/state /srv/nhtsa-build/publish && chmod 755 /srv/nhtsa-build /srv/nhtsa-build/publish
     cp /root/nhtsa-local/state/recall-campaigns.db /srv/nhtsa-build/state/recall-campaigns.db
     cp /root/nhtsa-local/ratings/harvest.db /srv/nhtsa-build/state/ratings-crawl.db
+    mkdir -p /srv/nhtsa-build/vpic && cp -al /root/vpic-local/dryrun/2026_11 /srv/nhtsa-build/vpic/2026_11   # the parity-checked
+    #   November build the site runs now: the first vpic run publishes it instead of rebuilding it
     # 3. read-only pull account for the web server (like mcpvin's write-only one)
     useradd --system --create-home --home-dir /home/nhtsapub --shell /bin/sh nhtsapub
     install -d -m 700 -o nhtsapub -g nhtsapub /home/nhtsapub/.ssh
@@ -37,9 +39,9 @@ refuses, pulls failing for 6 h, or no build report for 36 h. Each problem mails 
     systemctl start nhtsa-build-odi.service; journalctl -u nhtsa-build-odi -n 50
     systemctl enable --now nhtsa-build-odi.timer nhtsa-build-ratings.timer nhtsa-build-vpic.timer
 
-The first vPIC run publishes nothing new until NHTSA's next release unless started with `--force`
-(`/opt/vin-mcp-builder/scripts/nhtsa-build.sh vpic --force`, hours: PostgreSQL restore + 20,000-VIN parity).
-Each release leaves a PostgreSQL database `vpic_YYYY_MM` (several GB); drop old ones by hand.
+A new vPIC release takes hours (PostgreSQL restore + 20,000-VIN parity against NHTSA's own decoder); a release
+whose parity is not exact or whose rule fixes need review is held back and mailed. Each release leaves a
+PostgreSQL database `vpic_YYYY_MM` (several GB); drop old ones by hand.
 
 ## Web server (192.210.135.200)
 

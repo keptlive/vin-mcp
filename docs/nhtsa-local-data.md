@@ -142,8 +142,8 @@ tables, row floors, cadence and alert limits, is `scripts/nhtsa_datasets.py`.
 
 **Build on the build server, never on the web server.** `scripts/nhtsa-build.sh` runs on storage (104.37.188.237):
 
-- `odi`, daily 12:30 UTC, after NHTSA's morning updates (Last-Modified on 27 Nov: FLAT_CMPL 08:03, FLAT_INV 09:05,
-  FLAT_RCL 10:08, the seven TSB archives 11:04-11:10 UTC). Each file is fetched only when it changed: a HEAD request
+- `odi`, daily 12:30 UTC, after NHTSA's morning updates (Last-Modified on 27 Nov: FLAT_RCL 08:03, FLAT_INV 09:05,
+  FLAT_CMPL 10:08, the seven TSB archives 11:04-11:10 UTC). Each file is fetched only when it changed: a HEAD request
   first, and when its ETag (the file's MD5) equals the copy on hand nothing is downloaded (NHTSA re-stamps all seven
   TSB archives every day, the 1995-1999 one included, so Last-Modified alone would re-download about 400 MB a day);
   otherwise a GET with If-Modified-Since (static.nhtsa.gov ignores If-None-Match). A download must match its ETag and

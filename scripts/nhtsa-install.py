@@ -211,7 +211,7 @@ def main(argv):
     if cmd == 'status':
         lines = nd.write_status(DATA, STATE) if STATE.is_dir() and os.access(STATE, os.W_OK) else nd.status_lines(DATA, STATE)
         for line in lines:
-            print(json.dumps(line, sort_keys=True))
+            print(json.dumps(line))
         return 0
     STATE.mkdir(parents=True, exist_ok=True)
     with open(STATE / 'install.lock', 'a') as lock:
