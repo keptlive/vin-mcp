@@ -6,7 +6,7 @@ The website, REST API and MCP server use the same report and source adapters. To
 - `lib/reports.mjs`: shared full vehicle reports, compact agent output and comparisons. Simultaneous requests for the same VIN share report assembly. Unavailable upstream results can be retried.
 - `lib/mcp/index.mjs`: authoritative MCP registry, grouped discovery and tool annotations. `GET /api/tools` and `/api/status` derive their inventories from this registry.
 - `lib/mcp/vehicle-tools.mjs`: VIN validation, decoding, model-year recalls and batch decoding.
-- `lib/mcp/research-tools.mjs`: configuration research, VIN recall status, source coverage, comparisons and ownership calculations.
+- `lib/mcp/research-tools.mjs`: configuration research, VIN recall links (maker and NHTSA pages; nothing fetched), source coverage, comparisons and ownership calculations.
 - `lib/mcp/account-tools.mjs`: saved vehicles and output preferences, scoped by a website login token.
 - Other `lib/` modules: source adapters, validation, calculations, caching and persistence.
 - `lib/version.mjs`: reads the version from `package.json` for all server transports and discovery.

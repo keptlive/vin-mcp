@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { validateVin, normalizeVin } from './lib/validate.mjs';
-import { decodeVin as nhtsaDecode, batchDecode, getComplaints, getSafetyRatings } from './lib/nhtsa.mjs';
+import { decodeVin as nhtsaDecode, batchDecode, getSafetyRatings } from './lib/nhtsa.mjs';
 import { getFuelEconomy } from './lib/epa.mjs';
-import { getPhotoUrl } from './lib/photo.mjs';
+import { PHOTOS_DIR, PHOTOS_URL } from './lib/test-photos.mjs';
 import { vinCache } from './lib/cache.mjs';
 import db, { logRequest, logSecurityEvent, pruneOldLogs } from './lib/db.mjs';
 import { hashPassword, verifyPassword, createToken, verifyJwt } from './lib/auth.mjs';
@@ -21,8 +21,7 @@ import { scenario } from './lib/scenario.mjs';
 import { communications } from './lib/communications.mjs';
 import { capabilities } from './lib/capabilities.mjs';
 import { market } from './lib/market.mjs';
-import { vinRecallStatus } from './lib/recall-status.mjs';
-import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls } from './lib/reports.mjs';
+import { fullReport, baseReport, restReport, compareVehicles, modelYearRecalls, modelYearComplaints, vinRecallStatusFor, vinPhotos } from './lib/reports.mjs';
 import { normalizeTransmission, applyOwnerDetails } from './lib/transmission-choice.mjs';
 import { validateOwnerDetails, parseOwnerDetails, serializeOwnerDetails, OwnerDetailsError } from './lib/owner-details.mjs';
 import { renderVinPage, renderUnknownVinPage } from './lib/vin-page.mjs';
@@ -486,6 +485,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     } catch (err) { safeError(res, err); }
   });
 
+  // ?recall_wait (from older clients) is ignored: mcp.vin no longer asks manufacturers, so there is nothing to wait for.
   app.get('/api/vin/:vin', rateGuard(30), async (req, res) => {
     const t = transmissionParam(req, res); if (!t.ok) return;
     try { res.json(restReport(applyOwnerDetails(await fullReport(req.params.vin), { transmission: t.value }, { by: 'request' }), { allComplaints: req.query.complaints === 'all' })); } catch (err) { safeError(res, err); }
@@ -495,7 +495,12 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     res.json(validateVin(req.params.vin));
   });
 
-  app.get('/api/vin/:vin/recall-status',rateGuard(30),researchHandler(req=>vinRecallStatus(req.params.vin)));
+  // Links to the maker's and NHTSA's VIN recall pages (lib/recall-links.mjs); mcp.vin checks nothing itself, so the
+  // block is always available:false and still a 200.
+  app.get('/api/vin/:vin/recall-status', rateGuard(30), async (req, res) => {
+    try { res.json(await vinRecallStatusFor(req.params.vin)); }
+    catch (err) { res.status(err instanceof InputError ? 400 : 500).json({ error: err instanceof InputError ? err.message : 'Request failed' }); }
+  });
 
   app.use('/api/vin/:vin', (req, res, next) => {
     if (!validateVin(req.params.vin).valid) return res.status(400).json({error:'Provide a valid VIN (format and checksum)'});
@@ -516,7 +521,7 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
       const decoded = await nhtsaDecode(normalizeVin(req.params.vin));
       if (!decoded) return res.status(400).json({ error: 'Could not decode VIN' });
       const { make, model, year } = decoded.vehicle;
-      res.json(await getComplaints(make, model, year) || { count: 0, complaints: [], summary: {} });
+      res.json(await modelYearComplaints(make, model, year)); // joins a report's running request
     } catch (err) { safeError(res, err); }
   });
 
@@ -539,11 +544,17 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
     } catch (err) { safeError(res, err); }
   });
 
+  // The first of the report's photos (NHTSA's test car before the test, lib/test-photos.mjs), or a plain 404.
   app.get('/api/vin/:vin/photo', rateGuard(60), async (req, res) => {
     try {
-      const decoded = await nhtsaDecode(normalizeVin(req.params.vin));
-      if (!decoded) return res.status(400).json({ error: 'Could not decode VIN' });
-      res.redirect(getPhotoUrl(decoded.vehicle.make, decoded.vehicle.model, decoded.vehicle.year));
+      const vin = normalizeVin(req.params.vin);
+      if (!validateVin(vin).valid) return res.status(400).json({ error: 'Invalid VIN' });
+      const photos = await vinPhotos(vin);
+      const first = photos?.items?.[0];
+      if (!first) return res.status(404).json({ error: 'No photo for this vehicle', vin, photos: null,
+        note: 'mcp.vin shows only photos of a vehicle NHTSA tested (NHTSA vehicle crash-test database) of the same make, model, body style and generation; none matches this VIN. There are no stock photos.' });
+      res.set('Cache-Control', 'no-store');
+      res.redirect(302, first.url);
     } catch (err) { safeError(res, err); }
   });
 
@@ -864,6 +875,10 @@ button{padding:.75rem 2rem;border:none;border-radius:10px;font-size:1rem;font-we
   // ---- Static files ----
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   app.use(express.static(path.join(__dirname, 'public'), {setHeaders(res,file){if(file.endsWith('.html'))res.setHeader('Cache-Control','no-cache');}}));
+  // NHTSA test-vehicle photos, resized once (scripts/build-nhtsa-photos.py) and deployed to data/nhtsa-photos/: file names
+  // never change, so they are cached for a year. A missing photo is a plain 404 (never a page).
+  app.use(PHOTOS_URL, express.static(PHOTOS_DIR, {index: false, dotfiles: 'ignore', redirect: false, immutable: true, maxAge: '365d'}));
+  app.use(PHOTOS_URL, (req, res) => res.status(404).type('text/plain').send('Not found'));
 
   // /{VIN}: the workspace page with that vehicle's own title, description,
   // canonical URL and summary, so crawlers and link previews see the vehicle.

@@ -5,6 +5,8 @@ data/*.db-wal
 data/*.db-shm
 
 data/runtime-secrets.json
+# NHTSA test-vehicle photos (scripts/build-nhtsa-photos.py): copied to the server, not kept in git
+data/nhtsa-photos/
 
 operations/free-data/
 __pycache__/

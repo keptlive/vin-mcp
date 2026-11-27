@@ -8,10 +8,8 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import Database from 'better-sqlite3';
 import {checkDecode, checkedDecode, matcherSignature, patternEvidence, patternKey, fixTestVehicleRow, PRECEDENCE, decodeChecksFor} from '../lib/decode-checks.mjs';
-import {descriptionOf, parseDescription, manufacturerDescription} from '../lib/manufacturer-description.mjs';
 import {validateDecodeCorrection, insertDecodeCorrection, listDecodeCorrections, DecodeCorrectionError} from '../lib/decode-corrections.mjs';
-import {compactDecodeChecks, manufacturerRecordOf} from '../lib/decode-report.mjs';
-import {createRecallStatusLookup} from '../lib/recall-status.mjs';
+import {compactDecodeChecks} from '../lib/decode-report.mjs';
 import {summarize} from '../lib/decode-epa.mjs';
 import {validateVin} from '../lib/validate.mjs';
 
@@ -32,91 +30,6 @@ const evidence = vehicles => ({available: true, pattern: patternKey(VIN), vehicl
 const epa = configs => ({available: true, basis: 'test', models: ['Atlas', 'Atlas 4motion'], configs, strict: summarize(configs), broad: summarize(configs)});
 const cfg = o => ({id: String(cfg.n = (cfg.n || 0) + 1), model: 'Atlas', drive: 'all', size: 3.6, cylinders: 6, powertrain: 'gas', transmission: 'auto', speeds: 8, strict: true, ...o});
 const field = (r, f) => r.fields.find(x => x.field === f);
-
-// Real reply shapes (trimmed) from the makers' recall lookups, 2026-11-16/17; test-vehicle and examples-page VINs.
-const REPLY = {
-  vwAtlas: {vin: '1V2BR2CA3JC513174', status: true, year: 2018, make: 'VW', model: 'ATLAS S 3.6 LAUNCH FWD', manufacturerId: 1, isRecallsAvailable: false, numberOfRecalls: 0, refreshDate: 'Nov 17, 2026'},
-  vwPassat: {vin: '1VWAS7A33GC011306', status: true, year: 2016, make: 'VW', model: 'PASSAT GP S 1.8T FED AUTO', manufacturerId: 1, isRecallsAvailable: false, numberOfRecalls: 0, refreshDate: 'Nov 17, 2026'},
-  vwPzev: {vin: '1VWCP7A35CC101500', status: true, year: 2012, make: 'VW', model: 'PASSAT SEL PREMIUM 2.5L Auto PZEV', manufacturerId: 1, isRecallsAvailable: false, numberOfRecalls: 0, refreshDate: 'Nov 13, 2026'},
-  vwTdi: {vin: '1VWBN7A38DC042297', status: true, year: 2013, make: 'VW', model: 'PASSAT TDI SE W/SUNROOF & NAV 2.0L AUTO', manufacturerId: 1, isRecallsAvailable: false, numberOfRecalls: 0, refreshDate: 'Nov 13, 2026'},
-  audiA6: {data: {vehicleRecalls: {brand: 'AUDI', model: 'A6 SEDAN 2.0T FWD MULTITRONIC', modelYear: 2014, refreshDate: 'Nov 17, 2026', recalls: []}}},
-  audiQ5h: {data: {vehicleRecalls: {brand: 'AUDI', model: 'Q5 2.0T QUATTRO HYBRID', modelYear: 2013, refreshDate: 'Nov 17, 2026', recalls: []}}},
-  audiA3: {data: {vehicleRecalls: {brand: 'AUDI', model: 'A3 Sedan 1.8T FWD S tronic', modelYear: 2015, refreshDate: 'Nov 17, 2026', recalls: []}}},
-  lrEvoque: {model: '2017', vin: 'SALVP2BG3HH247669', error: 204, vehicle: 'Range Rover Evoque 2.0L Si4 Petrol 4WD A'},
-  lrDisco: {model: '2015', vin: 'SALCT2BG3FH522411', error: 204, vehicle: 'Discovery Sport 2.0L Si4 Petrol 4WD  5 D'}, // two spaces, as sent
-  jagFpace: {model: '2017', vin: 'SADCJ2BN8HA088546', error: 204, vehicle: 'F-PACE 2.0L i4D 180PS Diesel AWD 5 Door'},
-  lrDefender: {vehicleIdentificationNumber: 'SALEJ7EXXP2148570', make: 'LAND ROVER', vehicleName: 'Defender 2.0L T/C Petrol AWD 5 Door Auto', year: 2023, manufacturerId: 146, numberOfRecalls: 0, recallsAvailable: false, recalls: []},
-  subaru25x: {modelYear: 2011, modelName: 'Forester', trimName: '2.5X', vin: 'JF2SHBBC8BG700171', recalls: []},
-  honda: (name, division) => ({actions: [{id: '1;a', state: 'SUCCESS', error: [], returnValue: {returnValue: {response: {recalls_response: {response: {error: 'false', recall: {campaignType: {}, division_cd: division, model_group_name: name, VIN: '1HGCM82633A004352'}}}}}}}]}),
-};
-
-// ── manufacturer descriptions ──
-test('manufacturer descriptions: the field each maker uses is read with its year; makers without one give nothing', () => {
-  assert.deepEqual(descriptionOf('vw', REPLY.vwAtlas), {text: 'ATLAS S 3.6 LAUNCH FWD', reply_field: 'model', model_year: 2018});
-  assert.equal(descriptionOf('audi', REPLY.audiA6).text, 'A6 SEDAN 2.0T FWD MULTITRONIC');
-  assert.equal(descriptionOf('landrover', REPLY.lrEvoque).truncated, true);
-  assert.equal(descriptionOf('landrover', REPLY.lrDefender).reply_field, 'vehicleName');
-  assert.equal(descriptionOf('subaru', REPLY.subaru25x).text, 'Forester 2.5X');
-  assert.equal(descriptionOf('honda', REPLY.honda('MDX', 'B')).division, 'Acura');
-  for (const p of ['tesla', 'ford', 'gm', 'nissan', 'mopar']) assert.equal(descriptionOf(p, {model: 'X 2.0T AWD'}), null, p);
-  assert.equal(manufacturerDescription('gm', {}).reason, 'not_supplied_by_manufacturer');
-  assert.equal(manufacturerDescription('vw', {vin: 'x', status: true}).reason, 'not_in_reply');
-});
-
-test('manufacturer descriptions: only what the text states unambiguously is parsed', () => {
-  const p = (body, prov) => manufacturerDescription(prov, body, {provider: 'x', retrieved_at: '2026-11-17T10:00:00Z'});
-  let d = p(REPLY.vwAtlas, 'vw');
-  assert.deepEqual(d.parsed, {engine_size_l: 3.6, drive: 'front'}); assert.equal(d.text, 'ATLAS S 3.6 LAUNCH FWD');
-  assert.equal(d.source.retrieved_at, '2026-11-17T10:00:00Z');
-  assert.deepEqual(p(REPLY.audiA6, 'audi').parsed, {body: 'sedan', engine_size_l: 2, drive: 'front', transmission: 'cvt'});
-  assert.deepEqual(p(REPLY.audiA3, 'audi').parsed.transmission, 'am'); // "S tronic" = dual clutch
-  assert.equal(p(REPLY.audiQ5h, 'audi').parsed.powertrain, 'hev');
-  d = p(REPLY.jagFpace, 'jaguar');
-  assert.deepEqual(d.parsed, {engine_size_l: 2, cylinders: 4, powertrain: 'diesel', drive: 'all', doors: 5});
-  assert.equal(p(REPLY.vwTdi, 'vw').parsed.powertrain, 'diesel');
-  // cut at 40 characters: a final "A" after a drive word is the start of "Auto"; "5 D" is "5 Door"
-  assert.equal(p(REPLY.lrEvoque, 'landrover').parsed.transmission, 'auto');
-  assert.equal(p(REPLY.lrDisco, 'landrover').parsed.doors, 5);
-});
-
-test('manufacturer descriptions: strings that must not be over-read', () => {
-  const parsed = t => parseDescription(t).parsed;
-  // emissions labels and trims are not engines, fuels or drives
-  assert.deepEqual(parsed('PASSAT SEL PREMIUM 2.5L Auto PZEV'), {engine_size_l: 2.5, transmission: 'auto'});
-  assert.deepEqual(parsed('PASSAT GP S 1.8T FED AUTO'), {engine_size_l: 1.8, transmission: 'auto'});
-  // Subaru's "2.5X" is a trim: engine size only, no drive, no cylinders
-  assert.deepEqual(manufacturerDescription('subaru', REPLY.subaru25x).parsed, {engine_size_l: 2.5, trim: '2.5X'});
-  // "e-tron" names Audi plug-ins and battery-electric cars alike: not parsed
-  assert.equal(parsed('A3 Sportback e-tron 1.4T S tronic').powertrain, undefined);
-  assert.equal(parsed('e-tron quattro').powertrain, undefined);
-  // a lone "A" is not "Auto" unless the text was cut and a drive word came first
-  assert.equal(parsed('A4 2.0T A').transmission, undefined);
-  assert.equal(parseDescription('Range Rover Evoque 2.0L Si4 Petrol A', {truncated: true}).parsed.transmission, undefined);
-  // Honda gives only the model line: a body word is read, nothing else
-  assert.deepEqual(manufacturerDescription('honda', REPLY.honda('Accord Coupe', 'A')).parsed, {body: 'coupe', division: 'Honda'});
-  assert.deepEqual(manufacturerDescription('honda', REPLY.honda('CR-V', 'A')).parsed, {division: 'Honda'});
-  // two words that disagree leave the field unset
-  const c = parseDescription('GOLF 2.0T FWD AWD');
-  assert.equal(c.parsed.drive, undefined); assert.ok(c.conflicts.includes('drive'));
-  // model numbers are not engine sizes
-  assert.equal(parsed('Q5 3.0T QUATTRO TIPTRONIC').engine_size_l, 3);
-  assert.equal(parsed('MODEL 3').engine_size_l, undefined);
-});
-
-test('recall status carries the manufacturer description from the same reply, with no extra request', async () => {
-  const calls = [];
-  const lookup = createRecallStatusLookup(async url => { calls.push(url); return {ok: true, json: async () => REPLY.vwAtlas, text: async () => JSON.stringify(REPLY.vwAtlas)}; });
-  const r = await lookup('1V2BR2CA3JC513174');
-  assert.equal(calls.length, 1);
-  assert.equal(r.available, true);
-  assert.equal(r.manufacturer_description.available, true);
-  assert.equal(r.manufacturer_description.text, 'ATLAS S 3.6 LAUNCH FWD');
-  assert.equal(r.manufacturer_description.parsed.drive, 'front');
-  assert.match(r.manufacturer_description.source.provider, /Volkswagen/);
-  assert.ok(r.manufacturer_description.source.retrieved_at);
-  assert.equal(await lookup('1V2BR2CA3JC513174'), r); // cached: still one request
-  assert.equal(calls.length, 1);
-});
 
 // ── decode checks ──
 test('two agreeing test vehicles correct vPIC; the original value stays and the matcher uses the corrected one', () => {
@@ -193,25 +106,20 @@ test('GVWR varies with options inside a pattern: one differing test vehicle is a
   assert.notEqual(g.status, 'corrected'); assert.notEqual(g.status, 'doubtful');
 });
 
-test('precedence: owner > manufacturer VIN record > mcp.vin rule fix > NHTSA test-vehicle pattern > vPIC > assumption', () => {
-  assert.deepEqual(PRECEDENCE, ['owner', 'manufacturer_vin_record', 'mcp_vin_rule_fix', 'nhtsa_test_vehicle_pattern', 'vpic_decode', 'assumption']);
-  const mfr = manufacturerDescription('vw', REPLY.vwAtlas, {provider: 'Volkswagen U.S. VIN Recall Lookup', retrieved_at: '2026-11-17T10:00:00Z'});
-  // the manufacturer's record alone corrects vPIC
-  let r = checkDecode(decoded(), {vin: VIN, evidence: evidence([]), epa: null, manufacturer: mfr});
-  let d = field(r, 'drive');
-  assert.equal(d.status, 'corrected'); assert.equal(d.basis, 'manufacturer_vin_record'); assert.equal(d.shown_value, 'front');
-  assert.equal(r.sources.manufacturer_record.status, 'used'); assert.equal(r.sources.manufacturer_record.text, 'ATLAS S 3.6 LAUNCH FWD');
-  // ... and outranks two test vehicles that say otherwise
-  r = checkDecode(decoded(), {vin: VIN, evidence: evidence([tv({drive: 'all'}), tv({drive: 'all'})]), epa: null, manufacturer: mfr});
-  assert.equal(field(r, 'drive').basis, 'manufacturer_vin_record'); assert.equal(field(r, 'drive').shown_value, 'front');
-  // the owner outranks the manufacturer's record
-  r = checkDecode(decoded(), {vin: VIN, evidence: evidence([]), epa: null, manufacturer: mfr, owner: {drive: 'awd'}});
+test('precedence: owner > mcp.vin rule fix > NHTSA test-vehicle pattern > vPIC > assumption; no manufacturer record', () => {
+  assert.deepEqual(PRECEDENCE, ['owner', 'mcp_vin_rule_fix', 'nhtsa_test_vehicle_pattern', 'vpic_decode', 'assumption']);
+  // two agreeing test vehicles correct vPIC; the owner outranks them
+  let r = checkDecode(decoded(), {vin: VIN, evidence: evidence([tv({drive: 'front'}), tv({drive: 'front'})]), epa: null});
+  assert.equal(field(r, 'drive').basis, 'nhtsa_test_vehicle_pattern'); assert.equal(field(r, 'drive').shown_value, 'front');
+  r = checkDecode(decoded(), {vin: VIN, evidence: evidence([tv({drive: 'front'}), tv({drive: 'front'})]), epa: null, owner: {drive: 'awd'}});
   assert.equal(field(r, 'drive').basis, 'owner'); assert.equal(field(r, 'drive').shown_value, 'all');
-  // no record yet / none supplied is said in the data
-  assert.equal(checkDecode(decoded(), {vin: VIN, evidence: evidence([]), epa: null}).sources.manufacturer_record.status, 'not_checked');
-  assert.equal(checkDecode(decoded(), {vin: VIN, evidence: evidence([]), epa: null, manufacturer: {available: false, reason: 'not_supplied_by_manufacturer'}}).sources.manufacturer_record.status, 'not_available');
-  assert.equal(manufacturerRecordOf({available: false, reason: 'manufacturer_not_supported'}).reason, 'manufacturer_not_supported');
-  assert.equal(manufacturerRecordOf({available: true, open_count: 0}).reason, 'not_supplied_by_manufacturer');
+  // mcp.vin no longer reads a manufacturer's VIN record (2026-11-18): one passed in by an old caller is ignored
+  r = checkDecode(decoded(), {vin: VIN, evidence: evidence([]), epa: null, manufacturer: {available: true, text: 'ATLAS FWD', parsed: {drive: 'front'}}});
+  assert.equal(field(r, 'drive').shown_value, 'all'); assert.notEqual(field(r, 'drive').basis, 'manufacturer_vin_record');
+  assert.equal(r.sources.manufacturer_record, undefined);
+  assert.ok(r.fields.every(f => (f.candidates || []).every(c => c.tier !== 'manufacturer_vin_record')));
+  assert.doesNotMatch(r.note, /manufacturer/i);
+  assert.equal(compactDecodeChecks(r).sources.manufacturer_record, undefined);
 });
 
 test('the compact MCP block keeps status, both values, the reason and report links', () => {

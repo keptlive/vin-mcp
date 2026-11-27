@@ -17,6 +17,11 @@ data-src/test-vehicle-specs.jsonl: usable standard (and optional) fuel tank, veh
 (payload), seating, GVWR and GAWR as printed on the certification label (unit kept), the weight as
 delivered per axle, and the measured wheelbase (used only for the generation check).
 
+It also holds the photo index (table photos) from data-src/test-vehicle-photos.jsonl: per NHTSA crash test, the
+test lab's photos mcp.vin shows (the whole car before the test and after it), chosen by file name
+(scripts/nhtsa_photo_select.py) and resized by scripts/build-nhtsa-photos.py into data/nhtsa-photos/<test_no>/.
+When that folder exists, a photo whose files are missing is left out of the index (never a broken link).
+
 One command rebuilds it from the branch files:  npm run import:test-vehicles
 (= python3 scripts/import-tire-placards.py). It builds data/tire-placards.db atomically; a failure
 leaves the previous file in place."""
@@ -28,6 +33,9 @@ SOURCE = ROOT / 'data-src/tire-placards.jsonl'
 SOURCE_META = ROOT / 'data-src/tire-placards.meta.json'
 SPECS = ROOT / 'data-src/test-vehicle-specs.jsonl'
 SPECS_META = ROOT / 'data-src/test-vehicle-specs.meta.json'
+PHOTOS = ROOT / 'data-src/test-vehicle-photos.jsonl'
+PHOTOS_META = ROOT / 'data-src/test-vehicle-photos.meta.json'
+PHOTOS_DIR = ROOT / 'data/nhtsa-photos'
 TARGET = ROOT / 'data/tire-placards.db'
 KPA_PER_PSI = 6.894757
 # Crash-test reports live on nrd-static; Office of Vehicle Safety Compliance test reports on static.nhtsa.gov/odi/ctr/.
@@ -244,7 +252,7 @@ def check_specs(row, n):
         bad('no shown field')
 
 
-def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None):
+def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None, photos_path=None, photos_meta_path=None, photos_dir=None):
     """Build target from the JSON Lines dataset(s); returns the metadata written. Without specs_path the
     database has no specs table (the site then reports the specs block as not indexed)."""
     target = Path(target)
@@ -301,6 +309,8 @@ def build(source, target, meta_path=None, specs_path=None, specs_meta_path=None)
         db.execute('INSERT INTO metadata VALUES(?,?)', ('source', json.dumps(metadata)))
         if specs_path:
             metadata['specs'] = build_specs(db, Path(specs_path), specs_meta_path)
+        if photos_path:
+            metadata['photos'] = build_photos(db, Path(photos_path), photos_meta_path, photos_dir)
         db.commit()
         if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
             raise ValueError('Integrity failure')
@@ -354,11 +364,104 @@ def build_specs(db, path, meta_path):
     return metadata
 
 
+PHOTO_PHASES = ('pre', 'post')
+PHOTO_VIEWS = ('front_34_left', 'front_34_right', 'front_34', 'as_delivered', 'side_left', 'side_right', 'side',
+               'rear_34_left', 'rear_34_right', 'rear_34', 'front', 'rear')
+TEST_KINDS = ('frontal', 'side', 'pole', 'rear')
+PHOTO_HOST = 'https://nrd-static.nhtsa.dot.gov/'  # photos/vehdb/... (classic listings) and vehdb/<test>/photos/... (newer)
+
+
+def check_photo_row(row, n):
+    """One test's photo row: the vehicle key like a specs row, the test, and its photos (each with both web sizes)."""
+    def bad(why):
+        raise ValueError(f'photos line {n}: {why}')
+    for f in ('make', 'model', 'tested_as'):
+        if not isinstance(row.get(f), str) or not row[f].strip():
+            bad(f)
+    if not isinstance(row.get('model_year'), int) or not 1990 <= row['model_year'] <= 2035:
+        bad('model_year')
+    if row.get('powertrain') not in POWERTRAINS:
+        bad('powertrain')
+    if not isinstance(row.get('test_no'), int) or row['test_no'] <= 0:
+        bad('test_no')
+    if not str(row.get('report_url') or '').startswith(REPORT_HOSTS['nhtsa_crash_test']):
+        bad('report_url host')
+    if row.get('test_kind') not in TEST_KINDS + (None,):
+        bad('test_kind')
+    photos = row.get('photos')
+    if not isinstance(photos, list) or not photos:
+        bad('photos')
+    stems = set()
+    for p in photos:
+        if not re.fullmatch(r'v\d{5}[PN]\d{3,4}', str(p.get('stem') or '')) or p['stem'] in stems:
+            bad('photo stem')
+        stems.add(p['stem'])
+        if p.get('phase') not in PHOTO_PHASES:
+            bad('photo phase')
+        if p.get('view') not in PHOTO_VIEWS:
+            bad('photo view')
+        if p['phase'] == 'post' and not row.get('test_kind'):
+            bad('crash photo without a test kind')
+        if not str(p.get('nhtsa_url') or '').startswith(PHOTO_HOST) or re.search(r'\s', p['nhtsa_url']) or not isinstance(p.get('original_file_name'), str):
+            bad('photo source')
+        for size, box in (('w960', (960, 720)), ('w320', (320, 240))):
+            d = p.get(size) or {}
+            if not all(isinstance(d.get(k), int) and d[k] > 0 for k in ('width', 'height', 'bytes')) or d['width'] > box[0] or d['height'] > box[1]:
+                bad(f'photo {size}')
+
+
+def build_photos(db, path, meta_path, photos_dir):
+    """Add the photos table (one row per crash test with photos) to an open build database; returns its metadata."""
+    payload = path.read_bytes()
+    meta_in = json.loads(Path(meta_path).read_text()) if meta_path and Path(meta_path).exists() else {}
+    folder = Path(photos_dir) if photos_dir else None
+    verified = bool(folder and folder.is_dir())
+    db.execute('''CREATE TABLE photos(id INTEGER PRIMARY KEY, make_key TEXT NOT NULL, model_key TEXT NOT NULL, year INTEGER NOT NULL,
+        make TEXT NOT NULL, model TEXT NOT NULL, tested_as TEXT NOT NULL, vpic_trim TEXT, vpic_series TEXT, body_class TEXT,
+        drive_type TEXT, fuel_type TEXT, ev_type TEXT, powertrain TEXT NOT NULL, test_no INTEGER NOT NULL UNIQUE,
+        report_url TEXT NOT NULL, test_type TEXT, test_kind TEXT, struck_side TEXT, closing_speed_kmh REAL, vpic_extra TEXT,
+        photos TEXT NOT NULL)''')
+    rows, missing, kept = [], 0, 0
+    for n, line in enumerate(payload.decode('utf-8').splitlines(), 1):
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        check_photo_row(row, n)
+        photos = row['photos']
+        if verified:
+            have = [p for p in photos if all((folder / str(row['test_no']) / f"{p['stem']}-{w}.webp").is_file() for w in (960, 320))]
+            missing += len(photos) - len(have)
+            photos = have
+        if not photos:
+            continue
+        kept += len(photos)
+        rows.append((key(row['make']), key(row['model']), row['model_year'], row['make'].strip(), row['model'].strip(), row['tested_as'].strip(),
+                     row.get('vpic_trim'), row.get('vpic_series'), row.get('body_class'), row.get('drive_type'), row.get('fuel_type'),
+                     row.get('ev_type'), row['powertrain'], row['test_no'], row['report_url'], row.get('test_type'), row.get('test_kind'),
+                     row.get('struck_side'), row.get('closing_speed_kmh'), extra(row),
+                     json.dumps([{k: p[k] for k in ('stem', 'phase', 'view', 'web', 'w960', 'w320', 'nhtsa_url', 'original_file_name') if k in p}
+                                 for p in photos], separators=(',', ':'))))
+    try:
+        db.executemany('INSERT INTO photos(make_key,model_key,year,make,model,tested_as,vpic_trim,vpic_series,body_class,drive_type,fuel_type,'
+                       'ev_type,powertrain,test_no,report_url,test_type,test_kind,struck_side,closing_speed_kmh,vpic_extra,photos) '
+                       'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+    except sqlite3.IntegrityError as err:
+        raise ValueError(f'photos: duplicate test_no ({err})')
+    db.execute('CREATE INDEX photos_key ON photos(make_key, model_key, year)')
+    metadata = {'dataset_file': path.name, 'sha256': hashlib.sha256(payload).hexdigest(), 'rows': len(rows), 'photos': kept,
+                'photos_dir_verified': verified, 'photos_missing_files_left_out': missing,
+                'dataset_generated_at': meta_in.get('generated_at'), 'dataset_status': meta_in.get('status'),
+                'indexed_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    db.execute('INSERT INTO metadata VALUES(?,?)', ('photos_source', json.dumps(metadata)))
+    return metadata
+
+
 def main():
     source = Path(sys.argv[1]) if len(sys.argv) > 1 else SOURCE
     specs = Path(sys.argv[2]) if len(sys.argv) > 2 else SPECS
+    photos = Path(sys.argv[3]) if len(sys.argv) > 3 else PHOTOS
     TARGET.parent.mkdir(exist_ok=True)
-    print(json.dumps(build(source, TARGET, SOURCE_META, specs, SPECS_META), indent=2))
+    print(json.dumps(build(source, TARGET, SOURCE_META, specs, SPECS_META, photos if photos.exists() else None, PHOTOS_META, PHOTOS_DIR), indent=2))
 
 
 if __name__ == '__main__':

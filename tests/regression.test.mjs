@@ -279,13 +279,11 @@ test('frontend show-more label survives repeated expand/collapse',()=>{
   ctx.window.toggleRecalls(button);assert.equal(button.textContent,'Show less');
 });
 
-test('VIN status renderer shows provider, unknown completed history and escaped Mopar summaries',()=>{
- const {els,run}=frontend();run(`renderRecalls({recalls:{available:true,count:0},recall_status:{available:true,open_count:2,completed_count:null,unknown_count:0,source:{provider:'Mopar Fleet',retrieved_at:'2026-10-24T16:00:00Z'},note:'Completed history is unknown',recalls:[{campaign_number:'S43',manufacturer_status:'Open recall',summary:'<img src=x onerror=alert(1)>'}]}})`);
- const html=els.get('#recalls-body').innerHTML;assert.match(html,/Mopar Fleet/);assert.match(html,/Unknown manufacturer-reported completed/);assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<img/);
- run(`renderRecalls({recalls:{available:true,count:0},recall_status:{available:false,reason:'interactive_verification_required',note:'Toyota requires interactive verification',verification_url:'https://www.toyota.com/recall/'}})`);assert.match(els.get('#recalls-body').innerHTML,/Toyota requires interactive verification/);
-});
-
-test('VIN status renderer distinguishes GM repair and closure dates and shows separate programs safely',()=>{
- const {els,run}=frontend();run(`renderRecalls({recalls:{available:true,count:0},recall_status:{available:true,open_count:0,completed_count:2,source:{provider:'GM',retrieved_at:'2026-10-24T18:00:00Z'},note:'Closure is not necessarily repair',recalls:[{campaign_number:'GM-1',manufacturer_status:'complete',record_kind:'safety_recall',summary:'Safety issue',completion_description:'Dealer Repaired',repair_completed_at:'2024-02-01',manufacturer_closed_at:'2024-02-03'},{campaign_number:'GM-2',manufacturer_status:'complete',summary:'Other issue',completion_description:'Manual Complete - OTHER',manufacturer_closed_at:'2025-03-01'}],service_campaigns:[{campaign_number:'PROGRAM',manufacturer_status:'incomplete',record_kind:'customer_satisfaction',summary:'<img src=x>'}]}})`);
- const html=els.get('#recalls-body').innerHTML;assert.match(html,/0 open recalls/);assert.match(html,/2 manufacturer-reported completed\/closed/);assert.match(html,/Reported repair date:<\/span> 2024-02-01/);assert.match(html,/Manufacturer closing date:<\/span> 2024-02-03/);assert.equal((html.match(/Reported repair date:/g)||[]).length,1);assert.match(html,/Manual Complete - OTHER/);assert.match(html,/Other manufacturer programs · 1/);assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<img/);
+test('recall card: an old-style status block from a cached client is never shown as a status; maker names are escaped',()=>{
+ const {els,run}=frontend();run(`renderRecalls({vin:'1D3HW48K55S152258',recalls:{available:true,count:0},recall_status:{available:true,open_count:2,completed_count:1,source:{provider:'Mopar Fleet'},recalls:[{campaign_number:'K03'}]}})`);
+ let html=els.get('#recalls-body').innerHTML;assert.doesNotMatch(html,/Mopar Fleet|open recall|completed|K03/);assert.match(html,/Check on NHTSA/);assert.match(html,/Not checked by mcp\.vin/);
+ run(`renderRecalls({vin:'1D3HW48K55S152258',recalls:{available:true,count:0},recall_status:{maker:'<img src=x onerror=alert(1)>',manufacturer_lookup_url:'https://www.mopar.com/en-us/my-vehicle/recalls/search.html',vin_prefilled:false,nhtsa_lookup_url:'https://www.nhtsa.gov/recalls?vin=1D3HW48K55S152258'}})`);
+ html=els.get('#recalls-body').innerHTML;assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<img/);
+ run(`renderRecalls({vin:'1D3HW48K55S152258',recalls:{available:true,count:0},recall_status:{maker:'Mopar',manufacturer_lookup_url:'javascript:alert(1)',nhtsa_lookup_url:'javascript:alert(2)'}})`);
+ html=els.get('#recalls-body').innerHTML;assert.doesNotMatch(html,/javascript:/);assert.match(html,/href="https:\/\/www\.nhtsa\.gov\/recalls\?vin=1D3HW48K55S152258"/);
 });
